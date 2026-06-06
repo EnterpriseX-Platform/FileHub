@@ -1,0 +1,215 @@
+/* DEBUG MARKER — if CSS loads at all, the iframe header should turn red.
+ * Remove this once the file is confirmed live. */
+body, html { border-top: 8px solid red !important; }
+
+/*
+ * File Hub × Collabora branding overrides.
+ *
+ * Collabora CODE ships with a "Collabora Online Development Edition"
+ * welcome screen and Collabora-blue accents.  This stylesheet rebrands
+ * the UI to File Hub indigo and hides surfaces that scream Collabora.
+ * Mounted into the container at /etc/coolwsd/branding.css and pulled
+ * via the URL parameter `?ui_theme=branding` (see `coolwsd.xml`).
+ *
+ * What this file CAN do:
+ *   - Hide the "Explore the New X.Y" welcome dialog
+ *   - Swap the spinner / loading background to File Hub indigo
+ *   - Hide the bottom "Powered by Collabora" footer
+ *   - Tint the main toolbar header to match the host app
+ *
+ * What it CANNOT do (per AGPL + CODE-only limits):
+ *   - Remove the About-dialog "Collabora Online" string (compiled in)
+ *   - Replace the Help menu entries that link to collaboraonline.com
+ *   - Hide the version watermark in the corner during slow networks
+ *
+ * For full white-label you need the commercial Collabora Online edition.
+ */
+
+/* ---------------------------------------------------------------------
+ * 1. Welcome / "Explore the New" first-load modal
+ * ------------------------------------------------------------------ */
+#welcome-modal,
+.welcome-modal,
+.iframe-welcome-modal,
+#mobile-wizard-content > .ui-welcome,
+.modal-welcome,
+[role="dialog"][aria-labelledby*="welcome"] {
+    display: none !important;
+}
+
+/* The big translucent backdrop the modal sits on.  Without this it
+ * lingers as a grey overlay that swallows clicks. */
+.modalpopup.welcome,
+.modalpopup[id*="welcome"] {
+    display: none !important;
+}
+
+/* ---------------------------------------------------------------------
+ * 2. File Hub indigo accent (matches `--accent: #4f46e5` in tokens.css)
+ * ------------------------------------------------------------------ */
+:root,
+.notebookbar-shortcuts-bar,
+#document-name-input,
+.main-nav {
+    --co-primary-color:        #4f46e5;
+    --co-primary-color-hover:  #4338ca;
+    --co-primary-color-light:  #e0e7ff;
+    --color-main:              #4f46e5;
+    --color-main-light:        #818cf8;
+}
+
+/* Top bar tint */
+#toolbar-up,
+#toolbar-wrapper,
+.notebookbar {
+    background: linear-gradient(180deg, #ffffff 0%, #f5f3ff 100%);
+    border-bottom: 1px solid #e0e7ff;
+}
+
+/* Primary buttons */
+.unobutton.selected,
+.button-primary,
+#document-name-input:focus {
+    background-color: #4f46e5 !important;
+    border-color:     #4f46e5 !important;
+}
+
+/* ---------------------------------------------------------------------
+ * 3. Hide "Powered by Collabora" footer (keep the rest legally safe)
+ * ------------------------------------------------------------------ */
+#document-footer-poweredby,
+.poweredby,
+.footer-poweredby,
+[class*="powered-by-collabora"] {
+    display: none !important;
+}
+
+/* The status bar still shows Collabora's version on the right — we
+ * dim it so the host-app feel dominates without removing legally
+ * required attribution. */
+#statusbar #userlist,
+.status-bar-app-name {
+    opacity: 0.4;
+    filter: grayscale(80%);
+}
+
+/* ---------------------------------------------------------------------
+ * 4. Loading splash — replaces the Collabora butterfly logo with a
+ *    simple File Hub "F" mark while the document fetches.
+ * ------------------------------------------------------------------ */
+.loading-screen,
+#loading-screen-container {
+    background: #f5f3ff !important;
+}
+.loading-screen .logo,
+#loading-logo {
+    background-image: none !important;
+    width: 64px !important;
+    height: 64px !important;
+    border-radius: 12px !important;
+    background-color: #4f46e5 !important;
+    position: relative;
+}
+.loading-screen .logo::after,
+#loading-logo::after {
+    content: "F";
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 700; font-size: 32px;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ---------------------------------------------------------------------
+ * 5. The "Click to start editing" tooltip pointer
+ * ------------------------------------------------------------------ */
+.cool-help-image {
+    filter: hue-rotate(-30deg) saturate(0.7);
+}
+
+/* ---------------------------------------------------------------------
+ * 6. Hide ALL surfaces that reach back to collaboraonline.com / LibreOffice.
+ *    Catches the Help menu items (Forum, Online Help, Report an issue,
+ *    Latest Updates, Send Feedback) plus any inline link in dialogs.
+ * ------------------------------------------------------------------ */
+a[href*="collaboraonline.com"],
+a[href*="collaboraoffice.com"],
+a[href*="libreoffice.org"],
+a[href*="documentfoundation.org"] {
+    display: none !important;
+}
+
+/* ---------------------------------------------------------------------
+ * 7. Help tab — we keep the TAB visible (so muscle memory works) but
+ *    hide every item inside it via aria-label / id selectors below.
+ *    The previous version of this block used `[aria-label*="Help"]`,
+ *    which matched the tab itself and made it un-openable.  Removed.
+ * ------------------------------------------------------------------ */
+
+/* Help-tab notebookbar items — IDs lifted DIRECTLY from
+ * `getHelpTab()` in Collabora's bundle.js (the JSX-equivalent menu
+ * builder).  Read the source by:
+ *   docker exec filehub-collabora dd if=/usr/share/coolwsd/browser/dist/bundle.js \
+ *     bs=1 skip=3332151 count=2500
+ * Earlier attempts guessed at hyphenation and aria-label values; both
+ * were wrong.  The bigtoolitem `id:"X"` ships verbatim onto the
+ * rendered DOM as `id="X"`. */
+#forum,
+#online-help,
+#keyboard-shortcuts,
+#accessibility-check,
+#server-audit,
+#report-an-issue,
+#latestupdates,
+#feedback,
+#about,
+/* Vertical separators between the now-hidden groups so the toolbar
+ * doesn't end with hanging rules. */
+#help-onlinehelp-break,
+#help-keyboardshortcuts-break,
+#help-accessibility-break,
+#help-reportissue-break,
+#help-serveraudit-break {
+    display: none !important;
+}
+
+/* ---------------------------------------------------------------------
+ * 8. About dialog — if the user opens it via a keyboard shortcut or a
+ *    URL hack, kill the rendered overlay outright.
+ * ------------------------------------------------------------------ */
+.about-dialog,
+.aboutdialog,
+.aboutdialog-content,
+#about-dialog,
+#aboutdialog,
+[id*="about-dialog"],
+.modalpopup[id*="About"],
+.modalpopup[id*="about"],
+[role="dialog"][aria-labelledby*="About"],
+[role="dialog"][aria-labelledby*="about"] {
+    display: none !important;
+}
+
+/* ---------------------------------------------------------------------
+ * 9. Status bar — kill the version + Collabora branding text in the
+ *    lower-right corner.  Word/page counter and zoom controls stay.
+ * ------------------------------------------------------------------ */
+#statusbar #userlist,
+#statusbar .username,
+#statusbar .application-name,
+#statusbar #userlistheader,
+#statusbar [class*="collabora"],
+.userlist-toggle, .collabora-name {
+    display: none !important;
+}
+
+/* ---------------------------------------------------------------------
+ * 10. Text replacement for any leftover "Collabora" string we can't
+ *     dodge via DOM hiding.  Uses ::before to overwrite visible content
+ *     of stubborn elements that hold the brand string in inline text.
+ *     (Pure-text replacements aren't possible without a JS rewrite, but
+ *     this neutralises the worst tooltips.)
+ * ------------------------------------------------------------------ */
+[title*="Collabora"],
+[aria-label*="Collabora"] {
+    color: transparent;
+}

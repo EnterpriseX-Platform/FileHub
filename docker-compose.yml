@@ -1,0 +1,80 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: filehub-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: filehub
+      POSTGRES_PASSWORD: filehub
+      POSTGRES_DB: filehub
+    ports:
+      - "5434:5432"
+    volumes:
+      - filehub-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U filehub -d filehub"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Collabora Online (Code build) — opensource LibreOffice Online.  File Hub
+  # acts as a WOPI host (`backend/src/wopi.rs`) and Collabora is the editor
+  # iframe the browser loads.  This service is OPTIONAL: with
+  # `workspace_config.office_viewer = 'pdf'` (the default), File Hub falls
+  # back to the PDF-converted preview and Collabora doesn't need to be up.
+  #
+  # Dev defaults disable SSL + cookie security so a plain http://localhost
+  # browser can talk to ws://localhost:9980 without certificate gymnastics.
+  # For production set `DONT_GEN_SSL_CERT=` (empty) and front Collabora with
+  # a TLS-terminating proxy that issues wss:// to the browser.
+  collabora:
+    # Custom build that patches bundle.js to nuke the Help-tab menu items
+    # at the source — see infra/collabora/Dockerfile for the sed script.
+    # No more CSS whack-a-mole + no browser-cache headaches because the
+    # items are never rendered to the DOM in the first place.
+    build:
+      context: ./infra/collabora
+      dockerfile: Dockerfile
+    image: filehub-collabora:branded
+    container_name: filehub-collabora
+    restart: unless-stopped
+    ports:
+      - "9980:9980"
+    environment:
+      # CSV of regex host patterns that Collabora will accept as WOPI hosts.
+      # We use `host.docker.internal` because the Rust backend runs on the
+      # host, not inside the compose network.
+      aliasgroup1: "http://host.docker.internal:8090,http://host.docker.internal:3001"
+      # Aggressive UI cleanup:
+      #   - welcome.enable=false             → no first-load "Explore the New" page
+      #   - feedback.show=false              → no "Send feedback" prompts
+      #   - browsersetting.enable=false      → no Collabora telemetry settings
+      #   - user_interface.use_integration_theme=true → take colors from parent CSS
+      #   - net.frame_ancestors              → allow our iframe to embed it
+      extra_params: >-
+        --o:ssl.enable=false
+        --o:ssl.termination=false
+        --o:welcome.enable=false
+        --o:feedback.show=false
+        --o:browsersetting.enable=false
+        --o:user_interface.use_integration_theme=true
+        --o:net.frame_ancestors=http://localhost:3001
+      DONT_GEN_SSL_CERT: "true"
+      username: "admin"
+      password: "admin"
+    volumes:
+      # File Hub branding overrides.  Collabora's `cool.html` template
+      # references `%BRANDING_CSS%`, which resolves to
+      # `/usr/share/coolwsd/browser/dist/branding.css` — the file we
+      # override here.  Mounting read-only because the contents live in
+      # git under `infra/collabora/` and shouldn't be mutated at runtime.
+      - ./infra/collabora/branding.css:/usr/share/coolwsd/browser/dist/branding.css:ro
+    extra_hosts:
+      # Linux/Docker desktop compatibility — macOS already resolves
+      # `host.docker.internal` natively but Linux containers don't.
+      - "host.docker.internal:host-gateway"
+    cap_add:
+      - MKNOD
+
+volumes:
+  filehub-pgdata:

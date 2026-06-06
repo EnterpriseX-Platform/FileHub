@@ -1,0 +1,58 @@
+[package]
+name = "filehub-backend"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "filehub_backend"
+path = "src/lib.rs"
+
+[[bin]]
+name = "filehub-backend"
+path = "src/main.rs"
+
+[dev-dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls", "cookies"] }
+tower = { version = "0.5", features = ["util"] }
+# base64 is in [dependencies] for storage.rs; we re-pull it in tests so the
+# TUS integration tests can encode Upload-Metadata headers.
+base64 = "0.22"
+
+[dependencies]
+axum = { version = "0.7", features = ["multipart", "macros"] }
+tokio = { version = "1", features = ["full"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "chrono", "uuid", "macros", "migrate"] }
+uuid = { version = "1", features = ["v4", "v7", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+bytes = "1"
+futures = "0.3"
+mime_guess = "2"
+dotenvy = "0.15"
+md-5 = "0.10"
+hex = "0.4"
+async-trait = "0.1"
+aes-gcm = "0.10"
+base64 = "0.22"
+rand = "0.8"
+argon2 = "0.5"
+axum-extra = { version = "0.9", features = ["cookie"] }
+pdf-extract = "0.7"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
+time = "0.3"
+cuid2 = "0.1"
+hmac = "0.12"
+sha2 = "0.10"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+urlencoding = "2.1.3"
+
+[profile.dev]
+opt-level = 0
+debug = 1
