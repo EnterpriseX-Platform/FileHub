@@ -1,0 +1,21 @@
+# Rust
+backend/target/
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Env files (keep the .example templates)
+.env
+.env.*
+!.env.example
+
+# Local data / uploads
+storage/
+backend/storage/
+backend/filehub.db*
+
+# OS / logs
+.DS_Store
+*.log
