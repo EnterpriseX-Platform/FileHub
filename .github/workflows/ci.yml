@@ -1,0 +1,132 @@
+# Continuous Integration for FileHub.
+#
+# Two independent jobs run on every push and pull request:
+#   * backend  — Rust/Axum (backend/) — build + compile the integration tests.
+#   * frontend — Next.js 15 + TypeScript (frontend/) — typecheck + production build.
+#
+# The jobs run in parallel; a failure in one does not cancel the other.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (Rust)
+    runs-on: ubuntu-latest
+
+    # FileHub talks to Postgres via sqlx. `cargo build` does not need a DB
+    # (no compile-time query checks — sqlx::migrate! is runtime), but the test
+    # harness and a future live run do, so we stand one up to match the dev
+    # contract in CLAUDE.md (filehub/filehub/filehub).
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: filehub
+          POSTGRES_PASSWORD: filehub
+          POSTGRES_DB: filehub
+        ports:
+          - 5432:5432
+        # Wait until Postgres is actually accepting connections before the
+        # job's steps start using it.
+        options: >-
+          --health-cmd "pg_isready -U filehub"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Matches the docker-compose dev DB; CI maps the service to host port 5432.
+      DATABASE_URL: postgresql://filehub:filehub@localhost:5432/filehub
+      # Release builds fail-fast without these (see lib.rs / state.rs
+      # check_required_env_release). They are also read at runtime, so we set
+      # dummy-but-valid values for any step that constructs AppState.
+      CORS_ORIGIN: http://localhost:3001
+      WOPI_SECRET: ci-dummy-wopi-secret-not-for-production
+      # Local fs storage backend, written under the workspace.
+      STORAGE_BACKEND: fs
+      STORAGE_ROOT: ./storage
+      # Don't run the background rotation worker during CI.
+      ROTATION_INTERVAL_SECS: 0
+      RUST_LOG: warn
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      # Caches ~/.cargo registry/git and backend/target keyed on Cargo.lock.
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('backend/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build backend
+        run: cargo build --manifest-path backend/Cargo.toml
+
+      # The integration tests in backend/tests/api.rs hit a LIVE backend over
+      # HTTP (see tests/common/mod.rs — base URL FILEHUB_TEST_BASE, default
+      # http://localhost:8090); there is no in-process server. Spinning up the
+      # server + seeding + serving in CI is out of scope here, so we compile the
+      # tests (catching breakage in the test code itself) without running them.
+      # To run them for real: `cargo run` in one shell, then `cargo test`.
+      - name: Compile backend tests
+        run: cargo test --manifest-path backend/Cargo.toml --no-run
+
+  frontend:
+    name: Frontend (Next.js)
+    runs-on: ubuntu-latest
+
+    env:
+      # next.config.ts rewrite + server-side lib/api.ts read this. The build is
+      # dynamic (no fetches at build time), so a dummy value is fine.
+      BACKEND_URL: http://127.0.0.1:8090
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # `npm install` (not `npm ci`): @playwright/test was added to package.json
+      # for the e2e specs without regenerating package-lock.json, so a strict
+      # `npm ci` would fail. Run `npm install` locally + commit the lockfile to
+      # switch back to `npm ci` for stricter reproducibility.
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm install
+
+      # Typecheck the whole frontend (no emit) before the build.
+      - name: Typecheck
+        working-directory: frontend
+        run: node_modules/.bin/tsc --noEmit
+
+      # The e2e specs are excluded from the root tsconfig (so the app typecheck
+      # stays clean without Playwright installed); typecheck them separately.
+      - name: Typecheck e2e specs
+        working-directory: frontend
+        run: node_modules/.bin/tsc -p e2e/tsconfig.json --noEmit
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build

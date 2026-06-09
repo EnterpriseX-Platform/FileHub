@@ -18,6 +18,7 @@ use std::sync::Arc;
 
 use axum::{extract::DefaultBodyLimit, middleware, routing::get, Router};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use tracing::Span;
 
 pub use state::AppState;
 
@@ -242,11 +243,27 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/permissions/:file_id",   get(handlers::list_permissions))
         .layer(middleware::from_fn_with_state(state.clone(), auth::require_session));
 
+    // Structured access log: one INFO line per response carrying the method,
+    // path, status, and wall-clock latency.  `on_request` is silenced (the
+    // default span already records method/uri at DEBUG) so each request emits
+    // exactly one line at INFO — cheap enough to leave on in production and
+    // enough to drive request-rate / error-rate / p99-latency dashboards.
+    let trace = TraceLayer::new_for_http()
+        .on_request(())
+        .on_response(|res: &axum::http::Response<_>, latency: std::time::Duration, span: &Span| {
+            let _e = span.enter();
+            tracing::info!(
+                status = res.status().as_u16(),
+                latency_ms = latency.as_millis() as u64,
+                "request completed"
+            );
+        });
+
     let inner = public
         .merge(private)
         .with_state(state)
         .layer(cors)
-        .layer(TraceLayer::new_for_http());
+        .layer(trace);
 
     Router::new().nest("/fh", inner)
 }

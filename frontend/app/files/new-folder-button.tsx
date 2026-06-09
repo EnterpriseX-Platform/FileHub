@@ -15,10 +15,14 @@ export function NewFolderButton({
   systemId,
   systemName,
   orgId,
+  parentId,
 }: {
   systemId?: string;
   systemName?: string;
   orgId?: string | null;
+  /// Current folder the user is browsing — the new folder is created inside it
+  /// (as parent_id) so it appears where they're looking, not at the root.
+  parentId?: string;
 }) {
   const router = useRouter();
   const [open, setOpen]   = React.useState(false);
@@ -53,6 +57,7 @@ export function NewFolderButton({
           name: name.trim(),
           system_id: systemId,
           org_id: orgId ?? undefined,
+          parent_id: parentId ?? undefined,
           color,
           encrypted,
         }),

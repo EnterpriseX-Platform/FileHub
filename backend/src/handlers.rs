@@ -364,6 +364,17 @@ pub async fn list_files(
     if let Some(v) = q.status    { n += 1; where_sql.push_str(&format!(" AND status = ${n}"));    str_binds.push(v); }
     if let Some(v) = q.project   { n += 1; where_sql.push_str(&format!(" AND project = ${n}"));   str_binds.push(v); }
     if let Some(v) = q.owner     { n += 1; where_sql.push_str(&format!(" AND owner = ${n}"));     str_binds.push(v); }
+    // Folder scoping mirrors `list_folders` parent_id: "null"/"" = root (no
+    // folder), an id = that folder's files. Absent = every folder (no filter).
+    if let Some(v) = q.folder_id {
+        if v == "null" || v.is_empty() {
+            where_sql.push_str(" AND folder_id IS NULL");
+        } else {
+            n += 1;
+            where_sql.push_str(&format!(" AND folder_id = ${n}"));
+            str_binds.push(v);
+        }
+    }
     // Non-admins are limited to systems they belong to (shared + own personal).
     if let Some(scope_ids) = scope.clone() {
         n += 1;
@@ -699,6 +710,7 @@ pub async fn upload_file(
     mut multipart: Multipart,
 ) -> ApiResult<Json<File>> {
     crate::auth::require_role(&user.0, &["admin", "editor"])?;
+    crate::auth::upload_rate_limit(&user.0.id).await?;
     let fields = read_one_upload(&mut multipart).await?;
     if let Some(ref sid) = fields.system_id {
         crate::auth::ensure_system_access(&s.db, &user.0, sid).await?;
@@ -742,6 +754,10 @@ pub async fn upload_batch(
                 if let Some(ref sid) = one.system_id {
                     crate::auth::ensure_system_access(&s.db, &user.0, sid).await?;
                 }
+                // Charge the rate limiter PER FILE — a batch of N files spends N
+                // tokens, matching the per-file cap (charging once per request
+                // would let a single token persist unlimited files).
+                crate::auth::upload_rate_limit(&user.0.id).await?;
                 out.push(persist_upload(&s, Some(user.0.id.as_str()), one).await?);
             }
             "system_id" => shared.system_id = Some(field.text().await.map_err(|e| ApiError::BadRequest(e.to_string()))?),
@@ -1258,7 +1274,7 @@ pub async fn patch_file(
 
     let new_folder_id: Option<String> = match p.folder_id {
         Some(v) => v,
-        None    => file.folder_id,
+        None    => file.folder_id.clone(),
     };
 
     let now = Utc::now();
@@ -1267,6 +1283,25 @@ pub async fn patch_file(
     let new_project   = p.project.or(file.project.clone());
     let new_status    = p.status.unwrap_or_else(|| file.status.clone());
     let new_owner     = p.owner.unwrap_or_else(|| file.owner.clone());
+
+    // Folder move is now reachable from the table's bulk "Move to folder" UI.
+    // files.folder_id's FK only guarantees the id exists *somewhere*, so a
+    // caller could otherwise relocate a file into another system's folder
+    // (including another user's personal drive). When the folder actually
+    // changes, require the target to live in the file's (new) system — the
+    // caller already passed ensure_system_access on that system above.
+    if let Some(ref fid) = new_folder_id {
+        if file.folder_id.as_deref() != Some(fid.as_str()) {
+            let folder_sys: Option<(String,)> = sqlx::query_as(
+                "SELECT system_id FROM folders WHERE id = $1 AND deleted_at IS NULL",
+            ).bind(fid).fetch_optional(&s.db).await?;
+            let (folder_sys,) = folder_sys
+                .ok_or_else(|| ApiError::BadRequest("unknown folder_id".into()))?;
+            if folder_sys != new_system_id {
+                return Err(ApiError::BadRequest("folder_id is not in the file's system".into()));
+            }
+        }
+    }
 
     sqlx::query(
         r#"UPDATE files

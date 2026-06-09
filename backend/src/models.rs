@@ -192,6 +192,10 @@ pub struct FilesQuery {
     pub status: Option<String>,
     pub project: Option<String>,
     pub owner: Option<String>,
+    /// Scope the listing to a single folder. `"null"` / `""` matches files that
+    /// sit at the system root (no folder); a folder id matches its direct
+    /// children. Absent = no folder filter (every folder), unchanged behaviour.
+    pub folder_id: Option<String>,
     /// Sort field: name | size | status | owner | created | (default) modified.
     pub sort: Option<String>,
     /// asc | (default) desc.

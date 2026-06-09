@@ -52,7 +52,7 @@ function Year(y: number, m: number, d: number): number {
 export default async function FilesCalendarPage({ searchParams }: CalendarProps) {
   const sp = (await searchParams) ?? {};
   const filters: Record<string, string> = {};
-  for (const k of ["system_id", "org_id", "status", "project", "owner"] as const) {
+  for (const k of ["system_id", "org_id", "status", "project", "owner", "folder_id"] as const) {
     const v = sp[k];
     if (typeof v === "string" && v.length) filters[k] = v;
   }

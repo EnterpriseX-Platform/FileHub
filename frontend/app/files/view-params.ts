@@ -39,6 +39,7 @@ export function readViewParams(sp: SearchParamsObj): ViewParams {
     status:    str(sp.status),
     project:   str(sp.project),
     owner:     str(sp.owner),
+    folder_id: str(sp.folder_id),
     q:         str(sp.q)?.trim() || undefined,
     sort:      sort && sort !== "modified" ? sort : undefined,
     dir:       sp.dir === "asc" ? "asc" : undefined,
