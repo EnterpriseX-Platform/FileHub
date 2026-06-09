@@ -97,7 +97,7 @@ export default async function FilesBoardPage({ searchParams }: BoardProps) {
       />
       <div className="main">
         <div style={{ padding: "14px 24px 8px", borderBottom: "1px solid var(--border)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <div className="board-header" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <span className="t-2xl t-semibold">{title}</span>
@@ -109,7 +109,7 @@ export default async function FilesBoardPage({ searchParams }: BoardProps) {
               </div>
             </div>
             {canMutate(role) && (
-              <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+              <div className="board-actions" style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
                 <a className="btn primary" href="/upload"><Ico.upload /> Upload</a>
               </div>
             )}
@@ -126,7 +126,7 @@ export default async function FilesBoardPage({ searchParams }: BoardProps) {
           {columns.length === 0 ? (
             <div className="t-sm t-subtle" style={{ padding: "8px 4px" }}>No files</div>
           ) : (
-          <div style={{ display: "grid", gridTemplateColumns: `repeat(${colCount}, minmax(260px, 1fr))`, gap: 16, overflowX: "auto" }}>
+          <div className="board-grid" style={{ display: "grid", gridTemplateColumns: `repeat(${colCount}, minmax(260px, 1fr))`, gap: 16, overflowX: "auto" }}>
             {columns.map((c) => (
               <div key={c.title} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>

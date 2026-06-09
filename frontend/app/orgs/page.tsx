@@ -57,7 +57,7 @@ export default async function OrgsPage({ searchParams }: OrgsProps) {
         }
       />
       <div className="main">
-        <div style={{ padding: "20px 24px 0", display: "flex", alignItems: "flex-end", gap: 16, borderBottom: "1px solid var(--border)" }}>
+        <div className="main-pad" style={{ paddingBottom: 0, display: "flex", alignItems: "flex-end", gap: 16, borderBottom: "1px solid var(--border)" }}>
           <div>
             <div className="t-2xl t-semibold">Orgs & Systems</div>
             <div className="t-sm t-muted" style={{ marginTop: 2 }}>

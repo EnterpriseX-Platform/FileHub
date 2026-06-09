@@ -77,7 +77,7 @@ function LoginInner() {
     }}>
       <div style={{
         display: "grid",
-        gridTemplateColumns: SHOW_DEMO_ACCOUNTS ? "repeat(auto-fit, minmax(280px, 1fr))" : "1fr",
+        gridTemplateColumns: SHOW_DEMO_ACCOUNTS ? "repeat(auto-fit, minmax(260px, 1fr))" : "1fr",
         gap: 24,
         maxWidth: SHOW_DEMO_ACCOUNTS ? 880 : 400,
         width: "100%",
@@ -92,9 +92,10 @@ function LoginInner() {
           </div>
 
           <div>
-            <div className="t-xs t-subtle t-medium" style={{ marginBottom: 4 }}>Email</div>
+            <label htmlFor="email" className="t-xs t-subtle t-medium" style={{ display: "block", marginBottom: 4 }}>Email</label>
             <div className="field" style={{ width: "100%" }}>
               <input
+                id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -107,9 +108,10 @@ function LoginInner() {
           </div>
 
           <div>
-            <div className="t-xs t-subtle t-medium" style={{ marginBottom: 4 }}>Password</div>
+            <label htmlFor="password" className="t-xs t-subtle t-medium" style={{ display: "block", marginBottom: 4 }}>Password</label>
             <div className="field" style={{ width: "100%" }}>
               <input
+                id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -124,7 +126,7 @@ function LoginInner() {
             <div className="t-sm" style={{ color: "var(--danger)", marginTop: -4 }}>{error}</div>
           )}
 
-          <button type="submit" className="btn primary" disabled={busy} style={{ justifyContent: "center", padding: "10px 14px" }}>
+          <button type="submit" className="btn primary" disabled={busy} style={{ justifyContent: "center" }}>
             {busy ? "Signing in…" : "Sign in"}
           </button>
 

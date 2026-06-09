@@ -25,7 +25,7 @@ export default async function ViewsIndexPage() {
         crumbs={["Workspace", "Views"]}
         actions={<a className="btn primary" href="/views/new"><Ico.plus className="icon sm" /> New view</a>}
       />
-      <div className="main" style={{ overflow: "auto", padding: "24px 32px" }}>
+      <div className="main main-pad" style={{ overflow: "auto" }}>
         <div style={{ maxWidth: 960 }}>
           <div className="t-3xl t-semibold">Saved views</div>
           <div className="t-sm t-muted" style={{ marginTop: 4, marginBottom: 24 }}>
@@ -43,6 +43,7 @@ export default async function ViewsIndexPage() {
               </Link>
             </div>
           ) : (
+            <div className="table-scroll">
             <table className="tbl">
               <thead>
                 <tr>
@@ -71,6 +72,7 @@ export default async function ViewsIndexPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>

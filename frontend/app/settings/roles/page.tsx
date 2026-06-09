@@ -40,7 +40,7 @@ export default async function SettingsRolesPage() {
       <TopBar crumbs={["Settings", "Roles & permissions"]} title="Roles & permissions" />
       <div className="main split-rail" style={{ overflow: "auto" }}>
         <SettingsNav active="roles" />
-        <div style={{ overflow: "auto", padding: "24px 32px" }}>
+        <div className="main-pad" style={{ overflow: "auto" }}>
           <div style={{ maxWidth: 920 }}>
             <div className="t-3xl t-semibold">Roles & permissions</div>
             <div className="t-sm t-muted" style={{ marginTop: 4, marginBottom: 24 }}>
@@ -48,7 +48,7 @@ export default async function SettingsRolesPage() {
               Change a user's role from the Members tab.
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
+            <div className="legend-grid" style={{ marginBottom: 20 }}>
               <RoleCard role="admin"  tone="indigo"  icon={<Ico.shield />}
                         blurb="Full mutation rights — bucket CRUD, members, rotation, workspace settings." />
               <RoleCard role="editor" tone="emerald" icon={<Ico.upload />}
@@ -58,13 +58,14 @@ export default async function SettingsRolesPage() {
             </div>
 
             <div className="card" style={{ padding: 0 }}>
+              <div className="table-scroll">
               <table className="tbl">
                 <thead>
                   <tr>
-                    <th>Capability</th>
-                    <th style={{ width: 110, textAlign: "center" }}>Admin</th>
-                    <th style={{ width: 110, textAlign: "center" }}>Editor</th>
-                    <th style={{ width: 110, textAlign: "center" }}>Viewer</th>
+                    <th scope="col">Capability</th>
+                    <th scope="col" style={{ width: 110, textAlign: "center" }}>Admin</th>
+                    <th scope="col" style={{ width: 110, textAlign: "center" }}>Editor</th>
+                    <th scope="col" style={{ width: 110, textAlign: "center" }}>Viewer</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -78,6 +79,7 @@ export default async function SettingsRolesPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
         </div>

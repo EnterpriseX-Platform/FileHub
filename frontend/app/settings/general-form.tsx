@@ -162,6 +162,9 @@ function Toggle({ label, hint, on, onChange, disabled, enforced }: {
     <div style={{ display: "flex", alignItems: "flex-start", gap: 12, opacity: disabled ? 0.6 : 1 }}>
       <button
         type="button"
+        role="switch"
+        aria-label={label}
+        aria-checked={on}
         onClick={() => !disabled && onChange(!on)}
         disabled={disabled}
         style={{

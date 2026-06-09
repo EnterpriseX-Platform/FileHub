@@ -37,6 +37,7 @@ export function MembersPanel({ initial, canMutate }: { initial: Member[]; canMut
       </div>
       {err && <div className="t-xs" style={{ color: "var(--danger)", padding: "8px 16px" }}>{err}</div>}
 
+      <div className="table-scroll">
       <table className="tbl">
         <thead>
           <tr>
@@ -66,6 +67,7 @@ export function MembersPanel({ initial, canMutate }: { initial: Member[]; canMut
           )}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
@@ -75,20 +77,26 @@ function MemberRow({ member: m, canMutate, onChanged, onError }: {
   onChanged: () => Promise<void>; onError: (m: string | null) => void;
 }) {
   const [editing, setEditing] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
   const [role,   setRole]   = React.useState<Member["role"]>(m.role);
   const [status, setStatus] = React.useState<Member["status"]>(m.status);
   const [quota,  setQuota]  = React.useState(String(m.quota_bytes));
 
   const save = async () => {
     onError(null);
-    const r = await fetch(`/filehub/api/users/${encodeURIComponent(m.id)}`, {
-      method: "PATCH", credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role, status, quota_bytes: Number(quota) || 0 }),
-    });
-    if (!r.ok) { onError((await r.json().catch(() => ({ error: r.statusText }))).error ?? r.statusText); return; }
-    setEditing(false);
-    await onChanged();
+    setLoading(true);
+    try {
+      const r = await fetch(`/filehub/api/users/${encodeURIComponent(m.id)}`, {
+        method: "PATCH", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role, status, quota_bytes: Number(quota) || 0 }),
+      });
+      if (!r.ok) { onError((await r.json().catch(() => ({ error: r.statusText }))).error ?? r.statusText); return; }
+      setEditing(false);
+      await onChanged();
+    } finally {
+      setLoading(false);
+    }
   };
 
   const quotaPct = m.quota_bytes > 0 ? Math.min(100, Math.round((m.used_bytes / m.quota_bytes) * 100)) : 0;
@@ -134,8 +142,8 @@ function MemberRow({ member: m, canMutate, onChanged, onError }: {
         <td>
           {editing ? (
             <div style={{ display: "flex", gap: 4 }}>
-              <button className="btn xs primary" onClick={save}>Save</button>
-              <button className="btn xs ghost"   onClick={() => { setEditing(false); setRole(m.role); setStatus(m.status); setQuota(String(m.quota_bytes)); }}>Cancel</button>
+              <button className="btn xs primary" onClick={save} disabled={loading}>{loading ? "Saving…" : "Save"}</button>
+              <button className="btn xs ghost"   onClick={() => { setEditing(false); setRole(m.role); setStatus(m.status); setQuota(String(m.quota_bytes)); }} disabled={loading}>Cancel</button>
             </div>
           ) : (
             <button className="btn xs ghost" onClick={() => setEditing(true)}>Edit</button>
@@ -172,16 +180,16 @@ function InviteRow({ onCancel, onCreated, onError, canMutate }: {
 
   return (
     <tr style={{ background: "var(--bg-subtle)" }}>
-      <td><input className="field" value={display} onChange={(e) => setDisplay(e.target.value)} placeholder="Display name" style={{ width: "100%" }} /></td>
-      <td><input className="field" value={email}   onChange={(e) => setEmail(e.target.value)}   placeholder="user@acme.go.th" style={{ width: "100%" }} /></td>
+      <td><input className="field" aria-label="Display name" value={display} onChange={(e) => setDisplay(e.target.value)} placeholder="Display name" style={{ width: "100%" }} /></td>
+      <td><input className="field" aria-label="Email address" value={email}   onChange={(e) => setEmail(e.target.value)}   placeholder="user@acme.go.th" style={{ width: "100%" }} /></td>
       <td>
-        <select className="field" value={role} onChange={(e) => setRole(e.target.value as Member["role"])} style={{ width: "100%" }}>
+        <select className="field" aria-label="Role" value={role} onChange={(e) => setRole(e.target.value as Member["role"])} style={{ width: "100%" }}>
           {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
       </td>
-      <td><input className="field" type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="≥ 8 chars" style={{ width: "100%" }} /></td>
-      <td><input className="field" value={quota} onChange={(e) => setQuota(e.target.value)} placeholder="bytes (0=∞)" style={{ width: 110 }} /></td>
-      <td>—</td>
+      <td><Pill tone="emerald" sm><span className="dot" />active</Pill></td>
+      <td><input className="field" aria-label="Storage quota in bytes (0 = unlimited)" value={quota} onChange={(e) => setQuota(e.target.value)} placeholder="bytes (0=∞)" style={{ width: 110 }} /></td>
+      <td><input className="field" type="password" aria-label="Password (minimum 8 characters)" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="≥ 8 chars" style={{ width: "100%" }} /></td>
       {canMutate && (
         <td>
           <div style={{ display: "flex", gap: 4 }}>

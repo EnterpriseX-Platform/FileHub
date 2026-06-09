@@ -54,6 +54,7 @@ export function FileActions({ fileId, currentStatus }: { fileId: string; current
         <button
           className="btn sm primary"
           style={{ flex: 1, justifyContent: "center" }}
+          aria-label="Approve file"
           disabled={busy !== "" || currentStatus === "Approved"}
           onClick={() => patch("approve", { status: "Approved" })}
         >
@@ -62,14 +63,16 @@ export function FileActions({ fileId, currentStatus }: { fileId: string; current
         <button
           className="btn sm"
           style={{ flex: 1, justifyContent: "center" }}
+          aria-label="Request file changes"
           disabled={busy !== "" || currentStatus === "Review"}
           onClick={() => patch("review", { status: "Review" })}
         >
-          {busy === "review" ? "…" : "Request changes"}
+          {busy === "review" ? "Requesting changes…" : "Request changes"}
         </button>
         <button
           className="btn sm danger icon"
           title="Delete file"
+          aria-label="Delete file"
           disabled={busy !== ""}
           onClick={remove}
         >

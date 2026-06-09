@@ -19,6 +19,15 @@ const LAYOUTS: Array<{ key: string; label: string; Ic: React.ComponentType<{ cla
 
 const COLORS = ["#4f46e5", "#dc2626", "#d97706", "#16a34a", "#0ea5e9", "#7c3aed"];
 
+const COLOR_NAMES: Record<string, string> = {
+  "#4f46e5": "Indigo",
+  "#dc2626": "Red",
+  "#d97706": "Amber",
+  "#16a34a": "Green",
+  "#0ea5e9": "Sky",
+  "#7c3aed": "Violet",
+};
+
 export default function ViewBuilderPage() {
   const router = useRouter();
   const [systems, setSystems] = React.useState<System[]>([]);
@@ -138,7 +147,7 @@ export default function ViewBuilderPage() {
                     width: 24, height: 24, borderRadius: 6, border: c === color ? "2px solid var(--text)" : "1px solid var(--border)",
                     background: c, cursor: "pointer",
                   }}
-                  aria-label={c}
+                  aria-label={COLOR_NAMES[c] || c}
                 />
               ))}
             </div>
@@ -151,6 +160,7 @@ export default function ViewBuilderPage() {
                   key={key}
                   onClick={() => setLayout(key)}
                   className="card"
+                  aria-label={label}
                   style={{
                     padding: "10px 4px", textAlign: "center", cursor: "pointer",
                     background: layout === key ? "var(--accent-soft)" : undefined,
@@ -191,7 +201,7 @@ export default function ViewBuilderPage() {
 
           <Section title="Pin to dashboard">
             <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-              <span className={"cb" + (pinned ? " on" : "")} onClick={() => setPinned(!pinned)} />
+              <span className={"cb" + (pinned ? " on" : "")} role="checkbox" aria-checked={pinned} onClick={() => setPinned(!pinned)} />
               <span className="t-sm">Show this view in the dashboard&apos;s Pinned views section</span>
             </label>
           </Section>
@@ -230,7 +240,7 @@ export default function ViewBuilderPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {existing.map((v) => (
                   <div key={v.id} className="card" style={{ padding: 10, display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ width: 12, height: 12, borderRadius: 3, background: v.color ?? "#94a3b8" }} />
+                    <span style={{ width: 12, height: 12, borderRadius: 3, background: v.color ?? "var(--text-subtle)" }} />
                     <span className="t-sm t-medium" style={{ flex: 1 }}>{v.name}</span>
                     <Pill sm>{v.layout}</Pill>
                     {v.pinned && <Pill tone="indigo" sm>pinned</Pill>}

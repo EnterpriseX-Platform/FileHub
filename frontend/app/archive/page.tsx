@@ -35,7 +35,7 @@ export default async function ArchivePage() {
                 style={{
                   display: "flex", alignItems: "center", gap: 12,
                   padding: "12px 16px", borderTop: i ? "1px solid var(--border)" : "none",
-                  color: "inherit", textDecoration: "none",
+                  color: "inherit", textDecoration: "none", cursor: "pointer",
                 }}
               >
                 <Ft type={f.file_type} />

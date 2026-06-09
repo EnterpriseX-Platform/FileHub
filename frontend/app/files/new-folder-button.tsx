@@ -6,6 +6,7 @@ import * as React from "react";
 import { Ico } from "@/components/icons";
 
 const COLORS = ["#4f46e5", "#dc2626", "#d97706", "#16a34a", "#0ea5e9", "#7c3aed"];
+const COLOR_NAMES = ["Indigo", "Red", "Amber", "Green", "Sky", "Violet"];
 
 /// Compact inline form for creating a folder. The popover anchors to the
 /// "New folder" button and persists via POST /api/folders. We always feed
@@ -106,7 +107,7 @@ export function NewFolderButton({
             />
           </div>
           <div style={{ display: "flex", gap: 6 }}>
-            {COLORS.map((c) => (
+            {COLORS.map((c, i) => (
               <button
                 key={c}
                 onClick={() => setColor(c)}
@@ -115,7 +116,7 @@ export function NewFolderButton({
                   border: c === color ? "2px solid var(--text)" : "1px solid var(--border)",
                   background: c, cursor: "pointer",
                 }}
-                aria-label={c}
+                aria-label={COLOR_NAMES[i]}
               />
             ))}
           </div>

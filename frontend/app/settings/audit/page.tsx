@@ -27,15 +27,16 @@ export default async function SettingsAuditPage() {
       <TopBar crumbs={["Settings", "Audit log"]} title={`Audit log · ${events.length}`} />
       <div className="main split-rail" style={{ overflow: "auto" }}>
         <SettingsNav active="audit" />
-        <div style={{ overflow: "auto", padding: "24px 32px" }}>
+        <div style={{ overflow: "auto" }} className="main-pad">
           <div style={{ maxWidth: 1100 }}>
             <div className="t-3xl t-semibold">Audit log</div>
             <div className="t-sm t-muted" style={{ marginTop: 4, marginBottom: 24 }}>
               Every workspace event from the <span className="t-mono">activity</span> table — uploads, deletions, workflow decisions, bucket CRUD.
             </div>
 
-            <div className="card" style={{ padding: 0 }}>
-              <table className="tbl">
+            <div className="table-scroll">
+              <div className="card" style={{ padding: 0 }}>
+                <table className="tbl">
                 <thead>
                   <tr>
                     <th style={{ width: 220 }}>Actor</th>
@@ -68,7 +69,8 @@ export default async function SettingsAuditPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+                </table>
+              </div>
             </div>
           </div>
         </div>
