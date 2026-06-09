@@ -200,8 +200,8 @@ export default function ViewBuilderPage() {
           )}
 
           <Section title="Pin to dashboard">
-            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-              <span className={"cb" + (pinned ? " on" : "")} role="checkbox" aria-checked={pinned} onClick={() => setPinned(!pinned)} />
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => setPinned(!pinned)}>
+              <span className={"cb" + (pinned ? " on" : "")} role="checkbox" aria-checked={pinned} />
               <span className="t-sm">Show this view in the dashboard&apos;s Pinned views section</span>
             </label>
           </Section>

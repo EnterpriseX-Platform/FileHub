@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import * as React from "react";
 
 import { GlobalSearch } from "./global-search";
@@ -69,7 +70,7 @@ export function Sidebar({
       <div className="divider" style={{ margin: "4px 12px" }} />
 
       <div className="side-section">
-        <SideLabel action={<Ico.plus className="icon sm" />}>Saved views</SideLabel>
+        <SideLabel action={<Link href="/views/new" title="Create a saved view" aria-label="Create a saved view" style={{ display: "inline-flex", color: "inherit" }}><Ico.plus className="icon sm" /></Link>}>Saved views</SideLabel>
         {/* Pulled live from /api/views (pinned rows).  Each click derives a
             `/files?field=value` URL from the first equality filter so the
             sidebar actually narrows the file table instead of being a dead
@@ -78,7 +79,7 @@ export function Sidebar({
       </div>
 
       <div className="side-section" style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
-        <SideLabel action={<span style={{ display: "flex", gap: 4 }}><Ico.filter className="icon sm" /><Ico.plus className="icon sm" /></span>}>
+        <SideLabel>
           Systems · {systems.length}
         </SideLabel>
 

@@ -219,6 +219,7 @@ function PolicyCreateRow({
   const [keep, setKeep] = React.useState("0");
   const [arch, setArch] = React.useState("0");
   const [del,  setDel]  = React.useState("0");
+  const [busy, setBusy] = React.useState(false);
 
   return (
     <tr>
@@ -241,17 +242,22 @@ function PolicyCreateRow({
       <td><input className="field" value={arch} onChange={(e) => setArch(e.target.value)} style={{ width: 70, textAlign: "right" }} /></td>
       <td><input className="field" value={del}  onChange={(e) => setDel(e.target.value)}  style={{ width: 70, textAlign: "right" }} /></td>
       <td>
-        <button className="btn xs primary" onClick={() => {
-          if (!scopeId.trim()) return;
-          void onSubmit({
-            scope_type: scopeType,
-            scope_id: scopeId.trim(),
-            keep_last_n_versions: Number(keep) || 0,
-            archive_after_days:   Number(arch) || 0,
-            delete_after_days:    Number(del)  || 0,
-          });
-          setScopeId(""); setKeep("0"); setArch("0"); setDel("0");
-        }}>Add</button>
+        <button className="btn xs primary" disabled={busy} onClick={async () => {
+          if (!scopeId.trim() || busy) return;
+          setBusy(true);
+          try {
+            await onSubmit({
+              scope_type: scopeType,
+              scope_id: scopeId.trim(),
+              keep_last_n_versions: Number(keep) || 0,
+              archive_after_days:   Number(arch) || 0,
+              delete_after_days:    Number(del)  || 0,
+            });
+            setScopeId(""); setKeep("0"); setArch("0"); setDel("0");
+          } finally {
+            setBusy(false);
+          }
+        }}>{busy ? "Adding…" : "Add"}</button>
       </td>
     </tr>
   );

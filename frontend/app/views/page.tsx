@@ -23,7 +23,7 @@ export default async function ViewsIndexPage() {
       <Sidebar nav="views" systems={systems} />
       <TopBar
         crumbs={["Workspace", "Views"]}
-        actions={<a className="btn primary" href="/views/new"><Ico.plus className="icon sm" /> New view</a>}
+        actions={<Link className="btn primary" href="/views/new"><Ico.plus className="icon sm" /> New view</Link>}
       />
       <div className="main main-pad" style={{ overflow: "auto" }}>
         <div style={{ maxWidth: 960 }}>

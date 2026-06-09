@@ -106,7 +106,7 @@ function VersionsBlock({ fileId }: { fileId: string }) {
               </div>
               <a
                 className="btn xs ghost"
-                href={`/filehub/api/files/${fileId}/download?version=${v.version}`}
+                href={`/filehub/api/files/${encodeURIComponent(fileId)}/download?version=${v.version}`}
                 title={`Download v${v.version}`}
               >
                 <Ico.download className="icon sm" />
@@ -246,6 +246,12 @@ function CommentsBlock({ fileId }: { fileId: string }) {
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                submit();
+              }
+            }}
             rows={2}
             placeholder="Add feedback, a question, or an approval…"
             style={{ width: "100%", border: 0, background: "transparent", color: "inherit", font: "inherit", resize: "vertical" }}

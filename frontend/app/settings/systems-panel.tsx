@@ -80,17 +80,23 @@ function SystemRow({ row, canMutate, onChanged, onError }: {
   const [editing, setEditing] = React.useState(false);
   const [name, setName]   = React.useState(row.name);
   const [quota, setQuota] = React.useState(String(row.quota_bytes));
+  const [saving, setSaving] = React.useState(false);
 
   const save = async () => {
     onError(null);
-    const r = await fetch(`/filehub/api/systems/${encodeURIComponent(row.id)}`, {
-      method: "PATCH", credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, quota_bytes: Number(quota) || 0 }),
-    });
-    if (!r.ok) { onError((await r.json().catch(() => ({ error: r.statusText }))).error ?? r.statusText); return; }
-    setEditing(false);
-    await onChanged();
+    setSaving(true);
+    try {
+      const r = await fetch(`/filehub/api/systems/${encodeURIComponent(row.id)}`, {
+        method: "PATCH", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, quota_bytes: Number(quota) || 0 }),
+      });
+      if (!r.ok) { onError((await r.json().catch(() => ({ error: r.statusText }))).error ?? r.statusText); return; }
+      setEditing(false);
+      await onChanged();
+    } finally {
+      setSaving(false);
+    }
   };
 
   const del = async () => {
@@ -129,7 +135,7 @@ function SystemRow({ row, canMutate, onChanged, onError }: {
         <td>
           {editing ? (
             <div style={{ display: "flex", gap: 4 }}>
-              <button className="btn xs primary" onClick={save}>Save</button>
+              <button className="btn xs primary" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
               <button className="btn xs ghost"   onClick={() => { setEditing(false); setName(row.name); setQuota(String(row.quota_bytes)); }}>Cancel</button>
             </div>
           ) : (
