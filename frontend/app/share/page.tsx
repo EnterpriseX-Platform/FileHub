@@ -114,7 +114,8 @@ export default function SharePage() {
       <TopBar
         crumbs={["Workspace", "Share"]}
       />
-      <div className="main" style={{ overflow: "auto", padding: "24px 32px" }}>
+      <div className="main main-pad" style={{ overflow: "auto" }}>
+        <div className="page">
         <div style={{ maxWidth: 720, margin: "0 auto" }}>
           <div className="t-2xl t-semibold" style={{ marginBottom: 4 }}>Share a file</div>
           <div className="t-sm t-muted" style={{ marginBottom: 20 }}>
@@ -261,6 +262,7 @@ export default function SharePage() {
               </div>
             )}
           </div>
+        </div>
         </div>
       </div>
     </div>

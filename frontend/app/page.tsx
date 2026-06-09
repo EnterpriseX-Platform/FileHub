@@ -84,7 +84,8 @@ export default async function DashboardPage() {
           </>
         }
       />
-      <div className="main" style={{ overflow: "auto", padding: "24px 32px" }}>
+      <div className="main main-pad" style={{ overflow: "auto" }}>
+        <div className="page">
         <div style={{ display: "flex", alignItems: "flex-end", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
           <div>
             <UserGreeting />
@@ -235,6 +236,7 @@ export default async function DashboardPage() {
               )}
             </div>
           </div>
+        </div>
         </div>
       </div>
     </div>
