@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { Ico } from "@/components/icons";
+import { Pager } from "@/components/pager";
 import { Av, Pill, type Tone } from "@/components/primitives";
 import type { Member } from "@/lib/api";
 import { fmtAgo, fmtBytes } from "@/lib/format";
@@ -19,11 +20,20 @@ export function MembersPanel({ initial, canMutate }: { initial: Member[]; canMut
   const [rows, setRows] = React.useState(initial);
   const [inviting, setInviting] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
+  const [page, setPage] = React.useState(0);
+  const PAGE_SIZE = 50;
 
   const refresh = React.useCallback(async () => {
     const r = await fetch("/filehub/api/users", { credentials: "include", cache: "no-store" });
     if (r.ok) setRows(await r.json());
   }, []);
+
+  // Reset to the first page if rows shrink past the current page window.
+  React.useEffect(() => {
+    if (page > 0 && page * PAGE_SIZE >= rows.length) setPage(0);
+  }, [rows.length, page]);
+
+  const pageRows = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <div className="card" style={{ padding: 0 }}>
@@ -59,7 +69,7 @@ export function MembersPanel({ initial, canMutate }: { initial: Member[]; canMut
               canMutate={canMutate}
             />
           )}
-          {rows.map((m) => (
+          {pageRows.map((m) => (
             <MemberRow key={m.id} member={m} canMutate={canMutate} onChanged={refresh} onError={setErr} />
           ))}
           {rows.length === 0 && !inviting && (
@@ -68,6 +78,7 @@ export function MembersPanel({ initial, canMutate }: { initial: Member[]; canMut
         </tbody>
       </table>
       </div>
+      <Pager page={page} pageSize={PAGE_SIZE} total={rows.length} onPage={setPage} />
     </div>
   );
 }

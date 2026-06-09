@@ -1,4 +1,5 @@
 import { Ico } from "@/components/icons";
+import { Pager } from "@/components/pager";
 import { Av, Ft, Pill } from "@/components/primitives";
 import { Sidebar } from "@/components/sidebar";
 import { TopBar } from "@/components/topbar";
@@ -28,7 +29,8 @@ async function safeTrash(cookieHeader: string): Promise<FileRow[]> {
   }
 }
 
-export default async function TrashPage() {
+export default async function TrashPage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
+  const sp = (await searchParams) ?? {};
   const { cookieHeader, role } = await loadServerCtx();
   const [trash, systems, stats] = await Promise.all([
     safeTrash(cookieHeader),
@@ -36,6 +38,12 @@ export default async function TrashPage() {
     safeStats(cookieHeader),
   ]);
   void safeFiles;
+
+  const PAGE_SIZE = 50;
+  const total = trash.length;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = Math.min(Math.max(0, parseInt(typeof sp.page === "string" ? sp.page : "0", 10) || 0), pageCount - 1);
+  const pageRows = trash.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <div className="scr">
@@ -68,7 +76,7 @@ export default async function TrashPage() {
               </tr>
             </thead>
             <tbody>
-              {trash.map((f) => {
+              {pageRows.map((f) => {
                 const sys = systems.find((s) => s.id === f.system_id);
                 return (
                   <tr key={f.id}>
@@ -95,6 +103,7 @@ export default async function TrashPage() {
           </table>
           </div>
         )}
+        <Pager page={page} pageSize={PAGE_SIZE} total={total} hrefFor={(p) => (p === 0 ? "/trash" : `/trash?page=${p}`)} />
         </div>
       </div>
     </div>
