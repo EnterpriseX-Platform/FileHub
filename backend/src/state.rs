@@ -45,6 +45,13 @@ impl AppState {
         // restart never duplicates them.
         crate::auth::bootstrap_seed_users(&db).await?;
 
+        // Demo collaboration data (comment threads, review workflows,
+        // notifications, version history). Best-effort: a failure must never
+        // block startup, so we log and continue rather than propagate.
+        if let Err(e) = crate::seed_demo::bootstrap_demo_data(&db).await {
+            tracing::warn!("demo seed skipped: {e:#}");
+        }
+
         let storage_root = std::env::var("STORAGE_ROOT").unwrap_or_else(|_| "./storage".into());
         let storage = Storage::init(&storage_root).await?;
 

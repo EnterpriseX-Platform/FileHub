@@ -36,7 +36,7 @@ export default async function ViewsIndexPage() {
             <div className="card" style={{ padding: 32, textAlign: "center" }}>
               <div className="t-md t-semibold" style={{ marginBottom: 4 }}>No views yet</div>
               <div className="t-sm t-muted" style={{ marginBottom: 16 }}>
-                Save a filtered table, board, or gallery to keep coming back to it.
+                No saved views yet — save a filter from Files (like "Awaiting review" or "My uploads") to pin it here for one-click access.
               </div>
               <Link className="btn primary" href="/views/new">
                 <Ico.plus className="icon sm" /> Create your first view

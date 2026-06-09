@@ -145,24 +145,44 @@ pub async fn resolve_api_key(db: &PgPool, key: &str) -> Result<User, ApiError> {
 // -----------------------------------------------------------------------------
 const SEED_ACCOUNTS: &[(&str, &str, &str, &str, &str, &str)] = &[
     // (id, email, display_name, avatar_tone, role, password)
-    ("usr_admin",  "admin@acme.go.th",  "Admin",    "indigo", "admin",  "admin123"),
-    ("usr_anong",  "anong@acme.go.th",  "Anong K.", "rose",   "editor", "anong123"),
-    ("usr_viewer", "viewer@acme.go.th", "Viewer",   "slate",  "viewer", "viewer123"),
+    ("usr_admin",  "admin@acme.go.th",  "Admin",     "indigo",  "admin",  "admin123"),
+    ("usr_anong",  "anong@acme.go.th",  "Anong K.",  "rose",    "editor", "anong123"),
+    ("usr_viewer", "viewer@acme.go.th", "Viewer",    "slate",   "viewer", "viewer123"),
+    // Collaborators referenced throughout the seed data (org owners, activity
+    // actors, comment authors, workflow reviewers). They make the workspace
+    // read like a real team instead of three lonely accounts. Same dev-grade
+    // passwords as above — rotate before any real deploy (see CLAUDE.md).
+    ("usr_pat",    "pat@acme.go.th",    "Pat S.",    "cyan",    "editor", "pat12345"),
+    ("usr_wisanu", "wisanu@acme.go.th", "Wisanu T.", "violet",  "editor", "wisanu12345"),
+    ("usr_krit",   "krit@acme.go.th",   "Krit M.",   "amber",   "editor", "krit12345"),
+    ("usr_sarah",  "sarah@acme.go.th",  "Sarah L.",  "emerald", "editor", "sarah12345"),
 ];
 
+/// Insert any seed accounts that don't already exist.
+///
+/// This used to early-return whenever `users` was non-empty, which meant new
+/// seed accounts could never reach an already-bootstrapped database. Instead we
+/// check each account by id and insert the missing ones (`ON CONFLICT DO
+/// NOTHING` guards against a concurrent insert / email collision), so adding a
+/// collaborator to `SEED_ACCOUNTS` backfills it on the next boot without
+/// duplicating or disturbing existing rows. Hashing only runs for accounts we
+/// actually insert, so steady-state restarts stay cheap.
 pub async fn bootstrap_seed_users(db: &PgPool) -> anyhow::Result<()> {
-    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
-        .fetch_one(db)
-        .await?;
-    if count > 0 {
-        return Ok(());
-    }
+    let mut inserted = 0;
     for (id, email, name, tone, role, password) in SEED_ACCOUNTS {
+        let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)")
+            .bind(id)
+            .fetch_one(db)
+            .await?;
+        if exists {
+            continue;
+        }
         let hash = hash_password(password)
             .map_err(|e| anyhow::anyhow!("{e:?}"))?;
         sqlx::query(
             r#"INSERT INTO users (id, email, display_name, avatar_tone, role, password_hash)
-               VALUES ($1, $2, $3, $4, $5, $6)"#,
+               VALUES ($1, $2, $3, $4, $5, $6)
+               ON CONFLICT DO NOTHING"#,
         )
         .bind(id)
         .bind(email)
@@ -172,8 +192,11 @@ pub async fn bootstrap_seed_users(db: &PgPool) -> anyhow::Result<()> {
         .bind(hash)
         .execute(db)
         .await?;
+        inserted += 1;
     }
-    tracing::info!("bootstrapped {} seed users", SEED_ACCOUNTS.len());
+    if inserted > 0 {
+        tracing::info!("bootstrapped {inserted} seed user(s)");
+    }
     Ok(())
 }
 

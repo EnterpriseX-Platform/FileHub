@@ -8,15 +8,15 @@ import { useAuth } from "@/lib/auth-context";
 export const dynamic = "force-dynamic";
 
 const DEMO_ACCOUNTS = [
-  ["admin@acme.go.th",  "admin123",  "Admin role: can hard-delete + full RBAC"],
-  ["anong@acme.go.th",  "anong123",  "Editor role: upload, edit, share"],
-  ["viewer@acme.go.th", "viewer123", "Viewer role: read-only"],
+  ["admin@acme.go.th",  "Admin · hard-delete + full RBAC"],
+  ["anong@acme.go.th",  "Editor · upload, edit, share"],
+  ["viewer@acme.go.th", "Viewer · read-only"],
 ];
 
-// The demo-account panel (plaintext passwords + autofill + email prefill) is a
-// DEV convenience — it makes the login look like a mockup in front of real
-// users.  Default: shown only outside production builds.  Override either way
-// with NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=1/0 (e.g. to enable on a demo deploy).
+// The test-account panel prefills the email so you can pick a role quickly; the
+// password is never shown or autofilled (that plaintext-credential display is
+// what made the login read like a mockup). It's a DEV convenience, shown only
+// outside production builds. Override with NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=1/0.
 const SHOW_DEMO_ACCOUNTS =
   (process.env.NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS ??
     (process.env.NODE_ENV !== "production" ? "1" : "0")) === "1";
@@ -129,21 +129,21 @@ function LoginInner() {
           </button>
 
           <div className="t-xs t-subtle">
-            Sessions are HttpOnly cookies and expire after 14 days. Encryption at rest uses AES-256-GCM.
+            Trouble signing in? Contact your workspace admin.
           </div>
         </form>
 
         {SHOW_DEMO_ACCOUNTS && (
         <div className="card" style={{ padding: 24, background: "var(--bg)" }}>
-          <div className="t-md t-semibold" style={{ marginBottom: 4 }}>Demo accounts</div>
+          <div className="t-md t-semibold" style={{ marginBottom: 4 }}>Test accounts</div>
           <div className="t-xs t-muted" style={{ marginBottom: 14 }}>
-            Click to autofill. These are bootstrapped on first run.
+            Click an account to fill its email, then enter the password.
           </div>
-          {DEMO_ACCOUNTS.map(([em, pw, desc]) => (
+          {DEMO_ACCOUNTS.map(([em, desc]) => (
             <button
               type="button"
               key={em}
-              onClick={() => { setEmail(em); setPassword(pw); }}
+              onClick={() => setEmail(em)}
               className="card"
               style={{
                 padding: "10px 12px", marginBottom: 8, width: "100%", textAlign: "left",
@@ -152,7 +152,6 @@ function LoginInner() {
             >
               <div className="t-sm t-mono t-medium">{em}</div>
               <div className="t-xs t-subtle" style={{ marginTop: 2 }}>{desc}</div>
-              <div className="t-xs t-mono t-subtle" style={{ marginTop: 4 }}>password: {pw}</div>
             </button>
           ))}
         </div>

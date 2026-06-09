@@ -26,7 +26,7 @@ export function UserMenu() {
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px 4px", opacity: 0.5 }}>
         <span className="av sm" style={{ background: "var(--bg-strong)" }}>·</span>
-        <span className="t-sm t-subtle">loading…</span>
+        <span className="t-sm t-subtle">Loading…</span>
       </div>
     );
   }

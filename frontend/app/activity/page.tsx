@@ -30,7 +30,7 @@ export default async function ActivityPage() {
         <div className="card" style={{ padding: 0 }}>
           {activity.length === 0 && (
             <div style={{ padding: 32, textAlign: "center", color: "var(--text-subtle)" }}>
-              No activity yet. <a href="/upload" style={{ color: "var(--accent)" }}>Upload a file</a> to generate events.
+              No events yet — uploads, comments, approvals, and shares stream in here as your team works. <a href="/upload" style={{ color: "var(--accent)" }}>Upload a file</a> to generate events.
             </div>
           )}
           {activity.map((a, i) => (

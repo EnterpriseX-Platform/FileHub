@@ -38,7 +38,7 @@ export function DashboardActivity({ activity }: { activity: Activity[] }) {
       <div>
         {items.length === 0 ? (
           <div className="t-sm t-subtle" style={{ padding: "16px 24px" }}>
-            No {tab === "all" ? "" : tab + " "}activity yet.
+            No activity yet — uploads, reviews, and shares appear here as your team works.
           </div>
         ) : items.map((a, i) => (
           <div

@@ -49,7 +49,7 @@ export default async function TrashPage() {
         <div className="t-2xl t-semibold" style={{ marginBottom: 4 }}>Trash</div>
         <div className="t-sm t-muted" style={{ marginBottom: 20 }}>
           {trash.length === 0
-            ? "Nothing in the trash."
+            ? "Your trash is empty — deleted files rest here for 30 days before they're purged."
             : `${trash.length} deleted file${trash.length === 1 ? "" : "s"} · admins can hard-delete; editors can restore.`}
         </div>
 

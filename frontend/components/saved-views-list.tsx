@@ -25,6 +25,7 @@ const COLORS_BY_NAME: Record<string, string> = {
 /// actually narrows the file table.
 export function SavedViewsList() {
   const [views, setViews] = React.useState<View[]>([]);
+  const [loaded, setLoaded] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -33,12 +34,23 @@ export function SavedViewsList() {
         const r = await fetch("/filehub/api/views", { credentials: "include", cache: "no-store" });
         if (!cancelled && r.ok) setViews(await r.json());
       } catch { /* sidebar stays empty on failure */ }
+      finally { if (!cancelled) setLoaded(true); }
     })();
     return () => { cancelled = true; };
   }, []);
 
   const pinned = views.filter((v) => v.pinned).slice(0, 6);
-  if (pinned.length === 0) return null;
+  // Keep the feature discoverable instead of vanishing: once loaded with no
+  // pinned views, show a hint rather than rendering nothing. (Stay silent
+  // until the fetch resolves so the hint doesn't flash on every mount.)
+  if (pinned.length === 0) {
+    if (!loaded) return null;
+    return (
+      <div className="t-xs t-muted" style={{ padding: "4px 12px", lineHeight: 1.4 }}>
+        No pinned views yet — pin a saved view from Files for one-click access.
+      </div>
+    );
+  }
 
   return (
     <>
