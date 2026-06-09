@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 
 import { Ico } from "@/components/icons";
 import { Av } from "@/components/primitives";
@@ -11,15 +12,42 @@ import { useAuth, type Me } from "@/lib/auth-context";
 export function UserMenu() {
   const { user, loading, logout } = useAuth();
   const [open, setOpen] = React.useState(false);
-  const ref = React.useRef<HTMLDivElement>(null);
+  const [pos, setPos] = React.useState<{ top: number; left: number; width: number } | null>(null);
+  const btnRef = React.useRef<HTMLButtonElement>(null);
+  const menuRef = React.useRef<HTMLDivElement>(null);
 
+  // Position the menu with fixed coords anchored to the button, opening UPWARD
+  // (above the trigger) and left-aligned to it. Rendered in a portal on
+  // document.body so it can NEVER be clipped by the sidebar's overflow.
   React.useEffect(() => {
-    if (!open) return;
-    const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    if (!open) { setPos(null); return; }
+    const place = () => {
+      const b = btnRef.current?.getBoundingClientRect();
+      if (!b) return;
+      const menuH = 128; // approximate height (user row + divider + sign out)
+      setPos({
+        top: Math.max(8, b.top - menuH - 4),
+        left: b.left,
+        width: b.width,
+      });
     };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
+    place();
+    const close = () => setOpen(false);
+    const onDocDown = (e: MouseEvent) => {
+      if (btnRef.current?.contains(e.target as Node) || menuRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDocDown);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      document.removeEventListener("mousedown", onDocDown);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+    };
   }, [open]);
 
   if (loading) {
@@ -40,8 +68,11 @@ export function UserMenu() {
   }
 
   return (
-    <div ref={ref} style={{ position: "relative" }}>
+    <div style={{ position: "relative" }}>
       <button
+        ref={btnRef}
+        aria-haspopup="menu"
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         style={{
           display: "flex", alignItems: "center", gap: 8, padding: "8px 10px 4px",
@@ -55,10 +86,10 @@ export function UserMenu() {
         </div>
         <Ico.moreV className="icon sm" />
       </button>
-      {open && (
-        <div className="card" style={{
-          position: "absolute", bottom: "calc(100% + 4px)", left: 8, right: 8,
-          padding: 6, boxShadow: "var(--sh-popover)", zIndex: 100,
+      {open && pos && typeof document !== "undefined" && createPortal(
+        <div ref={menuRef} className="card" role="menu" style={{
+          position: "fixed", top: pos.top, left: pos.left, width: pos.width,
+          padding: 6, boxShadow: "var(--sh-popover)", zIndex: 200,
         }}>
           <UserItem user={user} />
           <div className="divider" style={{ margin: "4px 0" }} />
@@ -69,7 +100,8 @@ export function UserMenu() {
           >
             <Ico.x className="icon sm" /> Sign out
           </button>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

@@ -36,7 +36,7 @@ export default async function FileDetailPage({ params }: { params: Promise<{ id:
         actions={
           <>
             {canMutate(role) && <a className="btn sm" href={`/share?file=${encodeURIComponent(file.id)}`}><Ico.share /> Share</a>}
-            <a className="btn sm" href={`/filehub/api/files/${file.id}/download`}><Ico.download /> Download</a>
+            <a className="btn sm" href={`/filehub/api/files/${encodeURIComponent(file.id)}/download`}><Ico.download /> Download</a>
           </>
         }
       />

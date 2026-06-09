@@ -163,23 +163,34 @@ function InviteRow({ onCancel, onCreated, onError, canMutate }: {
   const [pw, setPw]           = React.useState("");
   const [role, setRole]       = React.useState<Member["role"]>("viewer");
   const [quota, setQuota]     = React.useState("0");
+  const [busy, setBusy]       = React.useState(false);
 
   const submit = async () => {
+    if (busy) return;
     onError(null);
     if (!email.trim() || !display.trim()) { onError("email + display name required"); return; }
     if (pw.length < 8) { onError("password must be at least 8 characters"); return; }
-    const r = await fetch("/filehub/api/users", {
-      method: "POST", credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.trim(), display_name: display.trim(), password: pw, role, quota_bytes: Number(quota) || 0 }),
-    });
-    if (!r.ok) { onError((await r.json().catch(() => ({ error: r.statusText }))).error ?? r.statusText); return; }
-    setEmail(""); setDisplay(""); setPw(""); setQuota("0");
-    await onCreated();
+    setBusy(true);
+    try {
+      const r = await fetch("/filehub/api/users", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), display_name: display.trim(), password: pw, role, quota_bytes: Number(quota) || 0 }),
+      });
+      if (!r.ok) { onError((await r.json().catch(() => ({ error: r.statusText }))).error ?? r.statusText); return; }
+      setEmail(""); setDisplay(""); setPw(""); setQuota("0");
+      await onCreated();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !busy) { e.preventDefault(); void submit(); }
   };
 
   return (
-    <tr style={{ background: "var(--bg-subtle)" }}>
+    <tr style={{ background: "var(--bg-subtle)" }} onKeyDown={onKeyDown}>
       <td><input className="field" aria-label="Display name" value={display} onChange={(e) => setDisplay(e.target.value)} placeholder="Display name" style={{ width: "100%" }} /></td>
       <td><input className="field" aria-label="Email address" value={email}   onChange={(e) => setEmail(e.target.value)}   placeholder="user@acme.go.th" style={{ width: "100%" }} /></td>
       <td>
@@ -193,8 +204,8 @@ function InviteRow({ onCancel, onCreated, onError, canMutate }: {
       {canMutate && (
         <td>
           <div style={{ display: "flex", gap: 4 }}>
-            <button className="btn xs primary" onClick={submit}>Invite</button>
-            <button className="btn xs ghost"   onClick={onCancel}>Cancel</button>
+            <button className="btn xs primary" onClick={submit} disabled={busy}>{busy ? "Inviting…" : "Invite"}</button>
+            <button className="btn xs ghost"   onClick={onCancel} disabled={busy}>Cancel</button>
           </div>
         </td>
       )}

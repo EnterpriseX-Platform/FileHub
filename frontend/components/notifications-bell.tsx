@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import * as React from "react";
+import { createPortal } from "react-dom";
 
 import { Ico } from "@/components/icons";
 import type { Notification } from "@/lib/api";
@@ -15,7 +16,9 @@ export function NotificationsBell({ tone = "ghost" }: { tone?: "ghost" | "icon" 
   const [open,    setOpen]    = React.useState(false);
   const [unread,  setUnread]  = React.useState(0);
   const [items,   setItems]   = React.useState<Notification[] | null>(null);
-  const ref = React.useRef<HTMLDivElement>(null);
+  const [pos,     setPos]     = React.useState<{ top: number; right: number } | null>(null);
+  const btnRef  = React.useRef<HTMLButtonElement>(null);
+  const menuRef = React.useRef<HTMLDivElement>(null);
 
   // Poll unread count so the badge stays fresh even before the user opens.
   React.useEffect(() => {
@@ -34,12 +37,38 @@ export function NotificationsBell({ tone = "ghost" }: { tone?: "ghost" | "icon" 
     return () => { cancelled = true; clearInterval(h); };
   }, []);
 
-  // Close on outside click.
+  // Anchor the popover to the bell with fixed coords and render it in a portal on
+  // document.body so it can NEVER be clipped by the topbar's overflow. Preserves
+  // this menu's downward, right-aligned direction (top from the button's bottom,
+  // right edge aligned to the bell). Closes on outside-mousedown / Escape /
+  // scroll(capture) / resize, mirroring the RowMenu pattern in files-table.tsx.
   React.useEffect(() => {
-    if (!open) return;
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
+    if (!open) { setPos(null); return; }
+    const place = () => {
+      const b = btnRef.current?.getBoundingClientRect();
+      if (!b) return;
+      setPos({
+        top: b.bottom + 6,
+        right: Math.max(8, window.innerWidth - b.right),
+      });
+    };
+    place();
+    const close = () => setOpen(false);
+    const onDocDown = (e: MouseEvent) => {
+      if (btnRef.current?.contains(e.target as Node) || menuRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDocDown);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      document.removeEventListener("mousedown", onDocDown);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+    };
   }, [open]);
 
   const loadList = async () => {
@@ -50,14 +79,18 @@ export function NotificationsBell({ tone = "ghost" }: { tone?: "ghost" | "icon" 
   };
 
   const markRead = async (id: string) => {
-    await fetch(`/filehub/api/notifications/${encodeURIComponent(id)}/read`, { method: "POST", credentials: "include" });
-    setItems((cur) => cur?.map((n) => n.id === id ? { ...n, read_at: new Date().toISOString() } : n) ?? cur);
-    setUnread((u) => Math.max(0, u - 1));
+    try {
+      const r = await fetch(`/filehub/api/notifications/${encodeURIComponent(id)}/read`, { method: "POST", credentials: "include" });
+      if (!r.ok) return; // leave the row unread on failure
+      setItems((cur) => cur?.map((n) => n.id === id ? { ...n, read_at: new Date().toISOString() } : n) ?? cur);
+      setUnread((u) => Math.max(0, u - 1));
+    } catch { /* network error — keep the row unread, UI unaffected */ }
   };
 
   return (
-    <div ref={ref} style={{ position: "relative" }}>
+    <div style={{ position: "relative" }}>
       <button
+        ref={btnRef}
         className={`btn ${tone} icon`}
         onClick={() => { setOpen((v) => !v); if (!open) void loadList(); }}
         aria-label={unread > 0 ? `${unread} unread notifications` : "notifications"}
@@ -76,11 +109,11 @@ export function NotificationsBell({ tone = "ghost" }: { tone?: "ghost" | "icon" 
         )}
       </button>
 
-      {open && (
-        <div className="card" style={{
-          position: "absolute", top: "calc(100% + 6px)", right: 0,
+      {open && pos && typeof document !== "undefined" && createPortal(
+        <div ref={menuRef} className="card" style={{
+          position: "fixed", top: pos.top, right: pos.right,
           width: 360, maxHeight: 480, overflow: "auto", padding: 0,
-          boxShadow: "var(--sh-popover)", zIndex: 100,
+          boxShadow: "var(--sh-popover)", zIndex: 200,
         }}>
           <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div className="t-sm t-semibold">Notifications</div>
@@ -119,7 +152,8 @@ export function NotificationsBell({ tone = "ghost" }: { tone?: "ghost" | "icon" 
               </div>
             </div>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
