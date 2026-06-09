@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 
 import { GlobalSearch } from "./global-search";
@@ -7,6 +9,7 @@ import { SideLabel, SideRow } from "./primitives";
 import { SavedViewsList } from "./saved-views-list";
 import { UserMenu } from "./user-menu";
 import { fmtCount } from "@/lib/format";
+import { useSidebar } from "@/lib/sidebar-context";
 import type { Org, System, DashboardStats } from "@/lib/api";
 
 export type NavKey = "dashboard" | "files" | "activity" | "views" | "share" | "archive" | "settings";
@@ -29,6 +32,7 @@ export function Sidebar({
   orgs?: Org[];
   stats?: DashboardStats | null;
 }) {
+  const { open, setOpen } = useSidebar();
   const activeSystemId = systemActive ?? systems[0]?.id;
 
   const fileCountBySystem: Record<string, number> = {};
@@ -37,9 +41,10 @@ export function Sidebar({
   }
 
   return (
-    <div className="side">
+    <>
+    <div className={"side" + (open ? " open" : "")}>
       <div className="ws">
-        <span className="ws-logo" style={{ background: "#4f46e5" }}>F</span>
+        <span className="ws-logo" style={{ background: "var(--accent)" }}>F</span>
         <div className="ws-name">
           {stats?.workspace_display || "File Hub"}
           <div className="t-sm t-muted">{stats?.workspace_name || "acme.go.th"}</div>
@@ -125,5 +130,7 @@ export function Sidebar({
         <UserMenu />
       </div>
     </div>
+    {open && <div className="side-backdrop open" onClick={() => setOpen(false)} aria-hidden="true" />}
+    </>
   );
 }

@@ -181,7 +181,7 @@ export default async function FilesTablePage({ searchParams }: FilesPageProps) {
       />
       <div className="main">
         <div style={{ padding: "14px 24px 8px", borderBottom: "1px solid var(--border)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <span className="t-2xl t-semibold">{title}</span>
@@ -203,7 +203,7 @@ export default async function FilesTablePage({ searchParams }: FilesPageProps) {
             )}
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <ViewTabs params={viewParams} active="table" />
             <div className="divider-v" style={{ height: 18 }} />
             <div style={{ display: "flex", gap: 6 }}>
@@ -310,7 +310,9 @@ export default async function FilesTablePage({ searchParams }: FilesPageProps) {
                 : <>No files here yet —{canMutate(role) && <> <a href="/upload" className="t-semibold" style={{ color: "var(--accent)" }}>Upload your first file</a>.</>}</>}
             </div>
           ) : (
-            <FilesTable groups={groups} cols={visibleCols} role={role} folders={folders} />
+            <div className="table-scroll">
+              <FilesTable groups={groups} cols={visibleCols} role={role} folders={folders} />
+            </div>
           )}
         </div>
 

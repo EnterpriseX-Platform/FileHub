@@ -25,7 +25,7 @@ export default async function SettingsAuditPage() {
     <div className="scr">
       <Sidebar nav="settings" systems={systems} />
       <TopBar crumbs={["Settings", "Audit log"]} title={`Audit log · ${events.length}`} />
-      <div className="main" style={{ display: "grid", gridTemplateColumns: "220px 1fr", overflow: "hidden" }}>
+      <div className="main split-rail" style={{ overflow: "auto" }}>
         <SettingsNav active="audit" />
         <div style={{ overflow: "auto", padding: "24px 32px" }}>
           <div style={{ maxWidth: 1100 }}>

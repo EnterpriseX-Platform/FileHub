@@ -167,7 +167,7 @@ export default function SharePage() {
           ) : (
           <div className="card" style={{ padding: 16, marginBottom: 16 }}>
             <Label>Link options</Label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div className="row-2col">
               <div>
                 <div className="t-xs t-subtle" style={{ marginBottom: 4 }}>Expires in (days)</div>
                 <div className="field" style={{ width: "100%" }}>

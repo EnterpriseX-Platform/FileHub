@@ -107,7 +107,7 @@ export default async function FilesTimelinePage({ searchParams }: TimelineProps)
                   const fileSys = systems.find((s) => s.id === f.system_id);
                   const tags = parseJsonArray(f.tags);
                   return (
-                    <div key={f.id} style={{ position: "relative", display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
+                    <div key={f.id} style={{ position: "relative", display: "flex", alignItems: "center", gap: 10, padding: "8px 0", flexWrap: "wrap" }}>
                       <span style={{
                         position: "absolute", left: -19, top: 16, width: 8, height: 8, borderRadius: 4,
                         background: `var(--c-${fileSys?.tone ?? "slate"})`,

@@ -13,6 +13,7 @@ const make = (children: React.ReactNode) =>
 
 export const Ico = {
   home: make(<path d="M3 11l9-8 9 8v10a1 1 0 01-1 1h-5v-7h-6v7H4a1 1 0 01-1-1z" />),
+  menu: make(<path d="M3 6h18M3 12h18M3 18h18" />),
   files: make(
     <>
       <path d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9z" />

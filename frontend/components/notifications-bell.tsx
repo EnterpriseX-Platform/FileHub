@@ -68,7 +68,7 @@ export function NotificationsBell({ tone = "ghost" }: { tone?: "ghost" | "icon" 
           <span style={{
             position: "absolute", top: 2, right: 2, minWidth: 14, height: 14,
             padding: "0 4px", borderRadius: 7, background: "var(--c-rose)",
-            color: "#fff", fontSize: 9, fontWeight: 700, lineHeight: "14px",
+            color: "var(--on-accent)", fontSize: 9, fontWeight: 700, lineHeight: "14px",
             textAlign: "center",
           }}>
             {unread > 99 ? "99+" : unread}

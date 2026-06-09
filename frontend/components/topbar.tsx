@@ -1,7 +1,10 @@
+"use client";
+
 import * as React from "react";
 
 import { Ico } from "./icons";
 import { NotificationsBell } from "./notifications-bell";
+import { useSidebar } from "@/lib/sidebar-context";
 
 export function TopBar({
   crumbs = [],
@@ -12,8 +15,18 @@ export function TopBar({
   actions?: React.ReactNode;
   title?: React.ReactNode;
 }) {
+  const { toggle } = useSidebar();
   return (
     <div className="topbar">
+      <button
+        type="button"
+        className="btn icon ghost nav-toggle"
+        onClick={toggle}
+        aria-label="Open navigation"
+        style={{ marginRight: 4 }}
+      >
+        <Ico.menu />
+      </button>
       <div className="crumb">
         {crumbs.map((c, i) => (
           <React.Fragment key={i}>

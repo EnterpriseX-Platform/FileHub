@@ -38,7 +38,7 @@ export default async function SettingsRolesPage() {
     <div className="scr">
       <Sidebar nav="settings" systems={systems} />
       <TopBar crumbs={["Settings", "Roles & permissions"]} title="Roles & permissions" />
-      <div className="main" style={{ display: "grid", gridTemplateColumns: "220px 1fr", overflow: "hidden" }}>
+      <div className="main split-rail" style={{ overflow: "auto" }}>
         <SettingsNav active="roles" />
         <div style={{ overflow: "auto", padding: "24px 32px" }}>
           <div style={{ maxWidth: 920 }}>

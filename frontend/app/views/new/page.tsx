@@ -112,7 +112,7 @@ export default function ViewBuilderPage() {
           </>
         }
       />
-      <div className="main" style={{ display: "grid", gridTemplateColumns: "360px 1fr", overflow: "hidden" }}>
+      <div className="main split-rail" style={{ "--rail": "360px", overflow: "hidden" } as React.CSSProperties}>
         <div style={{ borderRight: "1px solid var(--border)", overflow: "auto", padding: "20px 20px 40px" }}>
           <Section title="View name">
             <div className="field" style={{ width: "100%", height: 36 }}>

@@ -302,7 +302,7 @@ export default function UploadPage() {
         ) : readOnly ? (
           <ReadOnlyNotice />
         ) : (
-        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "24px 32px", display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 24 }}>
+        <div className="row-2col" style={{ maxWidth: 1100, margin: "0 auto", padding: "24px 32px" }}>
           <div>
             <SectionHd
               title="Upload files"

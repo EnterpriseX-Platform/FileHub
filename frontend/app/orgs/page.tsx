@@ -1,3 +1,5 @@
+import * as React from "react";
+
 import { Ico } from "@/components/icons";
 import { Av, Pill, Tag, type Tone } from "@/components/primitives";
 import { Sidebar } from "@/components/sidebar";
@@ -65,7 +67,7 @@ export default async function OrgsPage({ searchParams }: OrgsProps) {
           </div>
         </div>
 
-        <div style={{ flex: 1, overflow: "auto", display: "grid", gridTemplateColumns: "300px 1fr" }}>
+        <div className="split-rail" style={{ flex: 1, overflow: "auto", "--rail": "300px" } as React.CSSProperties}>
           <div style={{ borderRight: "1px solid var(--border)", padding: "12px 8px", background: "var(--bg-subtle)", overflow: "auto" }}>
             <div className="t-xs t-subtle t-medium" style={{ letterSpacing: "0.04em", textTransform: "uppercase", padding: "4px 10px 8px" }}>
               Systems
@@ -94,6 +96,7 @@ export default async function OrgsPage({ searchParams }: OrgsProps) {
           </div>
 
           <div style={{ overflow: "auto" }}>
+            <div className="table-scroll">
             <table className="tbl">
               <thead>
                 <tr>
@@ -145,6 +148,7 @@ export default async function OrgsPage({ searchParams }: OrgsProps) {
                 })}
               </tbody>
             </table>
+            </div>
 
             <div style={{ padding: "12px 16px", borderTop: "1px solid var(--border)" }}>
               <div className="t-sm t-muted">{orgs.length} org{orgs.length === 1 ? "" : "s"} in {activeSystem?.name ?? "—"}</div>

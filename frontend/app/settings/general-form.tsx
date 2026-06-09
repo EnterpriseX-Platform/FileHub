@@ -77,7 +77,7 @@ export function GeneralForm({ initial, canMutate }: { initial: WorkspaceConfig; 
             </div>
           )}
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: "16px 24px", alignItems: "center" }}>
+        <div className="form-grid" style={{ alignItems: "center" }}>
           <div className="t-sm t-muted">Workspace name</div>
           <input className="field" style={{ width: "100%" }}
                  value={cfg.workspace_display ?? ""}
@@ -103,7 +103,7 @@ export function GeneralForm({ initial, canMutate }: { initial: WorkspaceConfig; 
           Which viewer to embed when an admin clicks a .docx / .xlsx / .pptx file.
           Collabora Online is fully interactive but needs the docker-compose service to be up.
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: "12px 24px", alignItems: "center" }}>
+        <div className="form-grid" style={{ alignItems: "center" }}>
           <div className="t-sm t-muted">Office viewer</div>
           <select
             className="field"
@@ -173,7 +173,7 @@ function Toggle({ label, hint, on, onChange, disabled, enforced }: {
       >
         <span style={{
           position: "absolute", top: 2, left: on ? 16 : 2,
-          width: 14, height: 14, borderRadius: 7, background: "#fff",
+          width: 14, height: 14, borderRadius: 7, background: "var(--on-accent)",
           boxShadow: "0 1px 2px rgba(0,0,0,0.2)", transition: "left .15s",
         }} />
       </button>
