@@ -1,4 +1,5 @@
 import { Av, Ft, Pill } from "@/components/primitives";
+import { Pager } from "@/components/pager";
 import { Sidebar } from "@/components/sidebar";
 import { TopBar } from "@/components/topbar";
 import { safeActivity, safeSystems } from "@/lib/api";
@@ -11,7 +12,7 @@ import { loadSettingsCtx } from "../_shared";
 /// audit trail.  We reuse /api/activity (which is already DB-backed and
 /// records every upload, delete, restore, share, workflow decision, system
 /// CRUD, etc.) instead of building a parallel "audit_log" table.
-export default async function SettingsAuditPage() {
+export default async function SettingsAuditPage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   // /api/activity + /api/systems are private routes — server-side fetches
   // need the inbound session cookie forwarded or the backend 401s and the
   // page renders "Audit log · 0" with an empty table.  Mirrors the pattern
@@ -21,6 +22,12 @@ export default async function SettingsAuditPage() {
     safeActivity(200, cookieHeader),
     safeSystems(cookieHeader),
   ]);
+  const sp = (await searchParams) ?? {};
+  const PAGE_SIZE = 50;
+  const total = events.length;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = Math.min(Math.max(0, parseInt(typeof sp.page === "string" ? sp.page : "0", 10) || 0), pageCount - 1);
+  const pageRows = events.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   return (
     <div className="scr">
       <Sidebar nav="settings" systems={systems} />
@@ -49,7 +56,7 @@ export default async function SettingsAuditPage() {
                 <tbody>
                   {events.length === 0 ? (
                     <tr><td colSpan={5} style={{ padding: 32, textAlign: "center", color: "var(--text-subtle)" }}>No activity recorded yet — uploads, deletions, shares, and workflow decisions appear here automatically.</td></tr>
-                  ) : events.map((a) => (
+                  ) : pageRows.map((a) => (
                     <tr key={a.id}>
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -72,6 +79,7 @@ export default async function SettingsAuditPage() {
                 </table>
               </div>
             </div>
+            <Pager page={page} pageSize={PAGE_SIZE} total={total} hrefFor={(p) => p === 0 ? "/settings/audit" : `/settings/audit?page=${p}`} />
           </div>
         </div>
       </div>

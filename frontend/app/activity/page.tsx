@@ -1,3 +1,4 @@
+import { Pager } from "@/components/pager";
 import { Av, Ft, Pill } from "@/components/primitives";
 import { Sidebar } from "@/components/sidebar";
 import { TopBar } from "@/components/topbar";
@@ -7,14 +8,21 @@ import { fmtAgo } from "@/lib/format";
 
 import { SyncButton } from "../sync-button";
 
-export default async function ActivityPage() {
+export default async function ActivityPage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
+  const sp = (await searchParams) ?? {};
   const { cookieHeader } = await loadServerCtx();
   const [activity, systems, stats] = await Promise.all([
-    safeActivity(50, cookieHeader),
+    safeActivity(200, cookieHeader),
     safeSystems(cookieHeader),
     safeStats(cookieHeader),
   ]);
   const orgs = systems[0] ? await safeOrgs(systems[0].id, cookieHeader) : [];
+
+  const PAGE_SIZE = 50;
+  const total = activity.length;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = Math.min(Math.max(0, parseInt(typeof sp.page === "string" ? sp.page : "0", 10) || 0), pageCount - 1);
+  const pageRows = activity.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <div className="scr">
@@ -34,7 +42,7 @@ export default async function ActivityPage() {
                 No events yet — uploads, comments, approvals, and shares stream in here as your team works. <a href="/upload" style={{ color: "var(--accent)" }}>Upload a file</a> to generate events.
               </div>
             )}
-            {activity.map((a, i) => (
+            {pageRows.map((a, i) => (
               <div
                 key={a.id}
                 role="listitem"
@@ -59,6 +67,7 @@ export default async function ActivityPage() {
               </div>
             ))}
           </div>
+          <Pager page={page} pageSize={PAGE_SIZE} total={total} hrefFor={(p) => p === 0 ? "/activity" : `/activity?page=${p}`} />
         </div>
       </div>
     </div>

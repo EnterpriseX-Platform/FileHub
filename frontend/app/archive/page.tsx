@@ -5,13 +5,21 @@ import { safeFiles, safeSystems } from "@/lib/api";
 import { loadServerCtx } from "@/lib/auth-server";
 import { Ft, Pill } from "@/components/primitives";
 import { fmtAgo, fmtBytes } from "@/lib/format";
+import { Pager } from "@/components/pager";
 
-export default async function ArchivePage() {
+export default async function ArchivePage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
+  const sp = (await searchParams) ?? {};
   const { cookieHeader } = await loadServerCtx();
   const [files, systems] = await Promise.all([
     safeFiles({ status: "Archived" }, cookieHeader),
     safeSystems(cookieHeader),
   ]);
+
+  const PAGE_SIZE = 50;
+  const total = files.length;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = Math.min(Math.max(0, parseInt(typeof sp.page === "string" ? sp.page : "0", 10) || 0), pageCount - 1);
+  const pageRows = files.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <div className="scr">
@@ -28,7 +36,7 @@ export default async function ArchivePage() {
             {files.length === 0 && (
               <div style={{ padding: 32, textAlign: "center", color: "var(--text-subtle)" }}>No archived files yet — archived files are kept here for 365 days before deletion.</div>
             )}
-            {files.map((f, i) => (
+            {pageRows.map((f, i) => (
               <a
                 key={f.id}
                 href={`/files/${f.id}`}
@@ -49,6 +57,7 @@ export default async function ArchivePage() {
               </a>
             ))}
           </div>
+          <Pager page={page} pageSize={PAGE_SIZE} total={total} hrefFor={(p) => p === 0 ? "/archive" : `/archive?page=${p}`} />
         </div>
       </div>
     </div>
