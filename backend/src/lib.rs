@@ -108,6 +108,10 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         // Deep readiness — probes DB + storage. Heavier than /health but
         // still cheap; safe to hit on every k8s readinessProbe tick.
         .route("/api/ready",                  get(handlers::ready))
+        // API docs — public (the spec has no secrets). Raw spec is embedded at
+        // build time; Swagger UI is served at /fh/docs and reads it.
+        .route("/api/openapi.yaml",           get(handlers::openapi_spec))
+        .route("/docs",                       get(handlers::swagger_ui))
         // Share-link endpoints carry a one-shot token in the URL — that
         // token IS the credential, so the recipient doesn't need a session.
         .route("/api/share/:token",           get(handlers::share_meta))

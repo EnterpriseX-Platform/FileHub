@@ -17,12 +17,17 @@ info:
     Pick the matching `servers` entry below; all `paths` are written relative to it.
 
     ## Authentication
-    Session-cookie based. `POST /api/auth/login` sets an **HttpOnly** cookie
-    `filehub_session` (32-byte random token, 14-day TTL, stored in the `sessions`
-    table). Send that cookie on every authenticated request (`credentials: "include"`
-    in fetch, `-b cookies.txt` in curl). There is currently **no API-key / OAuth /
-    machine-token** scheme — service-to-service callers log in with a real account
-    to obtain the cookie.
+    Two schemes, either satisfies any private endpoint:
+
+    - **Session cookie** (`cookieAuth`) — for browsers. `POST /api/auth/login`
+      sets an **HttpOnly** cookie `filehub_session` (32-byte random token,
+      14-day TTL, stored in the `sessions` table). Send it on every request
+      (`credentials: "include"` in fetch, `-b cookies.txt` in curl).
+    - **API key / Bearer** (`bearerAuth`) — for headless apps / integrations.
+      An admin mints a key via `POST /api/api-keys` bound to a service-account
+      user; send it as `Authorization: Bearer fhk_…`. The key authenticates AS
+      that user, inheriting its role + system access. Revoke via
+      `DELETE /api/api-keys/{id}`. See INTEGRATION.md.
 
     ## Authorization (roles)
     Three roles: `admin`, `editor`, `viewer`.
