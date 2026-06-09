@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import * as React from "react";
+import { createPortal } from "react-dom";
 
 import { Ico } from "@/components/icons";
 import { Av, Ft, Pill, Tag } from "@/components/primitives";
@@ -249,13 +250,44 @@ function RowMenu({ file, mayMutate, onDownload, onDelete, onRename }: {
   file: FileRow; mayMutate: boolean; onDownload: () => void; onDelete: () => void; onRename: () => void;
 }) {
   const [open, setOpen] = React.useState(false);
-  const ref = React.useRef<HTMLDivElement>(null);
+  const [pos, setPos] = React.useState<{ top: number; right: number } | null>(null);
+  const btnRef = React.useRef<HTMLButtonElement>(null);
+  const menuRef = React.useRef<HTMLDivElement>(null);
+
+  // Position the menu with fixed coords anchored to the button, flipping above
+  // when there isn't room below. It's rendered in a portal on document.body so
+  // it can NEVER be clipped by the table's horizontal-scroll wrapper — the bug
+  // where the ⋯ menu showed nothing for rows near the bottom of the viewport.
   React.useEffect(() => {
-    if (!open) return;
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [open]);
+    if (!open) { setPos(null); return; }
+    const place = () => {
+      const b = btnRef.current?.getBoundingClientRect();
+      if (!b) return;
+      const menuH = mayMutate ? 218 : 92; // approximate height by item count
+      const openUp = window.innerHeight - b.bottom < menuH + 12;
+      setPos({
+        top: openUp ? Math.max(8, b.top - menuH - 4) : b.bottom + 4,
+        right: Math.max(8, window.innerWidth - b.right),
+      });
+    };
+    place();
+    const close = () => setOpen(false);
+    const onDocDown = (e: MouseEvent) => {
+      if (btnRef.current?.contains(e.target as Node) || menuRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDocDown);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      document.removeEventListener("mousedown", onDocDown);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [open, mayMutate]);
 
   const Item = ({ children, onClick, danger }: { children: React.ReactNode; onClick: () => void; danger?: boolean }) => (
     <button type="button" role="menuitem" className={"btn xs ghost" + (danger ? " danger" : "")}
@@ -266,12 +298,12 @@ function RowMenu({ file, mayMutate, onDownload, onDelete, onRename }: {
   );
 
   return (
-    <div ref={ref} style={{ position: "relative" }} onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); setOpen(false); } }}>
-      <button type="button" className="btn xs ghost icon row-actions" title="Actions" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+    <>
+      <button ref={btnRef} type="button" className="btn xs ghost icon row-actions" title="Actions" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
         <Ico.more className="icon sm" style={{ color: "var(--text-muted)" }} />
       </button>
-      {open && (
-        <div className="card" role="menu" style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 50, width: 160, padding: 6, boxShadow: "var(--sh-popover)", display: "flex", flexDirection: "column", gap: 2 }}>
+      {open && pos && typeof document !== "undefined" && createPortal(
+        <div ref={menuRef} className="card" role="menu" style={{ position: "fixed", top: pos.top, right: pos.right, zIndex: 200, width: 160, padding: 6, boxShadow: "var(--sh-popover)", display: "flex", flexDirection: "column", gap: 2 }}>
           <a role="menuitem" className="btn xs ghost" style={{ width: "100%", justifyContent: "flex-start" }} href={`/files/${file.id}`}><Ico.eye className="icon sm" /> Open</a>
           <Item onClick={onDownload}><Ico.download className="icon sm" /> Download</Item>
           {mayMutate && <a role="menuitem" className="btn xs ghost" style={{ width: "100%", justifyContent: "flex-start" }} href={`/share?file=${encodeURIComponent(file.id)}`}><Ico.share className="icon sm" /> Share</a>}
@@ -282,9 +314,10 @@ function RowMenu({ file, mayMutate, onDownload, onDelete, onRename }: {
               <Item danger onClick={onDelete}><Ico.trash className="icon sm" /> Delete</Item>
             </>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   );
 }
 
