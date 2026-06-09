@@ -85,6 +85,7 @@ pub async fn create_session(
     headers: HeaderMap,
 ) -> ApiResult<Response> {
     crate::auth::require_role(&user.0, &["admin", "editor"])?;
+    crate::auth::upload_rate_limit(&user.0.id).await?;
     let upload_length: i64 = headers
         .get("upload-length")
         .and_then(|v| v.to_str().ok())

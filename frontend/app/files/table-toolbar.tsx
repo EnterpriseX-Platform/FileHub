@@ -21,6 +21,18 @@ function useClickOutside(onClose: () => void, active: boolean) {
   return ref;
 }
 
+// a11y: close an open popover on Escape, used on the menu trigger's wrapper.
+function onMenuKeyDown(close: () => void) {
+  return (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") { e.stopPropagation(); close(); }
+  };
+}
+
+// a11y: shared props for a popover trigger <button> (menu pattern).
+function triggerProps(open: boolean) {
+  return { "aria-haspopup": "menu" as const, "aria-expanded": open };
+}
+
 function Check({ on }: { on: boolean }) {
   return <span style={{ display: "inline-block", width: 14, flexShrink: 0 }}>{on ? "✓" : ""}</span>;
 }
@@ -63,22 +75,22 @@ export function FilterMenu({ params, count, base = "/files" }: { params: ViewPar
   const go = (status: string | undefined) => { setOpen(false); router.push(buildViewHref(base, { ...params, status })); };
 
   return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button type="button" className="btn sm ghost" onClick={() => setOpen((v) => !v)}>
+    <div ref={ref} style={{ position: "relative" }} onKeyDown={onMenuKeyDown(() => setOpen(false))}>
+      <button type="button" className="btn sm ghost" {...triggerProps(open)} onClick={() => setOpen((v) => !v)}>
         <Ico.filter /> {count || 0} filter{count === 1 ? "" : "s"}
       </button>
       {open && (
-        <div className="card" style={{ position: "absolute", left: 0, top: "calc(100% + 6px)", zIndex: 50, width: 184, padding: 6, boxShadow: "var(--sh-popover)", display: "flex", flexDirection: "column", gap: 2 }}>
+        <div className="card" role="menu" style={{ position: "absolute", left: 0, top: "calc(100% + 6px)", zIndex: 50, width: 184, padding: 6, boxShadow: "var(--sh-popover)", display: "flex", flexDirection: "column", gap: 2 }}>
           <div className="t-xs t-subtle t-medium" style={{ padding: "4px 8px" }}>Filter by status</div>
           {STATUS_OPTIONS.map((s) => (
-            <button key={s} type="button" className="btn xs ghost" style={{ width: "100%", justifyContent: "flex-start" }} onClick={() => go(s)}>
+            <button key={s} type="button" role="menuitem" className="btn xs ghost" style={{ width: "100%", justifyContent: "flex-start" }} onClick={() => go(s)}>
               <Check on={params.status === s} />{s}
             </button>
           ))}
           {params.status && (
             <>
               <div className="divider" style={{ margin: "4px 0" }} />
-              <button type="button" className="btn xs ghost" style={{ width: "100%", justifyContent: "flex-start" }} onClick={() => go(undefined)}>Clear status</button>
+              <button type="button" role="menuitem" className="btn xs ghost" style={{ width: "100%", justifyContent: "flex-start" }} onClick={() => go(undefined)}>Clear status</button>
             </>
           )}
         </div>
@@ -107,15 +119,15 @@ export function SortMenu({ params, sort, dir, base = "/files" }: { params: ViewP
   };
 
   return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button type="button" className="btn sm ghost" onClick={() => setOpen((v) => !v)}>
+    <div ref={ref} style={{ position: "relative" }} onKeyDown={onMenuKeyDown(() => setOpen(false))}>
+      <button type="button" className="btn sm ghost" {...triggerProps(open)} onClick={() => setOpen((v) => !v)}>
         <Ico.sort /> {label} {dir === "asc" ? "↑" : "↓"}
       </button>
       {open && (
-        <div className="card" style={{ position: "absolute", left: 0, top: "calc(100% + 6px)", zIndex: 50, width: 172, padding: 6, boxShadow: "var(--sh-popover)", display: "flex", flexDirection: "column", gap: 2 }}>
+        <div className="card" role="menu" style={{ position: "absolute", left: 0, top: "calc(100% + 6px)", zIndex: 50, width: 172, padding: 6, boxShadow: "var(--sh-popover)", display: "flex", flexDirection: "column", gap: 2 }}>
           <div className="t-xs t-subtle t-medium" style={{ padding: "4px 8px" }}>Sort by</div>
           {SORT_FIELDS.map((f) => (
-            <button key={f.key} type="button" className="btn xs ghost" style={{ width: "100%", justifyContent: "space-between" }} onClick={() => go(f.key)}>
+            <button key={f.key} type="button" role="menuitem" className="btn xs ghost" style={{ width: "100%", justifyContent: "space-between" }} onClick={() => go(f.key)}>
               <span style={{ display: "flex", alignItems: "center" }}><Check on={sort === f.key} />{f.label}</span>
               {sort === f.key && <span className="t-subtle">{dir === "asc" ? "↑" : "↓"}</span>}
             </button>
@@ -127,24 +139,28 @@ export function SortMenu({ params, sort, dir, base = "/files" }: { params: ViewP
 }
 
 /// Group rows by a field (server-side, via `?group=`).
-export function GroupMenu({ params, group, base = "/files" }: { params: ViewParams; group: string; base?: string }) {
+export function GroupMenu({ params, group, base = "/files", allowNone = true }: { params: ViewParams; group: string; base?: string; allowNone?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const ref = useClickOutside(() => setOpen(false), open);
-  const active = group || "none";
-  const label = GROUP_FIELDS.find((f) => f.key === active)?.label ?? "No grouping";
+  // The board reuses this menu but is inherently grouped (no ungrouped mode),
+  // so it passes allowNone={false} to drop the dead "No grouping" option that
+  // would otherwise be a no-op (coerced back to status).
+  const fields = allowNone ? GROUP_FIELDS : GROUP_FIELDS.filter((f) => f.key !== "none");
+  const active = group || (allowNone ? "none" : "status");
+  const label = fields.find((f) => f.key === active)?.label ?? "Status";
   const go = (key: string) => { setOpen(false); router.push(buildViewHref(base, { ...params, group: key === "none" ? undefined : key })); };
 
   return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button type="button" className="btn sm ghost" onClick={() => setOpen((v) => !v)}>
+    <div ref={ref} style={{ position: "relative" }} onKeyDown={onMenuKeyDown(() => setOpen(false))}>
+      <button type="button" className="btn sm ghost" {...triggerProps(open)} onClick={() => setOpen((v) => !v)}>
         <Ico.group /> {active === "none" ? "No group" : `Group: ${label}`}
       </button>
       {open && (
-        <div className="card" style={{ position: "absolute", left: 0, top: "calc(100% + 6px)", zIndex: 50, width: 172, padding: 6, boxShadow: "var(--sh-popover)", display: "flex", flexDirection: "column", gap: 2 }}>
+        <div className="card" role="menu" style={{ position: "absolute", left: 0, top: "calc(100% + 6px)", zIndex: 50, width: 172, padding: 6, boxShadow: "var(--sh-popover)", display: "flex", flexDirection: "column", gap: 2 }}>
           <div className="t-xs t-subtle t-medium" style={{ padding: "4px 8px" }}>Group by</div>
-          {GROUP_FIELDS.map((f) => (
-            <button key={f.key} type="button" className="btn xs ghost" style={{ width: "100%", justifyContent: "flex-start" }} onClick={() => go(f.key)}>
+          {fields.map((f) => (
+            <button key={f.key} type="button" role="menuitem" className="btn xs ghost" style={{ width: "100%", justifyContent: "flex-start" }} onClick={() => go(f.key)}>
               <Check on={active === f.key} />{f.label}
             </button>
           ))}
@@ -168,15 +184,15 @@ export function PropertiesMenu({ params, hidden, base = "/files" }: { params: Vi
   };
 
   return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button type="button" className="btn sm ghost" onClick={() => setOpen((v) => !v)}>
+    <div ref={ref} style={{ position: "relative" }} onKeyDown={onMenuKeyDown(() => setOpen(false))}>
+      <button type="button" className="btn sm ghost" {...triggerProps(open)} onClick={() => setOpen((v) => !v)}>
         <Ico.layers /> Properties
       </button>
       {open && (
-        <div className="card" style={{ position: "absolute", left: 0, top: "calc(100% + 6px)", zIndex: 50, width: 180, padding: 6, boxShadow: "var(--sh-popover)", display: "flex", flexDirection: "column", gap: 2 }}>
+        <div className="card" role="menu" style={{ position: "absolute", left: 0, top: "calc(100% + 6px)", zIndex: 50, width: 180, padding: 6, boxShadow: "var(--sh-popover)", display: "flex", flexDirection: "column", gap: 2 }}>
           <div className="t-xs t-subtle t-medium" style={{ padding: "4px 8px" }}>Columns</div>
           {OPTIONAL_COLUMNS.map((c) => (
-            <button key={c.key} type="button" className="btn xs ghost" style={{ width: "100%", justifyContent: "flex-start", alignItems: "center" }} onClick={() => toggle(c.key)}>
+            <button key={c.key} type="button" role="menuitemcheckbox" aria-checked={!hiddenSet.has(c.key)} className="btn xs ghost" style={{ width: "100%", justifyContent: "flex-start", alignItems: "center" }} onClick={() => toggle(c.key)}>
               <span className={"cb" + (!hiddenSet.has(c.key) ? " on" : "")} style={{ marginRight: 8 }} />{c.label}
             </button>
           ))}

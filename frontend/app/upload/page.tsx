@@ -19,6 +19,11 @@ const TUS_THRESHOLD_BYTES = 50 * 1024 * 1024;
 
 type Item = {
   file: File;
+  // Relative path within a dropped folder (e.g. "reports/q1/summary.pdf").
+  // Empty for files picked individually or dropped at the top level — we only
+  // surface it in the UI so the user can tell apart same-named files from
+  // different folders; the backend still keys on file.name.
+  relPath: string;
   progress: number;
   state: "queued" | "uploading" | "success" | "error";
   message?: string;
@@ -36,6 +41,56 @@ const FT_GUESS: Record<string, string> = {
 function guessFt(name: string): string {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
   return FT_GUESS[ext] ?? "file";
+}
+
+// --- Folder drag-and-drop ---------------------------------------------------
+// Chromium/WebKit expose a non-standard webkitGetAsEntry() on the items of a
+// drop's DataTransfer that lets us walk a dropped directory tree. The DOM lib
+// doesn't type these, so we narrow against minimal local shapes.
+
+type FsEntry = {
+  isFile: boolean;
+  isDirectory: boolean;
+  name: string;
+  file: (cb: (f: File) => void, err?: (e: unknown) => void) => void;
+  createReader: () => { readEntries: (cb: (e: FsEntry[]) => void, err?: (e: unknown) => void) => void };
+};
+
+function entryToFile(entry: FsEntry): Promise<File> {
+  return new Promise((resolve, reject) => entry.file(resolve, reject));
+}
+
+// readEntries returns at most ~100 entries per call, so loop until it drains.
+function readAllEntries(reader: ReturnType<FsEntry["createReader"]>): Promise<FsEntry[]> {
+  return new Promise((resolve, reject) => {
+    const out: FsEntry[] = [];
+    const pump = () =>
+      reader.readEntries((batch) => {
+        if (!batch.length) resolve(out);
+        else { out.push(...batch); pump(); }
+      }, reject);
+    pump();
+  });
+}
+
+// Depth-first walk of a dropped entry, accumulating {file, relPath}. prefix is
+// the path built up from ancestor directory names ("" at the drop root).
+async function walkEntry(entry: FsEntry, prefix: string): Promise<{ file: File; relPath: string }[]> {
+  if (entry.isFile) {
+    try {
+      const file = await entryToFile(entry);
+      return [{ file, relPath: prefix ? `${prefix}/${entry.name}` : entry.name }];
+    } catch {
+      return [];
+    }
+  }
+  if (entry.isDirectory) {
+    const children = await readAllEntries(entry.createReader());
+    const dirPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+    const nested = await Promise.all(children.map((c) => walkEntry(c, dirPath)));
+    return nested.flat();
+  }
+  return [];
 }
 
 export default function UploadPage() {
@@ -86,9 +141,44 @@ export default function UploadPage() {
 
   const activeSystem = systems.find((s) => s.id === systemId);
 
-  const addFiles = (files: FileList | File[]) => {
-    const arr = Array.from(files).map<Item>((f) => ({ file: f, progress: 0, state: "queued" }));
+  // Add a batch of {file, relPath} pairs. relPath is the path within a dropped
+  // folder; "" for flat file picks. Kept as a separate arg (rather than reading
+  // file.webkitRelativePath) because DataTransferItem entries don't populate it.
+  const addFiles = (entries: { file: File; relPath: string }[]) => {
+    if (!entries.length) return;
+    const arr = entries.map<Item>((e) => ({ file: e.file, relPath: e.relPath, progress: 0, state: "queued" }));
     setItems((prev) => [...prev, ...arr]);
+  };
+
+  const addPlainFiles = (files: FileList | File[]) =>
+    addFiles(Array.from(files).map((f) => ({ file: f, relPath: "" })));
+
+  // Drop handler that supports both files and folders. When the browser exposes
+  // webkitGetAsEntry() we walk each entry (recursing into directories) so a
+  // dropped folder enqueues all of its files with their relative paths; we fall
+  // back to the flat dataTransfer.files list otherwise.
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const dt = e.dataTransfer;
+    const dtItems = dt.items;
+    const supportsEntries =
+      dtItems && dtItems.length > 0 && typeof (dtItems[0] as unknown as { webkitGetAsEntry?: unknown }).webkitGetAsEntry === "function";
+
+    if (supportsEntries) {
+      // Snapshot the entries synchronously — DataTransferItemList is cleared
+      // once the drop event handler returns, so we can't await first.
+      const entries: FsEntry[] = [];
+      for (let i = 0; i < dtItems.length; i++) {
+        const entry = (dtItems[i] as unknown as { webkitGetAsEntry: () => FsEntry | null }).webkitGetAsEntry();
+        if (entry) entries.push(entry);
+      }
+      const walked = await Promise.all(entries.map((en) => walkEntry(en, "")));
+      addFiles(walked.flat());
+      return;
+    }
+
+    if (dt.files.length) addPlainFiles(dt.files);
   };
 
   const uploadOne = (index: number) => {
@@ -169,9 +259,24 @@ export default function UploadPage() {
     });
   };
 
+  // Re-run a single failed item. We flip it back to "queued" (clearing the old
+  // error message + progress) before kicking off uploadOne so the row shows
+  // the right status immediately even before the first onProgress fires.
+  const retryOne = (index: number) => {
+    setItems((prev) => prev.map((it, i) => (i === index ? { ...it, progress: 0, state: "queued", message: undefined } : it)));
+    uploadOne(index);
+  };
+
+  const retryAllFailed = () => {
+    items.forEach((it, i) => {
+      if (it.state === "error") retryOne(i);
+    });
+  };
+
   const queued    = items.filter((it) => it.state === "queued").length;
   const success   = items.filter((it) => it.state === "success").length;
   const uploading = items.filter((it) => it.state === "uploading").length;
+  const failed    = items.filter((it) => it.state === "error").length;
   const totalSize = items.reduce((s, it) => s + it.file.size, 0);
 
   return (
@@ -201,7 +306,7 @@ export default function UploadPage() {
           <div>
             <SectionHd
               title="Upload files"
-              sub="Drop files here or browse. Files are streamed to the Rust backend and encrypted at rest."
+              sub="Drop files or whole folders here, or browse. Files are streamed to the Rust backend and encrypted at rest."
             />
 
             <div
@@ -209,7 +314,7 @@ export default function UploadPage() {
               style={{ marginBottom: 16 }}
               onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
               onDragLeave={() => setDragging(false)}
-              onDrop={(e) => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files); }}
+              onDrop={handleDrop}
               onClick={() => inputRef.current?.click()}
             >
               <input
@@ -217,13 +322,13 @@ export default function UploadPage() {
                 type="file"
                 multiple
                 style={{ display: "none" }}
-                onChange={(e) => e.target.files && addFiles(e.target.files)}
+                onChange={(e) => e.target.files && addPlainFiles(e.target.files)}
               />
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, pointerEvents: "none" }}>
                 <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--accent-soft)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent)" }}>
                   <Ico.upload className="icon lg" />
                 </div>
-                <div className="t-lg t-semibold">Drop files to upload</div>
+                <div className="t-lg t-semibold">Drop files or folders to upload</div>
                 <div className="t-sm t-muted">
                   or <span style={{ color: "var(--accent)", textDecoration: "underline" }}>browse from computer</span>
                 </div>
@@ -237,10 +342,15 @@ export default function UploadPage() {
                     Queue · {items.length} file{items.length === 1 ? "" : "s"} · {fmtBytes(totalSize)}
                   </div>
                   <div className="t-xs t-muted">
-                    {success} uploaded · {uploading} uploading · {queued} queued
+                    {success} uploaded · {uploading} uploading · {queued} queued{failed > 0 ? ` · ${failed} failed` : ""}
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  {failed > 0 && (
+                    <button className="btn xs ghost" onClick={retryAllFailed} disabled={!systemId}>
+                      <Ico.refresh className="icon sm" /> Retry all failed
+                    </button>
+                  )}
                   <button className="btn xs ghost" onClick={() => setItems((prev) => prev.filter((it) => it.state !== "success"))}>
                     Clear completed
                   </button>
@@ -262,10 +372,19 @@ export default function UploadPage() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span className="t-sm t-medium t-trunc">{it.file.name}</span>
-                      {it.state === "error"   && <Pill tone="rose"><span className="dot" />Error</Pill>}
-                      {it.state === "success" && <Pill tone="emerald"><span className="dot" />Done</Pill>}
+                      {it.state === "queued"    && <Pill tone="slate"><span className="dot" />Queued</Pill>}
+                      {it.state === "uploading" && <Pill tone="indigo"><span className="dot" />Uploading {it.progress}%</Pill>}
+                      {it.state === "success"   && <Pill tone="emerald"><span className="dot" />Done</Pill>}
+                      {it.state === "error"     && <Pill tone="rose"><span className="dot" />Failed</Pill>}
                     </div>
-                    <div className="t-xs t-muted" style={{ marginTop: 2 }}>{it.message ?? (it.state === "queued" ? "queued" : "")}</div>
+                    {it.relPath && it.relPath !== it.file.name && (
+                      <div className="t-xs t-subtle t-mono t-trunc" style={{ marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                        <Ico.folder className="icon sm" />{it.relPath}
+                      </div>
+                    )}
+                    <div className="t-xs t-muted" style={{ marginTop: 2 }}>
+                      {it.message ?? (it.state === "queued" ? "queued" : it.state === "uploading" ? `uploading… ${it.progress}%` : "")}
+                    </div>
                     {(it.state === "uploading" || it.state === "queued") && (
                       <div className="prog" style={{ marginTop: 6 }}>
                         <div className="bar" style={{ width: `${it.progress}%` }} />
@@ -274,8 +393,19 @@ export default function UploadPage() {
                   </div>
                   <div className="t-xs t-mono t-muted" style={{ width: 70, textAlign: "right" }}>{fmtBytes(it.file.size)}</div>
                   <div className="t-xs t-tabular t-muted" style={{ width: 40, textAlign: "right" }}>{it.progress}%</div>
+                  {it.state === "error" && (
+                    <button
+                      className="btn xs ghost icon"
+                      title="Retry this upload"
+                      disabled={!systemId}
+                      onClick={() => retryOne(i)}
+                    >
+                      <Ico.refresh className="icon sm" />
+                    </button>
+                  )}
                   <button
                     className="btn xs ghost icon"
+                    title="Remove from queue"
                     onClick={() => setItems((prev) => prev.filter((_, j) => j !== i))}
                   >
                     <Ico.x className="icon sm" />

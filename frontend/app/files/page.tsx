@@ -6,7 +6,7 @@ import { Sidebar } from "@/components/sidebar";
 import { TopBar } from "@/components/topbar";
 import { UserAvatar } from "@/components/user-avatar";
 import { safeFiles, safeFolders, safeOrgs, safeSearch, safeStats, safeSystems } from "@/lib/api";
-import type { FileRow } from "@/lib/api";
+import type { FileRow, Folder } from "@/lib/api";
 import { loadServerCtx } from "@/lib/auth-server";
 import { canMutate } from "@/lib/roles";
 
@@ -36,9 +36,16 @@ export default async function FilesTablePage({ searchParams }: FilesPageProps) {
   // own subset.
   const searchTerm = typeof sp.q === "string" ? sp.q.trim() : "";
 
+  // #9 — folder navigation. When ?folder_id= is set we scope the listing to
+  // that folder (backend filters server-side); absent = every folder, today's
+  // behaviour. Search ignores folder scope (FTS spans the whole workspace).
+  const folderId = typeof sp.folder_id === "string" && sp.folder_id.length ? sp.folder_id : undefined;
+
   const { cookieHeader, role } = await loadServerCtx();
   const [files, systems, stats] = await Promise.all([
-    searchTerm ? safeSearch(searchTerm, cookieHeader) : safeFiles({ ...filters, limit: String(LIST_LIMIT) }, cookieHeader),
+    searchTerm
+      ? safeSearch(searchTerm, cookieHeader)
+      : safeFiles({ ...filters, ...(folderId ? { folder_id: folderId } : {}), limit: String(LIST_LIMIT) }, cookieHeader),
     safeSystems(cookieHeader),
     safeStats(cookieHeader),
   ]);
@@ -61,6 +68,24 @@ export default async function FilesTablePage({ searchParams }: FilesPageProps) {
                  sys ? ["Workspace", sys.name, "Files"] :
                  ["Workspace", "Files"];
   const activeFilters = Object.entries(filters);
+
+  // #9 — resolve the open folder + its ancestor chain (root → current) from the
+  // already-fetched folder list, plus the immediate child folders to drill into.
+  // Only meaningful inside a single system and when not searching.
+  const folderById = new Map(folders.map((f) => [f.id, f]));
+  const currentFolder = folderId ? folderById.get(folderId) : undefined;
+  const folderTrail: Folder[] = [];
+  if (currentFolder) {
+    let cur: Folder | undefined = currentFolder;
+    const seen = new Set<string>();
+    while (cur && !seen.has(cur.id)) { folderTrail.unshift(cur); seen.add(cur.id); cur = cur.parent_id ? folderById.get(cur.parent_id) : undefined; }
+  }
+  // Child folders shown as drill-in rows: direct children of the open folder,
+  // or the system's root folders when no folder is open. Hidden while searching.
+  const showFolderNav = !searchTerm && !!activeSysId;
+  const childFolders = showFolderNav
+    ? folders.filter((f) => (folderId ? f.parent_id === folderId : f.parent_id === null))
+    : [];
 
   // Sort is applied here in the server component because the backend hardcodes
   // `ORDER BY modified_at DESC`. Default = modified desc (same as the backend).
@@ -135,6 +160,7 @@ export default async function FilesTablePage({ searchParams }: FilesPageProps) {
     status:    filters.status,
     project:   filters.project,
     owner:     filters.owner,
+    folder_id: folderId,
     q:         searchTerm || undefined,
     sort:      sortKey !== "modified" ? sortKey : undefined,
     dir:       sortDir !== "desc" ? sortDir : undefined,
@@ -171,7 +197,7 @@ export default async function FilesTablePage({ searchParams }: FilesPageProps) {
             </div>
             {canMutate(role) && (
               <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-                <NewFolderButton systemId={activeSysId} systemName={(sys ?? systems.find((s) => s.id === activeSysId))?.name} orgId={filters.org_id} />
+                <NewFolderButton systemId={activeSysId} systemName={(sys ?? systems.find((s) => s.id === activeSysId))?.name} orgId={filters.org_id} parentId={folderId} />
                 <a className="btn primary" href="/upload"><Ico.upload /> Upload</a>
               </div>
             )}
@@ -211,6 +237,71 @@ export default async function FilesTablePage({ searchParams }: FilesPageProps) {
           )}
         </div>
 
+        {showFolderNav && (folderTrail.length > 0 || childFolders.length > 0) && (
+          <div style={{ padding: "10px 24px", borderBottom: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 10 }}>
+            {/* Breadcrumb: system root → ancestor folders → current */}
+            <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+              <Link
+                href={buildFilesHref({ ...viewParams, folder_id: undefined })}
+                className="btn xs ghost"
+                style={{ gap: 4 }}
+                title={`${(sys ?? systems.find((sy) => sy.id === activeSysId))?.name ?? "System"} root`}
+              >
+                <Ico.home className="icon sm" />
+                {(sys ?? systems.find((sy) => sy.id === activeSysId))?.name ?? "Files"}
+              </Link>
+              {folderTrail.map((f, i) => {
+                const last = i === folderTrail.length - 1;
+                return (
+                  <span key={f.id} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <Ico.chevron className="icon sm" style={{ color: "var(--text-subtle)" }} />
+                    {last ? (
+                      <span className="t-sm t-semibold" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        <Ico.folderOpen className="icon sm" style={{ color: f.color ?? "var(--text-muted)" }} />
+                        {f.name}
+                      </span>
+                    ) : (
+                      <Link href={buildFilesHref({ ...viewParams, folder_id: f.id })} className="btn xs ghost" style={{ gap: 4 }}>
+                        <Ico.folder className="icon sm" />
+                        {f.name}
+                      </Link>
+                    )}
+                  </span>
+                );
+              })}
+            </div>
+
+            {/* Child folders to drill into */}
+            {childFolders.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {folderId && (
+                  <Link
+                    href={buildFilesHref({ ...viewParams, folder_id: currentFolder?.parent_id ?? undefined })}
+                    className="btn sm ghost"
+                    style={{ gap: 6 }}
+                    title="Up one level"
+                  >
+                    <Ico.up className="icon sm" /> Up
+                  </Link>
+                )}
+                {childFolders.map((f) => (
+                  <Link
+                    key={f.id}
+                    href={buildFilesHref({ ...viewParams, folder_id: f.id })}
+                    className="btn sm"
+                    style={{ gap: 8 }}
+                    title={`Open ${f.name}`}
+                  >
+                    <Ico.folder className="icon sm" style={{ color: f.color ?? "var(--text-muted)" }} />
+                    {f.name}
+                    <Ico.chevron className="icon sm" style={{ color: "var(--text-subtle)" }} />
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <div style={{ flex: 1, overflow: "auto", padding: "0 24px" }}>
           {rows.length === 0 ? (
             <div style={{ padding: 40, textAlign: "center", color: "var(--text-subtle)" }}>
@@ -219,7 +310,7 @@ export default async function FilesTablePage({ searchParams }: FilesPageProps) {
                 : <>No files yet.{canMutate(role) && <> <a href="/upload" className="t-semibold" style={{ color: "var(--accent)" }}>Upload your first file</a>.</>}</>}
             </div>
           ) : (
-            <FilesTable groups={groups} cols={visibleCols} role={role} />
+            <FilesTable groups={groups} cols={visibleCols} role={role} folders={folders} />
           )}
         </div>
 

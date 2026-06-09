@@ -36,7 +36,7 @@ function timeOnly(iso: string): string {
 export default async function FilesTimelinePage({ searchParams }: TimelineProps) {
   const sp = (await searchParams) ?? {};
   const filters: Record<string, string> = {};
-  for (const k of ["system_id", "org_id", "status", "project", "owner"] as const) {
+  for (const k of ["system_id", "org_id", "status", "project", "owner", "folder_id"] as const) {
     const v = sp[k];
     if (typeof v === "string" && v.length) filters[k] = v;
   }

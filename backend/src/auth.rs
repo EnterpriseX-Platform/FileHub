@@ -531,6 +531,64 @@ mod login_throttle {
 }
 
 // =============================================================================
+// Upload rate limiting
+// =============================================================================
+//
+// In-process per-user cap on file uploads (regular POST /api/files +
+// TUS-session create POST /api/uploads).  Caps starts at 60 per rolling
+// minute, returning 429 once exceeded.  Mirrors the `login_throttle` design
+// above: a keyed counter behind a `OnceLock<Mutex<..>>`.
+//
+// NOTE: per-process only — a multi-pod deploy needs a shared store (Redis)
+// to enforce the cap cluster-wide, exactly like the login throttle.
+
+/// Charge one upload against `user_id`'s budget.  Returns `Err(TooManyRequests)`
+/// once the caller exceeds `MAX_UPLOADS_PER_MINUTE` within the rolling window.
+/// Call this at the top of upload handlers, *after* authentication.
+pub async fn upload_rate_limit(user_id: &str) -> Result<(), ApiError> {
+    upload_throttle::check_and_record(user_id).await
+}
+
+mod upload_throttle {
+    use std::collections::HashMap;
+    use std::sync::OnceLock;
+    use tokio::sync::Mutex;
+    use chrono::{DateTime, Utc};
+
+    use crate::error::ApiError;
+
+    const MAX_UPLOADS_PER_MINUTE: u32 = 60;
+
+    #[derive(Default)]
+    struct State {
+        // user_id -> (window_start, uploads_in_window)
+        entries: HashMap<String, (DateTime<Utc>, u32)>,
+    }
+
+    fn state() -> &'static Mutex<State> {
+        static S: OnceLock<Mutex<State>> = OnceLock::new();
+        S.get_or_init(|| Mutex::new(State::default()))
+    }
+
+    pub async fn check_and_record(user_id: &str) -> Result<(), ApiError> {
+        let now = Utc::now();
+        let mut st = state().lock().await;
+        // Drop stale windows so a long-running process doesn't accumulate
+        // state for every user it has ever served.
+        st.entries.retain(|_, (ws, _)| (now - *ws).num_seconds() < 60);
+        let e = st.entries.entry(user_id.to_string()).or_insert((now, 0));
+        if (now - e.0).num_seconds() >= 60 { e.0 = now; e.1 = 0; }
+        if e.1 >= MAX_UPLOADS_PER_MINUTE {
+            return Err(ApiError::TooManyRequests(
+                "upload rate limit exceeded — slow down".into()
+            ));
+        }
+        e.1 += 1;
+        Ok(())
+    }
+}
+
+// =============================================================================
 // Unit tests
 // =============================================================================
 #[cfg(test)]
