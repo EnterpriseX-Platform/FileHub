@@ -95,7 +95,7 @@ FK column types follow the referenced PK type. Models in `models.rs` reflect thi
 Backend (`backend/.env`):
 - `DATABASE_URL` — **required in release**, default `postgresql://filehub:filehub@localhost:5434/filehub` in debug.
 - `PORT` — default `8090`.
-- `STORAGE_BACKEND` — `fs` (default) or `s3`. S3 uses hand-rolled SigV4 (no `aws-sdk-s3`).
+- `STORAGE_BACKEND` — `fs` (default) or `s3`. The `s3` backend uses hand-rolled SigV4 (no `aws-sdk-s3`) and is S3-compatible — works with AWS S3, **MinIO**, Wasabi, R2. Configure via `S3_ENDPOINT` / `S3_REGION` / `S3_BUCKET` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` / `S3_PATH_STYLE`. `docker-compose.yml` ships a `minio` + `minio-setup` service (creates the `filehub-storage` bucket); `docker compose up -d minio minio-setup` plus the `S3_*` block in `backend/.env.example` is a turnkey local setup. **MinIO needs path-style addressing — keep `S3_PATH_STYLE=true`** (the backend default). Encryption (`STORAGE_ENC_KEY`) layers in front of any backend unchanged.
 - `STORAGE_ROOT` — fs backend root, default `./storage`.
 - `STORAGE_ENC_KEY` — optional hex-encoded 32 bytes; when set, all writes are AES-256-GCM encrypted. **Backups must capture this** — see `scripts/backup.sh`.
 - `CORS_ORIGIN` — **required in release**, single allowed origin (must be exact, not `*`, because cookies require credentials). Debug fallback `http://localhost:3001`.

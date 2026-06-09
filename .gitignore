@@ -19,3 +19,10 @@ backend/filehub.db*
 # OS / logs
 .DS_Store
 *.log
+
+# Stray root ./storage when the backend is run from the repo root, local env files,
+# and the per-machine agent settings — none belong in version control.
+/storage/
+.env*.local
+.claude/settings.local.json
+.claude/

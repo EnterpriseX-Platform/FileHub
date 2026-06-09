@@ -76,5 +76,51 @@ services:
     cap_add:
       - MKNOD
 
+  # MinIO — S3-compatible object storage.  OPTIONAL: only needed when the
+  # backend runs with STORAGE_BACKEND=s3.  The backend's hand-rolled SigV4
+  # client (backend/src/store/s3.rs) talks to the S3 API on :9000; the web
+  # console is on :9001 (log in with the root creds below).
+  #
+  # MinIO REQUIRES path-style addressing — keep S3_PATH_STYLE=true (the
+  # backend default).  These dev creds are throwaway: rotate MINIO_ROOT_*
+  # and the matching S3_ACCESS_KEY/S3_SECRET_KEY for any real environment.
+  minio:
+    image: minio/minio:latest
+    container_name: filehub-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: filehub
+      MINIO_ROOT_PASSWORD: filehub-minio-dev
+    ports:
+      - "9000:9000"   # S3 API — point S3_ENDPOINT here
+      - "9001:9001"   # web console (browser)
+    volumes:
+      - filehub-minio-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "mc ready local || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # One-shot init: wait for MinIO, then create the bucket the backend expects
+  # (S3_BUCKET=filehub-storage).  Exits 0 once the bucket exists; safe to
+  # re-run (`--ignore-existing`).
+  minio-setup:
+    image: minio/mc:latest
+    container_name: filehub-minio-setup
+    depends_on:
+      - minio
+    restart: "no"
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set fh http://minio:9000 filehub filehub-minio-dev 2>/dev/null; do
+        echo 'waiting for minio...'; sleep 1;
+      done;
+      mc mb --ignore-existing fh/filehub-storage &&
+      echo 'bucket filehub-storage ready'
+      "
+
 volumes:
   filehub-pgdata:
+  filehub-minio-data:
