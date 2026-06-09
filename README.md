@@ -1,5 +1,7 @@
 # File Hub
 
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
+
 DevOps-grade file management system built from a [Claude Design](https://claude.ai/design) handoff bundle.
 
 - **Frontend** — Next.js 15 (App Router, TypeScript), Linear × Notion aesthetic, 10 connected screens
@@ -101,3 +103,9 @@ FILEHUBNEW/
 ```
 
 The script runs 15+ tests covering health, stats, listing, filtering, upload, download, delete, and activity.
+
+## License
+
+File Hub is licensed under the **GNU Affero General Public License v3.0** — see [LICENSE](LICENSE) for the full text.
+
+AGPL-3.0 is a strong copyleft license: if you run a modified version of File Hub as a network service, you must make the corresponding source available to its users. Any derivative work must also be licensed under AGPL-3.0.
