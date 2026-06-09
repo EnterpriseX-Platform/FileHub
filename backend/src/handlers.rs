@@ -2032,6 +2032,45 @@ pub async fn revoke_api_key(
 }
 
 // =============================================================================
+// API docs — serve the OpenAPI spec (embedded at build time so it can't drift
+// from the file) + a Swagger UI. Public, like /health: the spec contains no
+// secrets and integrators should be able to read the API without a session.
+// =============================================================================
+pub async fn openapi_spec() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "application/yaml; charset=utf-8")],
+        include_str!("../openapi.yaml"),
+    )
+}
+
+pub async fn swagger_ui() -> axum::response::Html<&'static str> {
+    // Swagger UI assets load from the unpkg CDN (dev/internal convenience —
+    // no bundling). The spec lives at /fh/api/openapi.yaml (same origin).
+    axum::response::Html(
+        r##"<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>File Hub API — Swagger UI</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css"/>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js" crossorigin></script>
+  <script>
+    window.ui = SwaggerUIBundle({
+      url: "/fh/api/openapi.yaml",
+      dom_id: "#swagger-ui",
+      deepLinking: true,
+    });
+  </script>
+</body>
+</html>"##,
+    )
+}
+
+// =============================================================================
 // Unit tests — pure helpers (DB-touching tests live in tests/api.rs).
 // =============================================================================
 #[cfg(test)]
