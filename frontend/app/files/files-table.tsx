@@ -212,7 +212,13 @@ export function FilesTable({ groups, cols, role, folders = [] }: { groups: FileG
       {selected.size > 0 && (
         <div
           style={{
-            position: "sticky", bottom: 12, margin: "12px auto 0", maxWidth: 560,
+            // Fixed (not sticky) so it floats at the viewport bottom regardless
+            // of the .table-scroll / .main overflow wrappers — sticky broke once
+            // the table got wrapped for horizontal scrolling, leaving the bar
+            // stranded at the bottom of the content where selecting rows from the
+            // top showed nothing.
+            position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 16, zIndex: 50,
+            maxWidth: 560, width: "max-content",
             display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
             background: "var(--text)", color: "var(--bg)", borderRadius: 10, boxShadow: "var(--sh-popover)",
           }}
