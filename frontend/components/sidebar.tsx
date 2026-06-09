@@ -12,7 +12,7 @@ import { fmtCount } from "@/lib/format";
 import { useSidebar } from "@/lib/sidebar-context";
 import type { Org, System, DashboardStats } from "@/lib/api";
 
-export type NavKey = "dashboard" | "files" | "activity" | "views" | "share" | "archive" | "settings";
+export type NavKey = "dashboard" | "files" | "activity" | "views" | "share" | "archive" | "trash" | "settings";
 
 /// Sidebar is a pure synchronous component so it can render correctly inside
 /// both server and client pages. Data is supplied entirely via props; pages
@@ -125,7 +125,7 @@ export function Sidebar({
       </div>
 
       <div style={{ borderTop: "1px solid var(--border)", padding: "8px 8px" }}>
-        <SideRow href="/trash"    icon={<Ico.trash />}    label="Trash" active={nav === "archive"} />
+        <SideRow href="/trash"    icon={<Ico.trash />}    label="Trash" active={nav === "trash"} />
         <SideRow href="/settings" icon={<Ico.cog />}      label="Settings" active={nav === "settings"} />
         <UserMenu />
       </div>

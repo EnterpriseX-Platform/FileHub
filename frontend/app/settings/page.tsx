@@ -50,7 +50,7 @@ export default async function SettingsGeneralPage() {
       <div className="main split-rail" style={{ overflow: "auto" }}>
         <SettingsNav active="general" />
 
-        <div style={{ overflow: "auto", padding: "24px 32px" }}>
+        <div className="main-pad" style={{ overflow: "auto" }}>
           <div style={{ maxWidth: 760 }}>
             <div className="t-3xl t-semibold">General</div>
             <div className="t-sm t-muted" style={{ marginTop: 4, marginBottom: 24 }}>

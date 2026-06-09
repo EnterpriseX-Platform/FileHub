@@ -169,7 +169,7 @@ export function SectionHd({
   return (
     <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 12 }}>
       <div>
-        <div className="t-xl t-semibold">{title}</div>
+        <h2 className="t-xl t-semibold">{title}</h2>
         {sub && <div className="t-sm t-muted" style={{ marginTop: 2 }}>{sub}</div>}
       </div>
       <div style={{ marginLeft: "auto" }}>{action}</div>

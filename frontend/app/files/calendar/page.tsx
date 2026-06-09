@@ -105,14 +105,14 @@ export default async function FilesCalendarPage({ searchParams }: CalendarProps)
           </div>
         </div>
 
-        <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <span className="t-2xl t-semibold">{monthLabel}</span>
           {sys && <Pill tone={sys.tone}><span className="dot" />{sys.name}</Pill>}
           <Pill>{rows.length} file{rows.length === 1 ? "" : "s"}</Pill>
           <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-            <a className="btn sm ghost icon" href={baseQs({ month: prevMonth })}><Ico.left className="icon sm" /></a>
-            <a className="btn sm ghost" href={baseQs({ month: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}` })}>Today</a>
-            <a className="btn sm ghost icon" href={baseQs({ month: nextMonth })}><Ico.chevron className="icon sm" /></a>
+            <a className="btn sm ghost icon" href={baseQs({ month: prevMonth })} aria-label="Previous month"><Ico.left className="icon sm" /></a>
+            <a className="btn sm ghost" href={baseQs({ month: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}` })} aria-label="Today">Today</a>
+            <a className="btn sm ghost icon" href={baseQs({ month: nextMonth })} aria-label="Next month"><Ico.chevron className="icon sm" /></a>
           </div>
         </div>
 

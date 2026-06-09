@@ -69,7 +69,7 @@ export default async function FilesGalleryPage({ searchParams }: GalleryProps) {
         crumbs={sys ? ["Workspace", sys.name, "Gallery"] : ["Workspace", "Gallery"]}
       />
       <div className="main">
-        <div style={{ padding: "14px 24px 8px", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ padding: "var(--sp-3) var(--sp-6) 8px", borderBottom: "1px solid var(--border)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -92,7 +92,7 @@ export default async function FilesGalleryPage({ searchParams }: GalleryProps) {
           </div>
         </div>
 
-        <div style={{ flex: 1, overflow: "auto", padding: "16px 24px" }}>
+        <div style={{ flex: 1, overflow: "auto", padding: "var(--sp-4) var(--sp-6)" }}>
           <Section label="Today" items={today} />
           {earlier.length > 0 && <Section label="Earlier" items={earlier} faded />}
           {rows.length === 0 && (

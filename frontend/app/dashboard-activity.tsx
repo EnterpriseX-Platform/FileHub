@@ -22,7 +22,7 @@ export function DashboardActivity({ activity }: { activity: Activity[] }) {
   return (
     <>
       <div style={{ padding: "14px 16px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div className="t-lg t-semibold">Recent activity</div>
+        <h2 className="t-lg t-semibold">Recent activity</h2>
         <div style={{ display: "flex", gap: 6 }}>
           {TABS.map((t) => (
             <button

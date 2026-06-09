@@ -322,6 +322,7 @@ export default function UploadPage() {
                 ref={inputRef}
                 type="file"
                 multiple
+                aria-label="Select files to upload"
                 style={{ display: "none" }}
                 onChange={(e) => e.target.files && addPlainFiles(e.target.files)}
               />
@@ -398,6 +399,7 @@ export default function UploadPage() {
                     <button
                       className="btn xs ghost icon"
                       title="Retry this upload"
+                      aria-label="Retry this upload"
                       disabled={!systemId}
                       onClick={() => retryOne(i)}
                     >
@@ -407,6 +409,7 @@ export default function UploadPage() {
                   <button
                     className="btn xs ghost icon"
                     title="Remove from queue"
+                    aria-label="Remove from queue"
                     onClick={() => setItems((prev) => prev.filter((_, j) => j !== i))}
                   >
                     <Ico.x className="icon sm" />
@@ -419,9 +422,10 @@ export default function UploadPage() {
           <div>
             <div className="card" style={{ padding: 16, marginBottom: 16 }}>
               <SectionHd title="Destination" sub="System + org where these files will live" />
-              <Field label="System">
+              <Field label="System" htmlFor="system-select">
                 {activeSystem && <Pill tone={activeSystem.tone}><span className="dot" />{activeSystem.name}</Pill>}
                 <select
+                  id="system-select"
                   value={systemId}
                   onChange={(e) => setSystemId(e.target.value)}
                   style={{ flex: 1, border: 0, background: "transparent", color: "inherit", font: "inherit" }}
@@ -430,8 +434,9 @@ export default function UploadPage() {
                   {systems.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </Field>
-              <Field label="Org (optional)">
+              <Field label="Org (optional)" htmlFor="org-select">
                 <select
+                  id="org-select"
                   value={orgId}
                   onChange={(e) => setOrgId(e.target.value)}
                   style={{ flex: 1, border: 0, background: "transparent", color: "inherit", font: "inherit" }}
@@ -455,16 +460,18 @@ export default function UploadPage() {
                 action={<Pill tone="indigo">{items.length} file{items.length === 1 ? "" : "s"}</Pill>}
               />
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <Field label="Project">
+                <Field label="Project" htmlFor="project-input">
                   <input
+                    id="project-input"
                     value={project}
                     onChange={(e) => setProject(e.target.value)}
                     placeholder="e.g. Q1-2026"
                     style={{ width: "100%" }}
                   />
                 </Field>
-                <Field label="Status">
+                <Field label="Status" htmlFor="status-select">
                   <select
+                    id="status-select"
                     value={status}
                     onChange={(e) => setStatus(e.target.value)}
                     style={{ width: "100%", border: 0, background: "transparent", color: "inherit", font: "inherit" }}
@@ -472,15 +479,16 @@ export default function UploadPage() {
                     {["Draft", "Review", "Approved", "Archived"].map((s) => <option key={s}>{s}</option>)}
                   </select>
                 </Field>
-                <Field label="Owner">
+                <Field label="Owner" htmlFor="owner-input">
                   <input
+                    id="owner-input"
                     value={owner}
                     onChange={(e) => setOwner(e.target.value)}
                     placeholder="Your name"
                     style={{ width: "100%" }}
                   />
                 </Field>
-                <Field label="Tags" multiline>
+                <Field label="Tags" multiline htmlFor="tags-input">
                   {tags.map((t) => (
                     <span key={t} style={{ display: "inline-flex", alignItems: "center" }}>
                       <Tag>{t}</Tag>
@@ -492,6 +500,7 @@ export default function UploadPage() {
                     </span>
                   ))}
                   <input
+                    id="tags-input"
                     placeholder="Add tag + Enter"
                     style={{ minWidth: 100 }}
                     onKeyDown={(e) => {
@@ -532,10 +541,10 @@ function ReadOnlyNotice() {
   );
 }
 
-function Field({ label, children, multiline }: { label: string; children: React.ReactNode; multiline?: boolean }) {
+function Field({ label, children, multiline, htmlFor }: { label: string; children: React.ReactNode; multiline?: boolean; htmlFor?: string }) {
   return (
     <div style={{ marginBottom: 10 }}>
-      <div className="t-xs t-subtle t-medium" style={{ marginBottom: 4 }}>{label}</div>
+      <label htmlFor={htmlFor} className="t-xs t-subtle t-medium" style={{ display: "block", marginBottom: 4 }}>{label}</label>
       <div className="field" style={{
         width: "100%",
         height: multiline ? "auto" : undefined,

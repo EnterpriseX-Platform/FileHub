@@ -116,6 +116,9 @@ export default async function FileDetailPage({ params }: { params: Promise<{ id:
               </div>
             </div>
           ))}
+          {perms.length > 6 && (
+            <div className="t-xs t-muted" style={{ marginTop: 6 }}>+{perms.length - 6} more</div>
+          )}
 
           {/* Versions, workflow, and comments — fetched client-side so the
               static inspector stays cheap.  See sidecar.tsx for the layout. */}

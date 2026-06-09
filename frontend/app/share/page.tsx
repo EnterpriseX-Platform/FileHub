@@ -116,7 +116,7 @@ export default function SharePage() {
       />
       <div className="main main-pad" style={{ overflow: "auto" }}>
         <div className="page">
-        <div style={{ maxWidth: 720, margin: "0 auto" }}>
+        <div style={{ maxWidth: "min(720px, 100%)", margin: "0 auto" }}>
           <div className="t-2xl t-semibold" style={{ marginBottom: 4 }}>Share a file</div>
           <div className="t-sm t-muted" style={{ marginBottom: 20 }}>
             Generate a tokenized link that grants view/download without sign-in.
@@ -170,9 +170,10 @@ export default function SharePage() {
             <Label>Link options</Label>
             <div className="row-2col">
               <div>
-                <div className="t-xs t-subtle" style={{ marginBottom: 4 }}>Expires in (days)</div>
+                <label htmlFor="share-expires" className="t-xs t-subtle" style={{ display: "block", marginBottom: 4 }}>Expires in (days)</label>
                 <div className="field" style={{ width: "100%" }}>
                   <input
+                    id="share-expires"
                     type="number"
                     min={0}
                     value={expires}
@@ -183,9 +184,10 @@ export default function SharePage() {
                 </div>
               </div>
               <div>
-                <div className="t-xs t-subtle" style={{ marginBottom: 4 }}>Note (optional)</div>
+                <label htmlFor="share-note" className="t-xs t-subtle" style={{ display: "block", marginBottom: 4 }}>Note (optional)</label>
                 <div className="field" style={{ width: "100%" }}>
                   <input
+                    id="share-note"
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
                     placeholder="why this is shared"
@@ -213,12 +215,24 @@ export default function SharePage() {
                     {typeof window !== "undefined" ? window.location.origin : ""}{share.url}
                   </span>
                 </div>
-                <button className="btn" onClick={copyUrl}>
+                <button className="btn" onClick={copyUrl} aria-label="Copy share URL">
                   <Ico.copy /> {copied ? "Copied!" : "Copy"}
                 </button>
-                <a className="btn" href={`${share.url}/download`}>
+                <a
+                  className="btn"
+                  href={`${typeof window !== "undefined" ? window.location.origin : ""}${share.url}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Open share link in new tab"
+                >
                   <Ico.download /> Try
                 </a>
+              </div>
+              <div
+                aria-live="polite"
+                style={{ position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap", border: 0 }}
+              >
+                {copied ? "Share URL copied to clipboard" : ""}
               </div>
               <div className="t-xs t-muted" style={{ marginTop: 8 }}>
                 Token <span className="t-mono">{share.token.slice(0, 12)}…</span>

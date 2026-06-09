@@ -2,7 +2,7 @@ import { Ico } from "@/components/icons";
 import { Av, Ft, Pill } from "@/components/primitives";
 import { Sidebar } from "@/components/sidebar";
 import { TopBar } from "@/components/topbar";
-import { safeFiles, safeOrgs, safeStats, safeSystems } from "@/lib/api";
+import { safeFiles, safeStats, safeSystems } from "@/lib/api";
 import { loadServerCtx } from "@/lib/auth-server";
 import { fmtAgo, fmtBytes } from "@/lib/format";
 import type { FileRow } from "@/lib/api";
@@ -30,17 +30,16 @@ async function safeTrash(cookieHeader: string): Promise<FileRow[]> {
 
 export default async function TrashPage() {
   const { cookieHeader, role } = await loadServerCtx();
-  const [trash, systems, stats, orgs] = await Promise.all([
+  const [trash, systems, stats] = await Promise.all([
     safeTrash(cookieHeader),
     safeSystems(cookieHeader),
     safeStats(cookieHeader),
-    safeOrgs("", cookieHeader),  // first system's orgs
   ]);
-  void orgs; void safeFiles;
+  void safeFiles;
 
   return (
     <div className="scr">
-      <Sidebar nav="archive" systems={systems} stats={stats} />
+      <Sidebar nav="trash" systems={systems} stats={stats} />
       <TopBar
         crumbs={["Workspace", "Trash"]}
         actions={<></>}
@@ -55,6 +54,7 @@ export default async function TrashPage() {
         </div>
 
         {trash.length > 0 && (
+          <div className="table-scroll">
           <table className="tbl">
             <thead>
               <tr>
@@ -93,6 +93,7 @@ export default async function TrashPage() {
               })}
             </tbody>
           </table>
+          </div>
         )}
         </div>
       </div>
