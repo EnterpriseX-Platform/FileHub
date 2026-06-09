@@ -455,10 +455,17 @@ button { font-family: inherit; }
 code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-muted); padding: 1px 4px; border-radius: 3px; }
 
 /* =========================================================================
-   Responsive — the base layout is a fixed desktop grid (240px sidebar /
-   1fr main / optional 340px inspector). These reusable grid utilities plus
-   three breakpoints progressively collapse it instead of clipping content.
+   Responsive — base layout is a fixed desktop grid (240px sidebar / 1fr main
+   / optional 340px inspector). These utilities + breakpoints collapse it
+   gracefully. The sidebar stays a normal column down to 860px (laptops and
+   landscape tablets keep it); only below that does it become a drawer.
    ========================================================================= */
+
+/* Caps content width on wide screens so forms/cards don't stretch edge-to-edge
+   and read as sparse. Apply to content/form pages — NOT full-width data tables. */
+.page             { width: 100%; max-width: 1200px; margin-inline: auto; }
+/* Page padding as a class (replaces inline "24px 32px") so it tightens on phones. */
+.main-pad         { padding: 24px 32px; }
 
 /* Reusable responsive grids — replace fixed inline grid-template-columns. */
 .stat-cards       { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
@@ -473,14 +480,12 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-mu
 .table-scroll     { width: 100%; overflow-x: auto; }
 .table-scroll .tbl{ min-width: max-content; }
 
-/* Off-canvas drawer affordances — inert until the breakpoints below turn
-   the sidebar into a drawer. */
+/* Off-canvas drawer affordances — inert until the 860px breakpoint. */
 .nav-toggle   { display: none; }
 .side-backdrop{ display: none; }
 
+/* Inspector stacks below content when the 3-pane gets tight. */
 @media (max-width: 1279px) {
-  /* The 340px inspector no longer fits beside sidebar + content: stack it
-     below the main column as a scrollable panel. */
   .scr.with-inspector { grid-template-columns: 240px 1fr; grid-template-rows: 52px 1fr auto; }
   .inspector {
     grid-column: 1 / -1; grid-row: 3;
@@ -489,12 +494,22 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-mu
   }
 }
 
-@media (max-width: 1023px) {
-  /* Sidebar becomes an off-canvas drawer; everything else is one column. */
+/* Dashboard / wide grids reflow as the main column narrows (the 240px sidebar
+   is still present here, so these fire earlier than the raw viewport width). */
+@media (max-width: 1100px) {
+  .stat-cards { grid-template-columns: repeat(2, 1fr); }
+  .content-grid-2col { grid-template-columns: 1fr; }
+}
+@media (max-width: 900px) {
+  .legend-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Tablet/phone: sidebar becomes an off-canvas drawer. */
+@media (max-width: 860px) {
   .scr, .scr.with-inspector { grid-template-columns: 1fr; }
   .topbar, .main, .inspector { grid-column: 1; }
   .side {
-    position: fixed; top: 0; left: 0; width: 264px; height: 100%;
+    position: fixed; top: 0; left: 0; width: 280px; height: 100%;
     z-index: 60; transform: translateX(-100%);
     transition: transform .2s ease; box-shadow: var(--sh-3);
   }
@@ -504,19 +519,15 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-mu
     background: rgba(12, 10, 9, 0.4); z-index: 55;
   }
   .nav-toggle { display: inline-flex; }
-  .stat-cards { grid-template-columns: repeat(2, 1fr); }
-  .content-grid-2col { grid-template-columns: 1fr; }
   .split-rail { grid-template-columns: 1fr; }
 }
 
-@media (max-width: 767px) {
+/* Phone. */
+@media (max-width: 620px) {
   .side { width: 84vw; max-width: 320px; }
   .inspector { max-height: 70vh; }
   .ws-name .t-sm { display: none; }
-  .legend-grid { grid-template-columns: repeat(2, 1fr); }
-  .form-grid, .row-2col { grid-template-columns: 1fr; gap: 8px; align-items: stretch; }
-}
-
-@media (max-width: 560px) {
   .stat-cards, .legend-grid { grid-template-columns: 1fr; }
+  .form-grid, .row-2col { grid-template-columns: 1fr; gap: 8px; align-items: stretch; }
+  .main-pad { padding: 16px; }
 }

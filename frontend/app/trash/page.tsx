@@ -45,7 +45,8 @@ export default async function TrashPage() {
         crumbs={["Workspace", "Trash"]}
         actions={<></>}
       />
-      <div className="main" style={{ overflow: "auto", padding: "24px 32px" }}>
+      <div className="main main-pad" style={{ overflow: "auto" }}>
+        <div className="page">
         <div className="t-2xl t-semibold" style={{ marginBottom: 4 }}>Trash</div>
         <div className="t-sm t-muted" style={{ marginBottom: 20 }}>
           {trash.length === 0
@@ -93,6 +94,7 @@ export default async function TrashPage() {
             </tbody>
           </table>
         )}
+        </div>
       </div>
     </div>
   );

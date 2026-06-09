@@ -296,7 +296,8 @@ export default function UploadPage() {
           </>
         }
       />
-      <div className="main" style={{ overflow: "auto" }}>
+      <div className="main main-pad" style={{ overflow: "auto" }}>
+        <div className="page">
         {authLoading ? (
           <div style={{ padding: "64px 32px", textAlign: "center", color: "var(--text-subtle)" }}>Loading…</div>
         ) : readOnly ? (
@@ -507,6 +508,7 @@ export default function UploadPage() {
           </div>
         </div>
         )}
+        </div>
       </div>
     </div>
   );
