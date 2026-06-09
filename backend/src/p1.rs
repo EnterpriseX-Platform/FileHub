@@ -271,6 +271,12 @@ pub struct WorkflowStep {
     pub sequence:     i32,
     pub created_at:   DateTime<Utc>,
     pub decided_at:   Option<DateTime<Utc>>,
+    /// Reviewer's display name, joined from `users` in `list_workflow`. The
+    /// frontend renders this directly. `#[sqlx(default)]` so the bare
+    /// `SELECT * FROM workflow_steps` paths (which don't join) still decode —
+    /// they just leave it `None`.
+    #[sqlx(default)]
+    pub reviewer_name: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -355,7 +361,11 @@ pub async fn list_workflow(
     let mut out: Vec<(Workflow, Vec<WorkflowStep>)> = Vec::new();
     for wf in workflows {
         let steps: Vec<WorkflowStep> = sqlx::query_as(
-            "SELECT * FROM workflow_steps WHERE workflow_id = $1 ORDER BY sequence"
+            r#"SELECT s.*, COALESCE(u.display_name, 'Unknown reviewer') AS reviewer_name
+                 FROM workflow_steps s
+                 LEFT JOIN users u ON u.id = s.reviewer_id
+                WHERE s.workflow_id = $1
+                ORDER BY s.sequence"#
         ).bind(wf.id).fetch_all(&s.db).await?;
         out.push((wf, steps));
     }

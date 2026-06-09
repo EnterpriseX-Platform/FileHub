@@ -8,6 +8,7 @@ pub mod handlers;
 pub mod models;
 pub mod p1;
 pub mod rotation;
+pub mod seed_demo;
 pub mod state;
 pub mod storage;
 pub mod store;

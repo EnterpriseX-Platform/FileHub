@@ -47,7 +47,7 @@ export default async function SettingsAuditPage() {
                 </thead>
                 <tbody>
                   {events.length === 0 ? (
-                    <tr><td colSpan={5} style={{ padding: 32, textAlign: "center", color: "var(--text-subtle)" }}>No activity yet.</td></tr>
+                    <tr><td colSpan={5} style={{ padding: 32, textAlign: "center", color: "var(--text-subtle)" }}>No activity recorded yet — uploads, deletions, shares, and workflow decisions appear here automatically.</td></tr>
                   ) : events.map((a) => (
                     <tr key={a.id}>
                       <td>

@@ -25,7 +25,7 @@ export default async function ArchivePage() {
 
         <div className="card" style={{ padding: 0 }}>
           {files.length === 0 && (
-            <div style={{ padding: 32, textAlign: "center", color: "var(--text-subtle)" }}>No archived files.</div>
+            <div style={{ padding: 32, textAlign: "center", color: "var(--text-subtle)" }}>No archived files yet — archived files are kept here for 365 days before deletion.</div>
           )}
           {files.map((f, i) => (
             <a

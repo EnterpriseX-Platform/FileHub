@@ -110,7 +110,7 @@ export default async function OrgsPage({ searchParams }: OrgsProps) {
               <tbody>
                 {orgs.length === 0 && (
                   <tr><td colSpan={8} style={{ padding: 40, textAlign: "center", color: "var(--text-subtle)" }}>
-                    {activeSystem ? `No orgs in ${activeSystem.name}.` : "No orgs registered."}
+                    {activeSystem ? "No organizations in this system yet — set up org hierarchies in Settings to organize teams and permissions." : "No orgs registered."}
                   </td></tr>
                 )}
                 {orgs.map((o) => {

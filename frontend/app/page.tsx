@@ -129,7 +129,7 @@ export default async function DashboardPage() {
                 action={<a className="btn sm ghost" href="/orgs">View details <Ico.chevron className="icon sm" /></a>}
               />
               {storageBySystem.length === 0 ? (
-                <div className="t-sm t-subtle" style={{ padding: "12px 0" }}>No storage data yet.</div>
+                <div className="t-sm t-subtle" style={{ padding: "12px 0" }}>Upload a file to see storage usage by system.</div>
               ) : (
                 <>
                   <div style={{ display: "flex", height: 10, borderRadius: 5, overflow: "hidden", marginBottom: 12 }}>
@@ -170,7 +170,7 @@ export default async function DashboardPage() {
                 action={<a className="btn xs ghost" href="/files?status=Review">View all <Ico.chevron className="icon sm" /></a>}
               />
               {reviewFiles.length === 0 ? (
-                <div className="t-sm t-subtle" style={{ padding: "8px 0" }}>No pending reviews.</div>
+                <div className="t-sm t-subtle" style={{ padding: "8px 0" }}>Your inbox is clear — no files waiting for your review.</div>
               ) : reviewFiles.map((f, i) => {
                 const sys = systems.find((s) => s.id === f.system_id);
                 return (
@@ -189,7 +189,7 @@ export default async function DashboardPage() {
             <div className="card" style={{ padding: 16 }}>
               <SectionHd title="Pinned views" action={<Ico.pin className="icon sm" />} />
               {pinnedViews.length === 0 ? (
-                <div className="t-sm t-subtle" style={{ padding: "8px 0" }}>No pinned views.</div>
+                <div className="t-sm t-subtle" style={{ padding: "8px 0" }}>No pinned views yet. Save a filter in Files, then pin it here.</div>
               ) : pinnedViews.map((v, i) => {
                 const icon = v.layout === "board" ? <Ico.board /> : v.layout === "gallery" ? <Ico.gallery /> : <Ico.table />;
                 const tone: "indigo" | "rose" | "emerald" | "amber" =
@@ -231,7 +231,7 @@ export default async function DashboardPage() {
                 </div>
               ))}
               {(stats?.connected_systems ?? []).length === 0 && (
-                <div className="t-sm t-subtle" style={{ padding: "8px 0" }}>No systems registered.</div>
+                <div className="t-sm t-subtle" style={{ padding: "8px 0" }}>No storage systems connected. Admins can add one in Settings.</div>
               )}
             </div>
           </div>

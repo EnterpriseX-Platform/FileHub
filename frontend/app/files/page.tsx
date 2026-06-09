@@ -133,7 +133,7 @@ export default async function FilesTablePage({ searchParams }: FilesPageProps) {
     switch (groupBy) {
       case "status":  return f.status || "—";
       case "owner":   return f.owner || "—";
-      case "project": return f.project || "(no project)";
+      case "project": return f.project || "Unassigned";
       default:        return "";
     }
   };
@@ -307,7 +307,7 @@ export default async function FilesTablePage({ searchParams }: FilesPageProps) {
             <div style={{ padding: 40, textAlign: "center", color: "var(--text-subtle)" }}>
               {searchTerm || activeFilters.length > 0
                 ? <>No files match this view. <Link href={buildFilesHref({})} className="t-semibold" style={{ color: "var(--accent)" }}>Clear filters</Link>.</>
-                : <>No files yet.{canMutate(role) && <> <a href="/upload" className="t-semibold" style={{ color: "var(--accent)" }}>Upload your first file</a>.</>}</>}
+                : <>No files here yet —{canMutate(role) && <> <a href="/upload" className="t-semibold" style={{ color: "var(--accent)" }}>Upload your first file</a>.</>}</>}
             </div>
           ) : (
             <FilesTable groups={groups} cols={visibleCols} role={role} folders={folders} />

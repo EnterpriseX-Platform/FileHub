@@ -88,9 +88,9 @@ export function NotificationsBell({ tone = "ghost" }: { tone?: "ghost" | "icon" 
           </div>
 
           {items === null ? (
-            <div className="t-sm t-subtle" style={{ padding: 16 }}>loading…</div>
+            <div className="t-sm t-subtle" style={{ padding: 16 }}>Loading…</div>
           ) : items.length === 0 ? (
-            <div className="t-sm t-subtle" style={{ padding: 16, textAlign: "center" }}>You're all caught up.</div>
+            <div className="t-sm t-subtle" style={{ padding: 16, textAlign: "center" }}>All caught up — review requests, approvals, and mentions show up here.</div>
           ) : items.map((n) => (
             <div
               key={n.id}
@@ -111,10 +111,10 @@ export function NotificationsBell({ tone = "ghost" }: { tone?: "ghost" | "icon" 
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "flex-end" }}>
                 {n.link && (
-                  <Link href={n.link} className="btn xs ghost" onClick={() => setOpen(false)}>open</Link>
+                  <Link href={n.link} className="btn xs ghost" onClick={() => setOpen(false)}>View</Link>
                 )}
                 {!n.read_at && (
-                  <button className="btn xs ghost" onClick={() => markRead(n.id)}>mark read</button>
+                  <button className="btn xs ghost" onClick={() => markRead(n.id)}>Mark read</button>
                 )}
               </div>
             </div>

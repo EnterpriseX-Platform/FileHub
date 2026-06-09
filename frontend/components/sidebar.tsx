@@ -41,8 +41,8 @@ export function Sidebar({
       <div className="ws">
         <span className="ws-logo" style={{ background: "#4f46e5" }}>F</span>
         <div className="ws-name">
-          File Hub
-          <div className="t-sm t-muted">acme.go.th</div>
+          {stats?.workspace_display || "File Hub"}
+          <div className="t-sm t-muted">{stats?.workspace_name || "acme.go.th"}</div>
         </div>
         <Ico.down />
       </div>

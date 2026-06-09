@@ -46,7 +46,7 @@ type WorkflowStep = {
 type Workflow = {
   id: string;
   file_id: string;
-  status: string;
+  state: string;          // backend serializes `state` (Draft | Review | Approved | …)
   created_at: string;
 };
 
@@ -94,7 +94,7 @@ function VersionsBlock({ fileId }: { fileId: string }) {
     <section>
       <SectionLabel>Version history <Counter n={versions?.length ?? 0} /></SectionLabel>
       {versions === null ? <Loading /> : versions.length === 0 ? (
-        <div className="t-xs t-subtle">Only the current version exists.</div>
+        <div className="t-xs t-subtle">This is the current version. Each new upload is saved here so you can compare or restore earlier ones.</div>
       ) : (
         <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
           {versions.map((v) => (
@@ -142,11 +142,11 @@ function WorkflowBlock({ fileId }: { fileId: string }) {
     <section>
       <SectionLabel>Review workflow</SectionLabel>
       {entries === null ? <Loading /> : entries.length === 0 ? (
-        <div className="t-xs t-subtle">No review workflow has been started for this file.</div>
+        <div className="t-xs t-subtle">No approval workflow yet — route this file through reviewers to track sign-off and decisions.</div>
       ) : entries.map(([wf, steps]) => (
         <div key={wf.id} style={{ marginBottom: 10 }}>
           <div className="t-xs t-subtle" style={{ marginBottom: 6 }}>
-            {wf.status} · started {fmtAgo(wf.created_at)}
+            {wf.state} · started {fmtAgo(wf.created_at)}
           </div>
           <ol style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 4 }}>
             {steps.map((s) => (
@@ -223,7 +223,7 @@ function CommentsBlock({ fileId }: { fileId: string }) {
     <section>
       <SectionLabel>Comments <Counter n={items?.length ?? 0} /></SectionLabel>
       {items === null ? <Loading /> : items.length === 0 ? (
-        <div className="t-xs t-subtle" style={{ marginBottom: 8 }}>No comments yet — start the conversation.</div>
+        <div className="t-xs t-subtle" style={{ marginBottom: 8 }}>Be the first to comment — share feedback, ask a question, or note an approval.</div>
       ) : (
         <ul style={{ listStyle: "none", padding: 0, margin: "0 0 8px", display: "flex", flexDirection: "column", gap: 8 }}>
           {items.map((c) => (
@@ -232,7 +232,7 @@ function CommentsBlock({ fileId }: { fileId: string }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="t-sm">
                   <span className="t-semibold">{c.display_name}</span>{" "}
-                  <span className="t-xs t-subtle">{fmtAgo(c.created_at)}</span>
+                  <span className="t-xs t-subtle" title={new Date(c.created_at).toLocaleString()}>{fmtAgo(c.created_at)}</span>
                 </div>
                 <div className="t-sm" style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{c.body}</div>
               </div>
@@ -247,7 +247,7 @@ function CommentsBlock({ fileId }: { fileId: string }) {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             rows={2}
-            placeholder="Add a comment…"
+            placeholder="Add feedback, a question, or an approval…"
             style={{ width: "100%", border: 0, background: "transparent", color: "inherit", font: "inherit", resize: "vertical" }}
           />
           {err && <div className="t-xs" style={{ color: "var(--danger)", marginTop: 4 }}>{err}</div>}
@@ -284,5 +284,5 @@ function Counter({ n }: { n: number }) {
 }
 
 function Loading() {
-  return <div className="t-xs t-subtle">loading…</div>;
+  return <div className="t-xs t-subtle">Loading…</div>;
 }

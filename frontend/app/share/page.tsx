@@ -233,7 +233,7 @@ export default function SharePage() {
               <div className="t-xs t-muted" style={{ marginLeft: "auto" }}>{perms.length} entr{perms.length === 1 ? "y" : "ies"}</div>
             </div>
             {perms.length === 0 ? (
-              <div className="t-sm t-subtle">No permissions recorded yet for this file.</div>
+              <div className="t-sm t-subtle">No one has access yet — create a share link above or grant members access in Settings.</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {perms.map((p) => (

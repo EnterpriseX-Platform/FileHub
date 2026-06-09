@@ -36,7 +36,7 @@ export function TrashRowActions({ fileId, fileName, role }: { fileId: string; fi
         credentials: "include",
       });
       if (r.status === 401) { window.location.href = "/login?next=/trash"; return; }
-      if (r.status === 403) { setError("Admin role required"); setBusy(""); return; }
+      if (r.status === 403) { setError("Admin role required to permanently delete. Contact your workspace admin."); setBusy(""); return; }
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       router.refresh();
     } catch (e) {
