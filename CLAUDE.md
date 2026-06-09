@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Stack & layout
 
-- **Backend** — Rust + Axum (`backend/`). Postgres via `sqlx` (no SQLite — README is out of date). Pluggable object storage (`fs` default, `s3` available) with optional AES-256-GCM encryption layered in front.
+- **Backend** — Rust + Axum (`backend/`). Postgres via `sqlx` (not SQLite). Pluggable object storage (`fs` default, `s3`/MinIO available) with optional AES-256-GCM encryption layered in front.
 - **Frontend** — Next.js 15 App Router + TypeScript (`frontend/`). React 18. No CSS framework — design tokens in `app/tokens.css`.
-- **Infra** — `docker-compose.yml` runs Postgres (port 5434 → 5432) and an *optional* branded Collabora Online container (port 9980) for in-browser Office editing.
+- **Infra** — `docker-compose.yml` runs Postgres (port 5434 → 5432), an *optional* MinIO (S3 API 9000, console 9001) + `minio-setup` bucket bootstrapper for the `s3` storage backend, and an *optional* branded Collabora Online container (port 9980) for in-browser Office editing.
 - **Scripts** — `scripts/test-api.sh` (curl + python3 end-to-end suite), `seed-bodies.sh` (upload demo files), `backup.sh`/`restore.sh`.
 
 ## Running
