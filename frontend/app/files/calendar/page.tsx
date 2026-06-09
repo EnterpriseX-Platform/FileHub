@@ -117,7 +117,8 @@ export default async function FilesCalendarPage({ searchParams }: CalendarProps)
         </div>
 
         <div style={{ flex: 1, overflow: "auto", padding: 24, background: "var(--bg-subtle)" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, background: "var(--border)" }}>
+          <div style={{ overflowX: "auto" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, background: "var(--border)", minWidth: "700px" }}>
             {WEEKDAYS.map((d) => (
               <div key={d} style={{ background: "var(--bg)", padding: "8px 10px", fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
                 {d}
@@ -154,6 +155,7 @@ export default async function FilesCalendarPage({ searchParams }: CalendarProps)
                 </div>
               );
             })}
+          </div>
           </div>
         </div>
       </div>

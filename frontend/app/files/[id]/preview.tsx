@@ -33,7 +33,7 @@ export function FilePreview({ fileId, fileType, fileName }: { fileId: string; fi
       <iframe
         src={preview}
         title={fileName}
-        style={{ width: "min(720px, 100%)", height: "70vh", border: 0, borderRadius: 4, background: "#fff", boxShadow: "var(--sh-3)", colorScheme: "light" }}
+        style={{ width: "min(720px, 100%)", height: "70vh", border: 0, borderRadius: 4, background: "var(--bg)", boxShadow: "var(--sh-3)", colorScheme: "light" }}
       />
     );
   }
@@ -48,7 +48,7 @@ export function FilePreview({ fileId, fileType, fileName }: { fileId: string; fi
         src={download}
         alt={fileName}
         onError={() => setImgError(true)}
-        style={{ maxWidth: "min(720px, 100%)", maxHeight: "70vh", borderRadius: 4, background: "#fff", boxShadow: "var(--sh-3)" }}
+        style={{ maxWidth: "min(720px, 100%)", maxHeight: "70vh", borderRadius: 4, background: "var(--bg)", boxShadow: "var(--sh-3)" }}
       />
     );
   }
@@ -146,7 +146,7 @@ function CollaboraFrame({ iframeUrl, fileName, fileType, mode, download }: {
         src={iframeUrl}
         title={fileName}
         allow="clipboard-read; clipboard-write"
-        style={{ width: "100%", height: "78vh", border: 0, borderRadius: 4, background: "#fff", boxShadow: "var(--sh-3)" }}
+        style={{ width: "100%", height: "78vh", border: 0, borderRadius: 4, background: "var(--bg)", boxShadow: "var(--sh-3)" }}
       />
       <div className="t-xs t-subtle" style={{ marginTop: 6, textAlign: "center" }}>
         File Hub Editor · {mode === "edit" ? "edit mode" : "view-only"} · <a href={download} style={{ color: "var(--accent)" }}>download .{fileType}</a>
@@ -215,7 +215,7 @@ function OfficePreview({ fileId, fileType, fileName, download, preview }: {
       <iframe
         src={preview}
         title={fileName}
-        style={{ width: "100%", height: "70vh", border: 0, borderRadius: 4, background: "#fff", boxShadow: "var(--sh-3)", colorScheme: "light" }}
+        style={{ width: "100%", height: "70vh", border: 0, borderRadius: 4, background: "var(--bg)", boxShadow: "var(--sh-3)", colorScheme: "light" }}
       />
       <div className="t-xs t-subtle" style={{ marginTop: 6, textAlign: "center" }}>
         Server-rendered PDF preview · <a href={download} style={{ color: "var(--accent)" }}>download .{fileType}</a>

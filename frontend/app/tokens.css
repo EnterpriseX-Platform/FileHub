@@ -109,7 +109,7 @@ a { color: inherit; text-decoration: none; }
 
 /* Screen layout */
 .scr {
-  width: 100vw; min-height: 100vh;
+  width: 100%; min-height: 100vh;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
@@ -149,6 +149,10 @@ a { color: inherit; text-decoration: none; }
   text-decoration: none;
 }
 .btn:hover { background: var(--bg-muted); }
+.btn:disabled, .btn[disabled] { opacity: .55; cursor: not-allowed; pointer-events: none; }
+.btn:focus-visible, .seg-item:focus-visible, .side-row:focus-visible, .crumb-item:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 .btn.ghost { border-color: transparent; background: transparent; color: var(--text-muted); }
@@ -270,7 +274,7 @@ a { color: inherit; text-decoration: none; }
 
 .main {
   grid-column: 2; grid-row: 2;
-  overflow: hidden;
+  overflow: auto;
   display: flex; flex-direction: column;
   background: var(--bg);
   min-height: 0;
@@ -297,7 +301,7 @@ a { color: inherit; text-decoration: none; }
   font-weight: 700; font-size: 13px;
   color: white; flex-shrink: 0;
 }
-.ws-name { font-weight: 600; font-size: var(--t-md); flex: 1; min-width: 0; }
+.ws-name { font-weight: 600; font-size: var(--t-md); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-name .t-sm { font-weight: 400; }
 
 /* Avatars */
@@ -354,7 +358,7 @@ a { color: inherit; text-decoration: none; }
 .tbl tbody tr { transition: background .08s; }
 .tbl tbody tr:hover { background: var(--bg-subtle); }
 .tbl tbody tr.sel { background: var(--accent-soft); }
-.tbl td .row-actions { opacity: 0; transition: opacity .1s; }
+.tbl td .row-actions { opacity: 0.4; transition: opacity .1s; }
 .tbl tbody tr:hover .row-actions { opacity: 1; }
 
 .cb {
@@ -366,6 +370,7 @@ a { color: inherit; text-decoration: none; }
 }
 .cb.on { background: var(--accent); border-color: var(--accent); color: white; }
 .cb.on::after { content: '✓'; font-size: 10px; line-height: 1; font-weight: 700; }
+.cb:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
 
 /* Misc */
 .divider { height: 1px; background: var(--border); margin: 8px 0; }
@@ -448,3 +453,70 @@ button { font-family: inherit; }
 
 /* Code element used inline */
 code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-muted); padding: 1px 4px; border-radius: 3px; }
+
+/* =========================================================================
+   Responsive — the base layout is a fixed desktop grid (240px sidebar /
+   1fr main / optional 340px inspector). These reusable grid utilities plus
+   three breakpoints progressively collapse it instead of clipping content.
+   ========================================================================= */
+
+/* Reusable responsive grids — replace fixed inline grid-template-columns. */
+.stat-cards       { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.content-grid-2col{ display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; }
+.legend-grid      { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 16px; }
+.form-grid        { display: grid; grid-template-columns: 180px 1fr; gap: 12px 16px; align-items: center; }
+.row-2col         { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* Fixed-rail + content layouts (settings nav, orgs systems list, view builder).
+   Set the rail width per-use with `--rail`; collapses to one column on tablets. */
+.split-rail       { display: grid; grid-template-columns: var(--rail, 220px) 1fr; min-height: 0; }
+/* Let wide tables scroll horizontally instead of clipping their last columns. */
+.table-scroll     { width: 100%; overflow-x: auto; }
+.table-scroll .tbl{ min-width: max-content; }
+
+/* Off-canvas drawer affordances — inert until the breakpoints below turn
+   the sidebar into a drawer. */
+.nav-toggle   { display: none; }
+.side-backdrop{ display: none; }
+
+@media (max-width: 1279px) {
+  /* The 340px inspector no longer fits beside sidebar + content: stack it
+     below the main column as a scrollable panel. */
+  .scr.with-inspector { grid-template-columns: 240px 1fr; grid-template-rows: 52px 1fr auto; }
+  .inspector {
+    grid-column: 1 / -1; grid-row: 3;
+    border-left: 0; border-top: 1px solid var(--border);
+    max-height: 60vh;
+  }
+}
+
+@media (max-width: 1023px) {
+  /* Sidebar becomes an off-canvas drawer; everything else is one column. */
+  .scr, .scr.with-inspector { grid-template-columns: 1fr; }
+  .topbar, .main, .inspector { grid-column: 1; }
+  .side {
+    position: fixed; top: 0; left: 0; width: 264px; height: 100%;
+    z-index: 60; transform: translateX(-100%);
+    transition: transform .2s ease; box-shadow: var(--sh-3);
+  }
+  .side.open { transform: translateX(0); }
+  .side-backdrop.open {
+    display: block; position: fixed; inset: 0;
+    background: rgba(12, 10, 9, 0.4); z-index: 55;
+  }
+  .nav-toggle { display: inline-flex; }
+  .stat-cards { grid-template-columns: repeat(2, 1fr); }
+  .content-grid-2col { grid-template-columns: 1fr; }
+  .split-rail { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 767px) {
+  .side { width: 84vw; max-width: 320px; }
+  .inspector { max-height: 70vh; }
+  .ws-name .t-sm { display: none; }
+  .legend-grid { grid-template-columns: repeat(2, 1fr); }
+  .form-grid, .row-2col { grid-template-columns: 1fr; gap: 8px; align-items: stretch; }
+}
+
+@media (max-width: 560px) {
+  .stat-cards, .legend-grid { grid-template-columns: 1fr; }
+}

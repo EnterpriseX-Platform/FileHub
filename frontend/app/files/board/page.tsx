@@ -126,7 +126,7 @@ export default async function FilesBoardPage({ searchParams }: BoardProps) {
           {columns.length === 0 ? (
             <div className="t-sm t-subtle" style={{ padding: "8px 4px" }}>No files</div>
           ) : (
-          <div style={{ display: "grid", gridTemplateColumns: `repeat(${colCount}, minmax(260px, 1fr))`, gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(${colCount}, minmax(260px, 1fr))`, gap: 16, overflowX: "auto" }}>
             {columns.map((c) => (
               <div key={c.title} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>

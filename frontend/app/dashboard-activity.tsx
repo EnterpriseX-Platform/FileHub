@@ -44,7 +44,7 @@ export function DashboardActivity({ activity }: { activity: Activity[] }) {
           <div
             key={a.id ?? i}
             style={{
-              display: "flex", alignItems: "center", gap: 12,
+              display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
               padding: "10px 16px",
               borderTop: "1px solid var(--border)",
               background: i === 0 ? "var(--bg-subtle)" : "transparent",

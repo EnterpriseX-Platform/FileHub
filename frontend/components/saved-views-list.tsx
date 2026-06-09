@@ -7,7 +7,7 @@ import type { View } from "@/lib/api";
 import { hrefForView } from "@/lib/view-href";
 
 const COLORS_BY_NAME: Record<string, string> = {
-  rose:    "#dc2626",
+  rose:    "#e11d48",
   amber:   "#d97706",
   emerald: "#16a34a",
   indigo:  "#4f46e5",

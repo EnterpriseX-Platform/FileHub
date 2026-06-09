@@ -32,7 +32,7 @@ export function Av({
   const initials = name.split(/\s+/).slice(0, 2).map((p) => p[0]).join("").toUpperCase();
   const cls = "av" + (sz === "sm" ? " sm" : sz === "lg" ? " lg" : sz === "xl" ? " xl" : "");
   return (
-    <span className={cls} style={{ background: toneMap[t], color: "#fff", ...style }}>
+    <span className={cls} style={{ background: toneMap[t], color: "var(--on-accent)", ...style }}>
       {initials}
     </span>
   );

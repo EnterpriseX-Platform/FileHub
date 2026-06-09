@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { AuthProvider } from "@/lib/auth-context";
+import { SidebarProvider } from "@/lib/sidebar-context";
 
 import "./tokens.css";
 
@@ -21,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider><SidebarProvider>{children}</SidebarProvider></AuthProvider>
       </body>
     </html>
   );

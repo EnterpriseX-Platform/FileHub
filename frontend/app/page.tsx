@@ -85,7 +85,7 @@ export default async function DashboardPage() {
         }
       />
       <div className="main" style={{ overflow: "auto", padding: "24px 32px" }}>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 16, marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
           <div>
             <UserGreeting />
             <div className="t-md t-muted" style={{ marginTop: 4 }}>
@@ -107,7 +107,7 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+        <div className="stat-cards" style={{ marginBottom: 24 }}>
           {cards.map(([label, value, hint, tone, icon], i) => (
             <div key={i} className="card" style={{ padding: 16 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
@@ -120,7 +120,7 @@ export default async function DashboardPage() {
           ))}
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 16 }}>
+        <div className="content-grid-2col">
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div className="card" style={{ padding: 16 }}>
               <SectionHd
@@ -141,7 +141,7 @@ export default async function DashboardPage() {
                       />
                     ))}
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px 16px" }}>
+                  <div className="legend-grid">
                     {storageBySystem.map((r) => (
                       <div key={r.system_id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ width: 8, height: 8, borderRadius: 2, background: `var(--c-${r.tone})`, flexShrink: 0 }} />
