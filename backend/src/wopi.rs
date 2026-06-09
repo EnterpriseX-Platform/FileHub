@@ -3,9 +3,11 @@
 //! backend.  The full spec is enormous but only three endpoints are
 //! required for view/edit:
 //!
-//!     GET  /wopi/files/:id                  CheckFileInfo  (metadata JSON)
-//!     GET  /wopi/files/:id/contents          GetFile        (raw bytes)
-//!     POST /wopi/files/:id/contents          PutFile        (save edits)
+//! ```text
+//! GET  /wopi/files/:id                  CheckFileInfo  (metadata JSON)
+//! GET  /wopi/files/:id/contents         GetFile        (raw bytes)
+//! POST /wopi/files/:id/contents         PutFile        (save edits)
+//! ```
 //!
 //! Every request includes `access_token=<token>` in the query string.  The
 //! token is a short-lived HMAC-SHA256 we issue when the browser opens a
