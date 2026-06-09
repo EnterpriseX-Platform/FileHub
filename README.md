@@ -1,111 +1,185 @@
 # File Hub
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
+[![Backend: Rust + Axum](https://img.shields.io/badge/backend-Rust%20%2B%20Axum-orange.svg)](backend)
+[![Frontend: Next.js 15](https://img.shields.io/badge/frontend-Next.js%2015-black.svg)](frontend)
 
-DevOps-grade file management system built from a [Claude Design](https://claude.ai/design) handoff bundle.
+A self-hostable document & file-management system: organize files across multiple
+source systems and organizations, preview and edit Office documents in the browser,
+share via tokenized links, and keep an audit trail — with role-based access control
+and optional at-rest encryption.
 
-- **Frontend** — Next.js 15 (App Router, TypeScript), Linear × Notion aesthetic, 10 connected screens
-- **Backend** — Rust + Axum + SQLx (SQLite metadata) + local-filesystem object store
-- **Scale target** — 7 systems × 8,247 organizations × millions of files
-- **Dependencies** — none beyond the Rust toolchain and Node. No Docker, no MinIO, no external storage.
+Backend is **Rust + Axum + Postgres**; frontend is **Next.js 15** (App Router,
+TypeScript). Object storage is pluggable — a local filesystem or any S3-compatible
+service (AWS S3, **MinIO**, Wasabi, R2) — with optional transparent AES-256-GCM
+encryption layered in front.
+
+## Features
+
+- **File management** — multipart + TUS resumable upload, download, soft-delete + trash,
+  folders, versions, tags, and metadata across table / board / gallery / calendar /
+  timeline views.
+- **Multi-tenant model** — files scoped to *systems* (source apps) and *organizations*,
+  plus personal "My Drive" spaces; per-resource authorization on every id.
+- **Auth & RBAC** — session cookies for browsers and `Bearer` API keys for
+  machine-to-machine; roles `admin` / `editor` / `viewer` enforced server-side; argon2id
+  password hashing with login throttling.
+- **Office editing** — optional in-browser editing via Collabora Online (the backend is a
+  WOPI host); PDF-converted previews + text extraction otherwise.
+- **Pluggable storage** — filesystem (default) or S3-compatible (hand-rolled SigV4, no
+  `aws-sdk-s3`); optional AES-256-GCM encryption at rest.
+- **Sharing** — tokenized public share links (the token is the credential).
+- **Lifecycle** — background rotation worker for version pruning, archival, and
+  hard-delete by configurable retention rules.
+- **Search, activity & reports** — full-text search (including extracted PDF/text
+  content), an activity feed, and storage/usage reports.
+
+## Tech stack
+
+| Layer | Tech |
+|---|---|
+| Backend | Rust, Axum, SQLx, Postgres |
+| Frontend | Next.js 15 (App Router), React 18, TypeScript |
+| Storage | filesystem or S3-compatible (AWS S3 / MinIO / Wasabi / R2) |
+| Office | Collabora Online (optional) |
+| Infra | Docker Compose — Postgres, optional MinIO + Collabora |
 
 ## Quick start
 
+Prerequisites: a Rust toolchain, Node 18+, and Docker (for Postgres).
+
 ```bash
-# 1. Run backend (port 8090). Creates ./storage and filehub.db on first start.
+# 1. Start Postgres (host port 5434).
+docker compose up -d postgres
+
+# 2. Backend on :8090 — runs migrations and seeds demo users on first start.
+#    Debug builds have dev-friendly defaults; no .env needed to get going.
 cd backend && cargo run
 
-# 2. Run frontend (port 3000). Override with PORT=3001 if 3000 is taken.
-cd frontend && npm install && npm run dev
+# 3. Frontend on :3001 (the rest of the system expects port 3001).
+cd frontend && npm install && npm run dev -- -p 3001
 ```
 
-Open <http://localhost:3000>. The backend proxy is configured via `frontend/next.config.ts`.
+Open <http://localhost:3001/filehub>.
 
-## Screens
+Demo logins — seeded **only when the `users` table is empty**, so change them before any
+real deployment:
 
-| # | Route | Description |
-|---|-------|-------------|
-| 01 | `/`                  | Dashboard — stats, storage breakdown, recent activity, pinned views |
-| 02 | `/files`             | Files · Table view — Notion-style metadata table |
-| 03 | `/files/board`       | Files · Board view — Kanban grouped by status |
-| 04 | `/files/gallery`     | Files · Gallery view — large thumbnails, date grouping |
-| 05 | `/files/[id]`        | File detail + inspector — preview, metadata, activity |
-| 06 | `/upload`            | Upload flow — dropzone, queue, auto-metadata |
-| 07 | `/views/new`         | View builder — saved-view editor with live preview |
-| 08 | `/orgs`              | Orgs & Systems — manage 7 systems × 8,247 orgs |
-| 09 | `/share`             | Permissions & sharing modal |
-| 10 | `/settings`          | Workspace settings |
-
-## Backend API
-
-| Method | Path | Description |
+| Email | Password | Role |
 |---|---|---|
-| GET    | `/api/health`             | Liveness check |
-| GET    | `/api/stats`              | Dashboard stats |
-| GET    | `/api/systems`            | List the 7 connected systems |
-| GET    | `/api/orgs?system_id=…`   | List orgs (filterable by `system_id`) |
-| GET    | `/api/files?…`            | List files (filterable by `system_id`, `org_id`, `status`, `project`) |
-| GET    | `/api/files/:id`          | File detail with metadata |
-| POST   | `/api/files`              | Multipart upload → filesystem + DB + activity row |
-| GET    | `/api/files/:id/download` | Stream file content |
-| DELETE | `/api/files/:id`          | Remove file from disk + DB |
-| GET    | `/api/activity?limit=…`   | Recent activity feed |
-| GET    | `/api/views`              | Saved views |
-| POST   | `/api/views`              | Create a saved view |
-| GET    | `/api/permissions/:fileId`| Permissions for a file |
+| `admin@acme.go.th`  | `admin123`  | admin  |
+| `anong@acme.go.th`  | `anong123`  | editor |
+| `viewer@acme.go.th` | `viewer123` | viewer |
 
-CORS is open in dev (`http://localhost:3000`). In production the frontend proxies `/api/*` to the backend via `next.config.ts` rewrites, so the browser only talks to the Next.js origin.
-
-## Storage layout
-
-```
-backend/
-├── filehub.db                 # SQLite metadata (created on first run, gitignored)
-└── storage/                   # Files on disk, created on first run, gitignored
-    ├── hr-emp-files/          # one directory per bucket
-    │   └── file-<uuid>-<filename>
-    ├── fin-invoices/
-    ├── legal-contracts/
-    └── …
-```
-
-ETag is the MD5 hex of the uploaded body. Configurable via env: `STORAGE_ROOT=/var/lib/filehub/storage`.
-
-## Layout
-
-```
-FILEHUBNEW/
-├── README.md
-├── backend/
-│   ├── Cargo.toml
-│   ├── .env.example
-│   ├── migrations/            # 0001_init.sql, 0002_seed.sql
-│   └── src/
-│       ├── main.rs            # axum router + CORS + tracing
-│       ├── state.rs           # SQLite pool + storage init
-│       ├── storage.rs         # local filesystem object store (put/get/delete)
-│       ├── error.rs           # IntoResponse error type
-│       ├── models.rs          # DB rows + DTOs
-│       └── handlers.rs        # all API handlers
-├── frontend/
-│   ├── app/                   # 10 design screens + 2 stub routes (activity, archive)
-│   ├── components/            # sidebar, topbar, primitives, 40+ stroke icons
-│   └── lib/                   # typed fetch client + format helpers
-└── scripts/
-    └── test-api.sh            # end-to-end API test suite
-```
-
-## Testing the API
+### Optional: S3 / MinIO storage
 
 ```bash
-# With the backend running on port 8090
+docker compose up -d minio minio-setup   # S3 API on :9000, console on :9001
+```
+
+Then set `STORAGE_BACKEND=s3` and the `S3_*` block in `backend/.env` (see
+[`backend/.env.example`](backend/.env.example)). MinIO requires path-style addressing —
+keep `S3_PATH_STYLE=true` (the default).
+
+### Optional: in-browser Office editing
+
+`docker compose up -d collabora` starts a branded Collabora Online container (port 9980).
+Requires `WOPI_SECRET` to be set. For TLS and production notes, see the Production
+checklist in [CLAUDE.md](CLAUDE.md).
+
+## Configuration
+
+All backend configuration is via environment variables — see the annotated
+[`backend/.env.example`](backend/.env.example). The most important:
+
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Postgres connection string (**required in release**) |
+| `STORAGE_BACKEND` | `fs` (default) or `s3` |
+| `STORAGE_ENC_KEY` | hex-encoded 32-byte key → enables AES-256-GCM at rest |
+| `CORS_ORIGIN` | exact browser-facing origin (**required in release**) |
+| `WOPI_SECRET` | HMAC key for Collabora access tokens (**required in release**) |
+
+Release builds (`cargo build --release`) fail-fast if `DATABASE_URL`, `CORS_ORIGIN`, or
+`WOPI_SECRET` is unset.
+
+## Architecture
+
+The backend mounts every route under `/fh`; the frontend runs under basePath `/filehub`
+and proxies `/filehub/api/*` → `${BACKEND}/fh/api/*` so cookies stay same-origin.
+Authentication is enforced by a tower layer over the private sub-router; per-resource
+authorization lives in the handlers. For a full tour of routing, the auth/authz model,
+the ID strategy, and conventions, see [CLAUDE.md](CLAUDE.md).
+
+```
+.
+├── backend/                  # Rust + Axum API
+│   ├── migrations/           # SQLx migrations (Postgres)
+│   ├── src/
+│   │   ├── lib.rs            # router — single source of truth for routes
+│   │   ├── auth.rs          # sessions, API keys, RBAC, login throttle
+│   │   ├── handlers.rs      # files, systems, orgs, folders, shares, search, …
+│   │   ├── p1.rs            # workflow, comments, notifications, previews
+│   │   ├── tus.rs           # TUS 1.0.0 resumable upload
+│   │   ├── wopi.rs          # WOPI host for Collabora
+│   │   ├── rotation.rs      # retention / archive / hard-delete worker
+│   │   ├── storage.rs       # AES-256-GCM encryption wrapper
+│   │   └── store/{fs,s3}.rs # object-store backends
+│   ├── openapi.yaml         # API spec
+│   └── INTEGRATION.md       # external-app upload / integration guide
+├── frontend/                 # Next.js 15 App Router
+│   ├── app/                 # routes (dashboard, files, upload, settings, …)
+│   ├── components/          # shared UI
+│   └── lib/                 # typed API client
+├── infra/collabora/          # branded Collabora image
+├── scripts/                  # test-api.sh, backup.sh, restore.sh, seed-bodies.sh
+└── docker-compose.yml        # Postgres + optional MinIO + Collabora
+```
+
+## API & integration
+
+- Full spec: [`backend/openapi.yaml`](backend/openapi.yaml) — load into Swagger UI, Postman,
+  or `redocly preview`.
+- Integrating an external uploader (API keys, multipart + TUS, encryption):
+  [`backend/INTEGRATION.md`](backend/INTEGRATION.md).
+
+## Testing
+
+```bash
+# Backend integration tests run against a LIVE backend.
+cd backend && cargo run        # one shell
+cd backend && cargo test       # another shell
+
+# End-to-end curl suite (also needs a running backend):
 ./scripts/test-api.sh
 ```
 
-The script runs 15+ tests covering health, stats, listing, filtering, upload, download, delete, and activity.
+Liveness vs readiness: `/api/health` is a cheap static check; `/api/ready` does a real
+DB + storage round-trip (use it for a Kubernetes `readinessProbe`).
+
+Frontend: `npm run lint` and `npm run build`. (No frontend test runner is configured
+yet — see [TODO.md](TODO.md).)
+
+## Production
+
+The defaults are dev-friendly. Before exposing the stack to real users, work through the
+**Production checklist** in [CLAUDE.md](CLAUDE.md): rotate secrets, change the seed
+credentials, enforce `COOKIE_SECURE` + TLS, replace the Postgres credentials, configure
+backups (`scripts/backup.sh`), and run migrations as a one-shot job for zero-downtime
+deploys.
+
+## Contributing
+
+Issues and pull requests are welcome. Before opening a PR, please make sure the backend
+(`cargo test` + `cargo build --release`) and frontend (`npm run lint` + `npm run build`)
+both pass. See [TODO.md](TODO.md) for the current backlog and [CLAUDE.md](CLAUDE.md) for
+architecture and conventions.
 
 ## License
 
-File Hub is licensed under the **GNU Affero General Public License v3.0** — see [LICENSE](LICENSE) for the full text.
+File Hub is licensed under the **GNU Affero General Public License v3.0** — see
+[LICENSE](LICENSE) for the full text.
 
-AGPL-3.0 is a strong copyleft license: if you run a modified version of File Hub as a network service, you must make the corresponding source available to its users. Any derivative work must also be licensed under AGPL-3.0.
+AGPL-3.0 is a strong copyleft license: if you run a modified version of File Hub as a
+network service, you must make the corresponding source available to its users, and any
+derivative work must also be licensed under AGPL-3.0.
