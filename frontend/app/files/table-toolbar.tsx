@@ -170,6 +170,59 @@ export function GroupMenu({ params, group, base = "/files", allowNone = true }: 
   );
 }
 
+/// One "View options" popover folding the rarely-used controls (grouping,
+/// column visibility, save-as-view) out of the toolbar. Filter/Sort/Search
+/// stay as standalone triggers — they're the everyday controls. GroupMenu /
+/// PropertiesMenu remain exported for layouts that use them standalone
+/// (the board's group switcher).
+export function ViewOptionsMenu({ params, group, hidden, base = "/files" }: {
+  params: ViewParams; group: string; hidden: string[]; base?: string;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = React.useState(false);
+  const ref = useClickOutside(() => setOpen(false), open);
+
+  const activeGroup = group || "none";
+  const goGroup = (key: string) => router.push(buildViewHref(base, { ...params, group: key === "none" ? undefined : key }));
+
+  const hiddenSet = new Set(hidden);
+  const toggleCol = (key: string) => {
+    const next = new Set(hiddenSet);
+    next.has(key) ? next.delete(key) : next.add(key);
+    const hide = OPTIONAL_COLUMNS.filter((c) => next.has(c.key)).map((c) => c.key).join(",");
+    router.push(buildViewHref(base, { ...params, hide: hide || undefined }));
+  };
+
+  return (
+    <div ref={ref} style={{ position: "relative" }} onKeyDown={onMenuKeyDown(() => setOpen(false))}>
+      <button type="button" className="btn sm ghost" {...triggerProps(open)} onClick={() => setOpen((v) => !v)}>
+        <Ico.layers /> View options
+      </button>
+      {open && (
+        <div className="card" role="menu" style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 50, width: 200, padding: 6, boxShadow: "var(--sh-popover)", display: "flex", flexDirection: "column", gap: 2 }}>
+          <div className="t-xs t-subtle t-medium" style={{ padding: "4px 8px" }}>Group by</div>
+          {GROUP_FIELDS.map((f) => (
+            <button key={f.key} type="button" role="menuitemradio" aria-checked={activeGroup === f.key} className="btn xs ghost" style={{ width: "100%", justifyContent: "flex-start" }} onClick={() => goGroup(f.key)}>
+              <Check on={activeGroup === f.key} />{f.label}
+            </button>
+          ))}
+          <div className="divider" style={{ margin: "4px 0" }} />
+          <div className="t-xs t-subtle t-medium" style={{ padding: "4px 8px" }}>Columns</div>
+          {OPTIONAL_COLUMNS.map((c) => (
+            <button key={c.key} type="button" role="menuitemcheckbox" aria-checked={!hiddenSet.has(c.key)} className="btn xs ghost" style={{ width: "100%", justifyContent: "flex-start", alignItems: "center" }} onClick={() => toggleCol(c.key)}>
+              <span className={"cb" + (!hiddenSet.has(c.key) ? " on" : "")} style={{ marginRight: 8 }} />{c.label}
+            </button>
+          ))}
+          <div className="divider" style={{ margin: "4px 0" }} />
+          <a role="menuitem" className="btn xs ghost" style={{ width: "100%", justifyContent: "flex-start" }} href={buildViewHref("/views/new", params)}>
+            <Ico.pin className="icon sm" /> Save as new view
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /// Column chooser (Properties). Hidden columns are carried in `?hide=`.
 export function PropertiesMenu({ params, hidden, base = "/files" }: { params: ViewParams; hidden: string[]; base?: string }) {
   const router = useRouter();

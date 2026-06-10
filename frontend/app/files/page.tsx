@@ -12,7 +12,7 @@ import { canMutate } from "@/lib/roles";
 
 import { NewFolderButton } from "./new-folder-button";
 import { FilesTable, type FileGroup } from "./files-table";
-import { FilterMenu, GroupMenu, PropertiesMenu, SortMenu, ViewSearch } from "./table-toolbar";
+import { FilterMenu, SortMenu, ViewOptionsMenu, ViewSearch } from "./table-toolbar";
 import { ViewTabs } from "./view-tabs";
 import { buildFilesHref, buildViewHref, fileMatchesFilters, OPTIONAL_COLUMNS, parseHidden, type ViewParams } from "./view-params";
 
@@ -211,12 +211,12 @@ export default async function FilesTablePage({ searchParams }: FilesPageProps) {
             <div style={{ display: "flex", gap: 6 }}>
               <FilterMenu params={viewParams} count={activeFilters.length} />
               <SortMenu params={viewParams} sort={sortKey} dir={sortDir} />
-              <GroupMenu params={viewParams} group={groupBy} />
-              <PropertiesMenu params={viewParams} hidden={[...hidden]} />
             </div>
             <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
               <ViewSearch params={viewParams} />
-              <a className="btn sm" href={buildViewHref("/views/new", viewParams)}>Save as new view</a>
+              {/* Grouping, column visibility, and save-as-view are occasional
+                  controls — one menu instead of three toolbar buttons. */}
+              <ViewOptionsMenu params={viewParams} group={groupBy} hidden={[...hidden]} />
             </div>
           </div>
 
