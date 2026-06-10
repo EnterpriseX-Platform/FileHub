@@ -6,8 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Backend** — Rust + Axum (`backend/`). Postgres via `sqlx` (not SQLite). Pluggable object storage (`fs` default, `s3`/MinIO available) with optional AES-256-GCM encryption layered in front.
 - **Frontend** — Next.js 15 App Router + TypeScript (`frontend/`). React 18. No CSS framework — design tokens in `app/tokens.css`.
-- **Infra** — `docker-compose.yml` runs Postgres (port 5434 → 5432), an *optional* MinIO (S3 API 9000, console 9001) + `minio-setup` bucket bootstrapper for the `s3` storage backend, and an *optional* branded Collabora Online container (port 9980) for in-browser Office editing.
+- **Infra** — `docker-compose.yml` runs Postgres (port 5434 → 5432), an *optional* MinIO (S3 API 9000, console 9001) + `minio-setup` bucket bootstrapper for the `s3` storage backend, and an *optional* branded Collabora Online container (port 9980) for in-browser Office editing. The Collabora image is built from `infra/collabora/` (Dockerfile patches `bundle.js` to empty the Help tab; `branding.css` rebrands the UI).
 - **Scripts** — `scripts/test-api.sh` (curl + python3 end-to-end suite), `seed-bodies.sh` (upload demo files), `backup.sh`/`restore.sh`.
+- **CI** — `.github/workflows/ci.yml`: two parallel jobs on every push/PR — backend (cargo build + compile tests, with a Postgres service) and frontend (typecheck + production build).
+- **Roadmap** — `TODO.md` tracks planned work (P0/P1/P2 with what/why/where per item). Check it before starting a feature — it may already be specced there.
 
 ## Running
 
@@ -43,7 +45,18 @@ Tests log in as the seed `anong@acme.go.th` editor via `tests/common/mod.rs::aut
 
 Liveness vs readiness: `/api/health` is a cheap static `"ok"`; `/api/ready` does a real DB + storage round-trip (use it for k8s `readinessProbe`).
 
-Frontend: `npm run lint` and `npm run build`. There is no frontend test runner configured.
+Frontend: `npm run lint` and `npm run build`. Playwright e2e smoke tests live in `frontend/e2e/` (see its README):
+
+```bash
+# Needs the full live stack running (Postgres + backend :8090 + frontend :3001).
+cd frontend
+npx playwright install chromium       # one-time browser download
+npm run e2e                           # all specs (headless)
+npm run e2e -- search.spec.ts         # one spec
+E2E_BASE_URL=https://staging.example.com/filehub npm run e2e   # other deploy
+```
+
+The e2e suite runs **serially** (`workers: 1` in `playwright.config.ts`) on purpose — the backend throttles logins per-process and the specs share the three seed accounts. Don't parallelize it.
 
 ## URL routing — the critical detail
 
@@ -57,8 +70,9 @@ Consequences:
 ## Backend architecture
 
 - `main.rs` — env, tracing, spawns the rotation worker (`ROTATION_INTERVAL_SECS`, 3600s default, `0` disables), serves the router with **graceful shutdown** (SIGINT/SIGTERM drain so a k8s rollout doesn't abort a mid-flight upload or rotation tick).
-- `lib.rs::build_router` — single source of truth for routes. **Authentication is enforced by a tower layer over the `private` sub-router** (`require_session`), not by per-handler extractors — adding a route inside `private` can't forget the session check. Multipart routes (file CRUD + TUS) sit in nested sub-routers carrying `DefaultBodyLimit::max(64 MiB)`; Axum's 2 MiB default would otherwise silently reject large uploads. `CORS_ORIGIN`/`WOPI_SECRET` are read here and **panic in release if unset**.
-- `state.rs` — `AppState { db: PgPool, storage: Storage }`. Tunable pool (`DATABASE_MAX_CONNECTIONS` etc.), then `sqlx::migrate!` → `bootstrap_seed_users`. Release builds fail-fast on missing required env (`check_required_env_release`).
+- `lib.rs::build_router` — single source of truth for routes. **Authentication is enforced by a tower layer over the `private` sub-router** (`require_session`), not by per-handler extractors — adding a route inside `private` can't forget the session check. Multipart routes (file CRUD + TUS) sit in nested sub-routers carrying `DefaultBodyLimit::max(64 MiB)`; Axum's 2 MiB default would otherwise silently reject large uploads. `CORS_ORIGIN`/`WOPI_SECRET` are read here and **panic in release if unset**. API docs are public routes: Swagger UI at `/fh/docs`, build-time-embedded spec at `/fh/api/openapi.yaml` — update the spec when adding/changing endpoints.
+- `state.rs` — `AppState { db: PgPool, storage: Storage }`. Tunable pool (`DATABASE_MAX_CONNECTIONS` etc.), then `sqlx::migrate!` → `bootstrap_seed_users` → `seed_demo::bootstrap_demo_data`. Release builds fail-fast on missing required env (`check_required_env_release`).
+- `seed_demo.rs` — demo collaboration rows (activity, comments, workflows, notifications, versions) that make a fresh install look lived-in. Lives in Rust, **not** a migration, because `sqlx::migrate!` checksums forbid editing `0002_seed.sql` and these rows FK to users that only exist after `bootstrap_seed_users`. Idempotent: fixed recognizable UUIDs are DELETEd + re-INSERTed with `now()`-relative timestamps on every boot, so the demo stays fresh without touching runtime rows (which use UUIDv7). Best-effort — a failure is logged and swallowed, never blocks startup. Demo runs should set `ROTATION_INTERVAL_SECS=0` so rotation doesn't prune the seeded versions/trash.
 - `auth.rs` — argon2id hashing, 32-byte random session tokens in `sessions` (14-day TTL), `AuthUser`/`MaybeAuthUser` extractors. Cookie `Secure` flag via `COOKIE_SECURE`. **Login is throttled** by an in-process `login_throttle` module (10 fails/min → 60s lockout) with a constant-time dummy-hash path on unknown emails to kill timing oracles — note it's per-process, so a multi-pod deploy needs a shared store.
 
 ### Authorization model (authn ≠ authz — both layers matter)
@@ -83,8 +97,10 @@ FK column types follow the referenced PK type. Models in `models.rs` reflect thi
 
 ## Frontend architecture
 
-- `app/` — App Router pages. Routes map 1:1 to the screens in the README (`/`, `/files`, `/files/board`, `/files/gallery`, `/files/[id]`, `/upload`, `/views/new`, `/orgs`, `/share`, `/settings`, `/login`, `/trash`, `/activity`, `/archive`).
-- `components/` — `sidebar.tsx`, `topbar.tsx`, `primitives.tsx` (shared UI), `icons.tsx` (40+ stroke icons inline), `notifications-bell.tsx`, `global-search.tsx`, `user-menu.tsx`.
+- `app/` — App Router pages. Routes map 1:1 to the screens in the README (`/`, `/files` + layout variants `board`/`gallery`/`calendar`/`timeline`, `/files/[id]`, `/upload`, `/views`, `/views/new`, `/orgs`, `/share`, `/settings` + sub-pages `members`/`roles`/`audit`, `/login`, `/trash`, `/activity`, `/archive`).
+- `components/` — `sidebar.tsx`, `topbar.tsx`, `primitives.tsx` (shared UI), `icons.tsx` (40+ stroke icons inline), `notifications-bell.tsx`, `global-search.tsx`, `user-menu.tsx`, `pager.tsx` (shared pagination for the list pages).
+- `lib/roles.ts` — **frontend mirror of the backend role gate.** `canMutate(role)` (admin+editor) / `isAdmin(role)` decide whether to *render* mutating controls so viewers aren't handed buttons that bounce with a 403; the backend `require_role` remains the real enforcement. Null/loading roles fail closed. Use these helpers instead of comparing role strings inline.
+- `lib/sidebar-context.tsx` — responsive sidebar/drawer state (the sidebar collapses to a drawer on narrow viewports via `tokens.css` breakpoints).
 - `lib/api.ts` — typed fetch wrappers + DTO types. Server-side uses `BACKEND_URL` (`http://127.0.0.1:8090`) directly; client-side hits the basePath-prefixed proxy. **Every `safe*` helper takes a trailing optional `cookieHeader` arg.**
 - `lib/auth-server.ts::loadServerCtx()` — **the cookie-forwarding contract for server components.** Pages that render private data MUST `const { cookieHeader, role } = await loadServerCtx()` and thread `cookieHeader` into each `safe*` call. Forget it and the server-side `fetch` hits the backend anonymously → 401 → the `safe*` helper swallows it and the page renders empty stats / an empty sidebar (no error). `app/settings/_shared.ts` re-exports this as `loadSettingsCtx` for back-compat.
 - `lib/auth-context.tsx` — *client*-side React context wrapping `/api/auth/me`; the browser sends the cookie naturally so no forwarding needed here.
@@ -105,6 +121,9 @@ Backend (`backend/.env`):
 - `ROTATION_INTERVAL_SECS` — rotation worker cadence; `0` disables.
 - `RUST_LOG` — tracing filter.
 
+Frontend (`frontend/.env`):
+- `BACKEND_URL` — used by both server-side `lib/api.ts` and the `next.config.ts` rewrite. Default `http://127.0.0.1:8090`.
+
 ## Production checklist
 
 Release builds (`cargo build --release`) fail-fast if `DATABASE_URL`, `CORS_ORIGIN`, or `WOPI_SECRET` is missing. Before exposing the stack to real users:
@@ -118,9 +137,6 @@ Release builds (`cargo build --release`) fail-fast if `DATABASE_URL`, `CORS_ORIG
 7. **Collabora behind TLS** — `docker-compose.yml` runs Collabora with SSL disabled for dev. In prod terminate TLS at a reverse proxy and set `--o:ssl.termination=true`. Hardcoded `host.docker.internal:8090` references must be replaced.
 8. **Quota + rotation** — set workspace/system/org/user quotas via the admin UI before unblocking uploads, and confirm `ROTATION_INTERVAL_SECS` is non-zero so trash gets purged.
 
-Frontend (`frontend/.env`):
-- `BACKEND_URL` — used by both server-side `lib/api.ts` and the `next.config.ts` rewrite. Default `http://127.0.0.1:8090`.
-
 ## Conventions worth knowing
 
 - Workspace identity (name, display name) and the storage quota live in the `workspace_config` k/v table, not in a config file. Read in `handlers::stats`, written via `PATCH /api/workspace`.
@@ -128,3 +144,6 @@ Frontend (`frontend/.env`):
 - Soft delete: `files.deleted_at IS NOT NULL` means trashed; `rotation.rs` is what eventually purges the bytes.
 - Activity rows are created by handlers as a side effect of mutating endpoints (search for `INSERT INTO activity`). New mutating handlers should follow suit so the activity feed stays accurate.
 - Share links carry a one-shot token in the URL — that token IS the credential, so `share_meta` / `share_download` live in the *public* router.
+- List sorting/owner filtering is **frontend-side** — `GET /api/files` has no sort/owner params; pages fetch and sort/filter client-side, and pagination on the list pages (Trash/Activity/Audit/Archive/Members) is `components/pager.tsx` over the already-fetched rows. Adding a backend param means also removing the frontend equivalent.
+- The upload page picks transport by size: small files go as one multipart POST, large files use `tus-js-client` resumable upload (8 MB PATCH chunks) against `tus.rs` — see the threshold constant in `app/upload/page.tsx`.
+- `tokens.css` contains a full `.dark` palette but nothing toggles it yet — dark mode is scaffolded, not shipped.
