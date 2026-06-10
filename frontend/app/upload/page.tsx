@@ -548,7 +548,7 @@ function Field({ label, children, multiline, htmlFor }: { label: string; childre
       <div className="field" style={{
         width: "100%",
         height: multiline ? "auto" : undefined,
-        minHeight: multiline ? 30 : undefined,
+        minHeight: multiline ? 34 : undefined,
         padding: multiline ? "4px 8px" : undefined,
         flexWrap: multiline ? "wrap" : undefined,
       }}>

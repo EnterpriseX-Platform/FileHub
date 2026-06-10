@@ -48,7 +48,7 @@ export function ViewSearch({ params, base = "/files" }: { params: ViewParams; ba
   const run = (next: string) => router.push(buildViewHref(base, { ...params, q: next.trim() || undefined }));
 
   return (
-    <div className="field" style={{ height: 28, fontSize: 12 }}>
+    <div className="field" style={{ height: 30, fontSize: "var(--t-sm)" }}>
       <Ico.search className="icon sm" />
       <input
         value={value}

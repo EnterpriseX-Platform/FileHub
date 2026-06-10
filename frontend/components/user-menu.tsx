@@ -24,7 +24,9 @@ export function UserMenu() {
     const place = () => {
       const b = btnRef.current?.getBoundingClientRect();
       if (!b) return;
-      const menuH = 128; // approximate height (user row + divider + sign out)
+      // First-frame estimate; corrected by the layout effect below once the
+      // menu is measurable.
+      const menuH = menuRef.current?.getBoundingClientRect().height ?? 140;
       setPos({
         top: Math.max(8, b.top - menuH - 4),
         left: b.left,
@@ -49,6 +51,15 @@ export function UserMenu() {
       window.removeEventListener("scroll", close, true);
     };
   }, [open]);
+
+  React.useLayoutEffect(() => {
+    if (!open || !pos) return;
+    const m = menuRef.current?.getBoundingClientRect();
+    const b = btnRef.current?.getBoundingClientRect();
+    if (!m || !b) return;
+    const top = Math.max(8, b.top - m.height - 4);
+    if (Math.abs(top - pos.top) > 1) setPos({ ...pos, top });
+  }, [open, pos]);
 
   if (loading) {
     return (
