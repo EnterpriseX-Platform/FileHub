@@ -11,14 +11,17 @@ test("status filter is preserved when switching from Table to Board", async ({ p
   await page.goto("/files");
 
   // Open the filter popover (button label is "N filters") and pick Approved.
+  // The options carry role="menuitem" (popover a11y pass), not "button".
   await page.getByRole("button", { name: /filter/i }).click();
-  await page.getByRole("button", { name: "Approved", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Approved", exact: true }).click();
 
   // The table view now scopes to status=Approved.
   await expect(page).toHaveURL(/status=Approved/);
 
   // Switch to the Board layout tab — params must follow.
-  await page.getByRole("link", { name: "Board" }).click();
+  // exact: true — "Dashboard", "Q1 2026 Board", even "onboarding-2026.pdf"
+  // all contain "board" and trip the default substring match.
+  await page.getByRole("link", { name: "Board", exact: true }).click();
 
   await expect(page).toHaveURL(/\/files\/board/);
   await expect(page).toHaveURL(/status=Approved/);
