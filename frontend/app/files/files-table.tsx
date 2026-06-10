@@ -269,7 +269,10 @@ function RowMenu({ file, mayMutate, onDownload, onDelete, onRename }: {
     const place = () => {
       const b = btnRef.current?.getBoundingClientRect();
       if (!b) return;
-      const menuH = mayMutate ? 218 : 92; // approximate height by item count
+      // First-frame estimate only — the layout effect below re-measures the
+      // real menu height once it's in the DOM (so token/scale changes can't
+      // strand the flip-above math).
+      const menuH = menuRef.current?.getBoundingClientRect().height ?? (mayMutate ? 250 : 104);
       const openUp = window.innerHeight - b.bottom < menuH + 12;
       setPos({
         top: openUp ? Math.max(8, b.top - menuH - 4) : b.bottom + 4,
@@ -294,6 +297,19 @@ function RowMenu({ file, mayMutate, onDownload, onDelete, onRename }: {
       window.removeEventListener("scroll", close, true);
     };
   }, [open, mayMutate]);
+
+  // Re-measure once the portal is in the DOM: the estimate above can be off
+  // after type-scale changes, which would make a flipped-up menu overlap its
+  // trigger or clip at the viewport top.
+  React.useLayoutEffect(() => {
+    if (!open || !pos) return;
+    const m = menuRef.current?.getBoundingClientRect();
+    const b = btnRef.current?.getBoundingClientRect();
+    if (!m || !b) return;
+    const openUp = window.innerHeight - b.bottom < m.height + 12;
+    const top = openUp ? Math.max(8, b.top - m.height - 4) : b.bottom + 4;
+    if (Math.abs(top - pos.top) > 1) setPos({ top, right: pos.right });
+  }, [open, pos]);
 
   const Item = ({ children, onClick, danger }: { children: React.ReactNode; onClick: () => void; danger?: boolean }) => (
     <button type="button" role="menuitem" className={"btn xs ghost" + (danger ? " danger" : "")}

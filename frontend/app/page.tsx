@@ -33,9 +33,9 @@ export default async function DashboardPage() {
 
   // Storage quota comes from the workspace_config table — admins can adjust
   // it without a redeploy. Fall back to 0 only if the row is missing.
-  const totalQuotaTB = stats ? stats.total_quota_bytes / 1024 ** 4 : 0;
-  const usedTB       = stats ? stats.total_size_bytes / 1024 ** 4  : 0;
-  const quotaPct = totalQuotaTB > 0 ? Math.min(100, Math.round((usedTB / totalQuotaTB) * 100)) : 0;
+  const quotaBytes = stats ? stats.total_quota_bytes : 0;
+  const usedBytes  = stats ? stats.total_size_bytes  : 0;
+  const quotaPct = quotaBytes > 0 ? Math.min(100, Math.round((usedBytes / quotaBytes) * 100)) : 0;
 
   const cards: Array<[string, string, string, "indigo" | "emerald" | "amber" | "rose", React.ReactNode]> = [
     [
@@ -47,8 +47,8 @@ export default async function DashboardPage() {
     ],
     [
       "Storage used",
-      `${usedTB.toFixed(1)} TB`,
-      totalQuotaTB > 0 ? `${quotaPct}% of ${totalQuotaTB.toFixed(0)} TB quota` : "no quota set",
+      stats ? fmtBytes(usedBytes) : "—",
+      quotaBytes > 0 ? `${quotaPct}% of ${fmtBytes(quotaBytes)} quota` : "no quota set",
       "emerald",
       <Ico.database />,
     ],

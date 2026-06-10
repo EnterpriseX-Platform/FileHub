@@ -45,8 +45,12 @@ export function WsLogo({ tone = "indigo", children = "F" }: { tone?: Tone; child
 const ftLabel: Record<string, string> = {
   pdf: "PDF", doc: "DOC", docx: "DOC", xls: "XLS", xlsx: "XLS",
   csv: "CSV", json: "JS", zip: "ZIP",
-  img: "IMG", jpg: "JPG", png: "PNG",
-  mp4: "MP4", vid: "MP4",
+  img: "IMG", jpg: "JPG", jpeg: "JPG", png: "PNG", gif: "GIF",
+  mp4: "MP4", vid: "MP4", mov: "MOV", webm: "WEB",
+  mp3: "MP3", wav: "WAV",
+  ppt: "PPT", pptx: "PPT",
+  txt: "TXT", md: "MD", log: "LOG",
+  html: "HTM", xml: "XML",
   fold: "", folder: "",
 };
 

@@ -22,7 +22,7 @@ export function GlobalSearch() {
     <div style={{ padding: "8px 12px 4px" }}>
       <form
         className="field"
-        style={{ height: 28, fontSize: 12 }}
+        style={{ height: 30, fontSize: "var(--t-sm)" }}
         onSubmit={(e) => { e.preventDefault(); submit(); }}
       >
         <Ico.search />
