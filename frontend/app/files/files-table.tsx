@@ -110,6 +110,62 @@ export function FilesTable({ groups, cols, role, folders = [] }: { groups: FileG
 
   return (
     <>
+      {/* ≤620px the table is unusable (one legible column), so a parallel
+          card list renders instead — same selection Set, same RowMenu, same
+          bulk bar. tokens.css .only-desktop/.only-mobile do the swap. */}
+      <div className="only-mobile">
+        {groups.map((g) => (
+          <React.Fragment key={g.key}>
+            {g.label && (
+              <div className="t-xs t-subtle t-medium" style={{ textTransform: "uppercase", letterSpacing: "0.04em", padding: "10px 4px 4px" }}>
+                {g.label} <span style={{ marginLeft: 6 }}>{g.rows.length}</span>
+              </div>
+            )}
+            {g.rows.map((f) => {
+              const sel = selected.has(f.id);
+              return (
+                <div
+                  key={f.id}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 4,
+                    padding: "4px 0", borderBottom: "1px solid var(--border)",
+                    background: sel ? "var(--accent-soft)" : undefined,
+                  }}
+                >
+                  {/* padded wrapper = ≥40px touch target without growing the visual box */}
+                  <span
+                    role="checkbox"
+                    aria-checked={sel}
+                    aria-label={`Select ${f.name}`}
+                    tabIndex={0}
+                    onClick={() => toggle(f.id)}
+                    onKeyDown={cbKeyDown(() => toggle(f.id))}
+                    style={{ padding: 12, display: "inline-flex", cursor: "pointer" }}
+                  >
+                    <span className={"cb" + (sel ? " on" : "")} />
+                  </span>
+                  <a href={`/files/${f.id}`} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 10, padding: "8px 0", color: "var(--text)" }}>
+                    <Ft type={f.file_type} size="lg" />
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span className="t-medium t-trunc" style={{ display: "block" }}>{f.name}</span>
+                      <span className="t-xs t-muted t-trunc" style={{ display: "block", marginTop: 2 }}>
+                        {f.file_type === "fold" ? "" : `${fmtBytes(f.size_bytes)} · `}{fmtAgo(f.modified_at)} · {f.owner}
+                      </span>
+                    </span>
+                    <Pill tone={statusTone(f.status)} sm><span className="dot" />{f.status}</Pill>
+                  </a>
+                  <RowMenu file={f} mayMutate={mayMutate} onDownload={() => downloadIds([f.id])} onDelete={() => deleteIds([f.id])} onRename={() => renameFile(f)} />
+                </div>
+              );
+            })}
+          </React.Fragment>
+        ))}
+        {allIds.length === 0 && (
+          <div style={{ padding: 40, textAlign: "center", color: "var(--text-subtle)" }}>No files in this view.</div>
+        )}
+      </div>
+
+      <div className="only-desktop">
       <table className="tbl">
         <thead>
           <tr>
@@ -208,6 +264,7 @@ export function FilesTable({ groups, cols, role, folders = [] }: { groups: FileG
           )}
         </tbody>
       </table>
+      </div>
 
       {selected.size > 0 && (
         <div
@@ -218,8 +275,10 @@ export function FilesTable({ groups, cols, role, folders = [] }: { groups: FileG
             // stranded at the bottom of the content where selecting rows from the
             // top showed nothing.
             position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 16, zIndex: 50,
-            maxWidth: 560, width: "max-content",
-            display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
+            // min() keeps the bar inside narrow viewports; wrap lets the
+            // actions flow to a second line instead of clipping.
+            maxWidth: "min(560px, calc(100vw - 16px))", width: "max-content",
+            display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10, padding: "8px 12px",
             background: "var(--text)", color: "var(--bg)", borderRadius: 10, boxShadow: "var(--sh-popover)",
           }}
         >
