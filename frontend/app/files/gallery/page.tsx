@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { Ico } from "@/components/icons";
 import { Av, Ft, Pill } from "@/components/primitives";
 import { Sidebar } from "@/components/sidebar";
@@ -10,7 +12,7 @@ import type { FileRow } from "@/lib/api";
 
 import { ViewFilterBar } from "../view-filter-bar";
 import { ViewTabs } from "../view-tabs";
-import { fileMatchesFilters, readViewParams } from "../view-params";
+import { buildViewHref, fileMatchesFilters, readViewParams } from "../view-params";
 
 function PreviewBg({ ft, fileId }: { ft: string; fileId: string }) {
   if (ft === "img" || ft === "jpg" || ft === "png") {
@@ -81,7 +83,7 @@ export default async function FilesGalleryPage({ searchParams }: GalleryProps) {
             </div>
             {canMutate(role) && (
               <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-                <a className="btn primary" href="/upload"><Ico.upload /> Upload</a>
+                <Link className="btn primary" href={buildViewHref("/upload", { system_id: filters.system_id, org_id: filters.org_id })}><Ico.upload /> Upload</Link>
               </div>
             )}
           </div>

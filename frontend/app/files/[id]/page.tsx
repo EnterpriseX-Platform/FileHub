@@ -93,12 +93,17 @@ export default async function FileDetailPage({ params }: { params: Promise<{ id:
           <Prop label="System" icon={<Ico.database className="icon sm" />}>
             {sys ? <Pill tone={sys.tone}><span className="dot" />{sys.name}</Pill> : <span className="t-mono">{file.system_id}</span>}
           </Prop>
-          <Prop label="Bucket" icon={<Ico.bucket className="icon sm" />}><span className="t-mono t-sm">{file.bucket}</span></Prop>
-          <Prop label="Path"   icon={<Ico.folder className="icon sm" />}><span className="t-mono t-sm t-trunc">{file.object_key}</span></Prop>
-          {file.etag && <Prop label="ETag" icon={<Ico.tag className="icon sm" />}><span className="t-mono t-xs t-trunc">{file.etag}</span></Prop>}
-          <Prop label="Encryption" icon={<Ico.shield className="icon sm" />}>
-            {file.encrypted ? <Pill tone="emerald"><span className="dot" />AES-256-GCM</Pill> : <Pill>plaintext</Pill>}
-          </Prop>
+          {/* Bucket/path/ETag are operator detail, not user metadata — folded
+              away by default. Native <details> keeps this a server component. */}
+          <details className="disclosure">
+            <summary>Technical details</summary>
+            <Prop label="Bucket" icon={<Ico.bucket className="icon sm" />}><span className="t-mono t-sm">{file.bucket}</span></Prop>
+            <Prop label="Path"   icon={<Ico.folder className="icon sm" />}><span className="t-mono t-sm t-trunc">{file.object_key}</span></Prop>
+            {file.etag && <Prop label="Checksum" icon={<Ico.tag className="icon sm" />}><span className="t-mono t-xs t-trunc">{file.etag}</span></Prop>}
+            <Prop label="Encryption" icon={<Ico.shield className="icon sm" />}>
+              {file.encrypted ? <Pill tone="emerald"><span className="dot" />Encrypted at rest</Pill> : <Pill>Not encrypted</Pill>}
+            </Prop>
+          </details>
 
           <div className="divider" />
           <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>

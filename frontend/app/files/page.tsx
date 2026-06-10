@@ -190,7 +190,7 @@ export default async function FilesTablePage({ searchParams }: FilesPageProps) {
               </div>
               <div className="t-sm t-muted" style={{ marginTop: 2 }}>
                 {sys
-                  ? <>Stored in bucket <span className="t-mono">{sys.bucket}</span> · {folders.length} folder{folders.length === 1 ? "" : "s"}</>
+                  ? <>{folders.length} folder{folders.length === 1 ? "" : "s"} in this system</>
                   : <>Workspace-wide view across {systems.length} system{systems.length === 1 ? "" : "s"}</>
                 }
               </div>
@@ -198,7 +198,9 @@ export default async function FilesTablePage({ searchParams }: FilesPageProps) {
             {canMutate(role) && (
               <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
                 <NewFolderButton systemId={activeSysId} systemName={(sys ?? systems.find((s) => s.id === activeSysId))?.name} orgId={filters.org_id} parentId={folderId} />
-                <a className="btn primary" href="/upload"><Ico.upload /> Upload</a>
+                {/* Hand the current location to /upload so files land where
+                    the user is standing (system/org/folder). */}
+                <Link className="btn primary" href={buildViewHref("/upload", { system_id: filters.system_id, org_id: filters.org_id, folder_id: folderId })}><Ico.upload /> Upload</Link>
               </div>
             )}
           </div>
@@ -307,7 +309,7 @@ export default async function FilesTablePage({ searchParams }: FilesPageProps) {
             <div style={{ padding: 40, textAlign: "center", color: "var(--text-subtle)" }}>
               {searchTerm || activeFilters.length > 0
                 ? <>No files match this view. <Link href={buildFilesHref({})} className="t-semibold" style={{ color: "var(--accent)" }}>Clear filters</Link>.</>
-                : <>No files here yet —{canMutate(role) && <> <a href="/upload" className="t-semibold" style={{ color: "var(--accent)" }}>Upload your first file</a>.</>}</>}
+                : <>No files here yet —{canMutate(role) && <> <Link href={buildViewHref("/upload", { system_id: filters.system_id, org_id: filters.org_id, folder_id: folderId })} className="t-semibold" style={{ color: "var(--accent)" }}>Upload your first file</Link>.</>}</>}
             </div>
           ) : (
             <div className="table-scroll">

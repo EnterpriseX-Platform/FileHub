@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { Ico } from "@/components/icons";
 import { Av, AvStack, Ft, Pill, Tag } from "@/components/primitives";
 import { Sidebar } from "@/components/sidebar";
@@ -11,7 +13,7 @@ import { canMutate } from "@/lib/roles";
 import { GroupMenu } from "../table-toolbar";
 import { ViewFilterBar } from "../view-filter-bar";
 import { ViewTabs } from "../view-tabs";
-import { fileMatchesFilters, GROUP_FIELDS, readViewParams } from "../view-params";
+import { buildViewHref, fileMatchesFilters, GROUP_FIELDS, readViewParams } from "../view-params";
 
 // Status grouping (default) — fixed columns with tones, mapping the file's
 // freeform status onto one of four lanes.
@@ -110,7 +112,7 @@ export default async function FilesBoardPage({ searchParams }: BoardProps) {
             </div>
             {canMutate(role) && (
               <div className="board-actions" style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-                <a className="btn primary" href="/upload"><Ico.upload /> Upload</a>
+                <Link className="btn primary" href={buildViewHref("/upload", { system_id: filters.system_id, org_id: filters.org_id })}><Ico.upload /> Upload</Link>
               </div>
             )}
           </div>

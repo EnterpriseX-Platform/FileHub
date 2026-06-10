@@ -48,27 +48,55 @@ export function FileActions({ fileId, currentStatus }: { fileId: string; current
     }
   };
 
+  // Status-contextual actions — a file that isn't under review gets no
+  // floating Approve button. Draft/other → submit; Review → decide;
+  // Approved → reopen. The backend PATCH is the same status field throughout.
+  const grow = { flex: 1, justifyContent: "center" } as const;
   return (
     <>
       <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
-        <button
-          className="btn sm primary"
-          style={{ flex: 1, justifyContent: "center" }}
-          aria-label="Approve file"
-          disabled={busy !== "" || currentStatus === "Approved"}
-          onClick={() => patch("approve", { status: "Approved" })}
-        >
-          <Ico.check /> {busy === "approve" ? "Approving…" : currentStatus === "Approved" ? "Approved" : "Approve"}
-        </button>
-        <button
-          className="btn sm"
-          style={{ flex: 1, justifyContent: "center" }}
-          aria-label="Request file changes"
-          disabled={busy !== "" || currentStatus === "Review"}
-          onClick={() => patch("review", { status: "Review" })}
-        >
-          {busy === "review" ? "Requesting changes…" : "Request changes"}
-        </button>
+        {currentStatus === "Review" ? (
+          <>
+            <button
+              className="btn sm primary"
+              style={grow}
+              aria-label="Approve file"
+              disabled={busy !== ""}
+              onClick={() => patch("approve", { status: "Approved" })}
+            >
+              <Ico.check /> {busy === "approve" ? "Approving…" : "Approve"}
+            </button>
+            <button
+              className="btn sm"
+              style={grow}
+              aria-label="Request file changes"
+              disabled={busy !== ""}
+              onClick={() => patch("review", { status: "Draft" })}
+            >
+              {busy === "review" ? "Sending back…" : "Request changes"}
+            </button>
+          </>
+        ) : currentStatus === "Approved" ? (
+          <button
+            className="btn sm"
+            style={grow}
+            aria-label="Reopen review"
+            disabled={busy !== ""}
+            onClick={() => patch("review", { status: "Review" })}
+          >
+            {busy === "review" ? "Reopening…" : "Reopen review"}
+          </button>
+        ) : (
+          <button
+            className="btn sm primary"
+            style={grow}
+            aria-label="Submit file for review"
+            disabled={busy !== ""}
+            onClick={() => patch("review", { status: "Review" })}
+          >
+            {busy === "review" ? "Submitting…" : "Submit for review"}
+          </button>
+        )}
         <button
           className="btn sm danger icon"
           title="Delete file"
