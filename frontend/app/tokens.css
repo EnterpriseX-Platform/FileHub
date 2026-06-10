@@ -444,6 +444,23 @@ a.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .prop > .k { font-size: var(--t-sm); color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
 .prop > .v { color: var(--text); min-width: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
+/* Native <details> disclosure — collapsed-by-default "Technical details". */
+.disclosure > summary {
+  cursor: pointer; user-select: none;
+  font-size: var(--t-sm); color: var(--text-muted);
+  padding: 6px 0;
+  list-style: none; display: flex; align-items: center; gap: 6px;
+}
+.disclosure > summary::-webkit-details-marker { display: none; }
+.disclosure > summary::before {
+  content: ''; width: 0; height: 0;
+  border-left: 5px solid var(--text-subtle);
+  border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+  transition: transform .12s;
+}
+.disclosure[open] > summary::before { transform: rotate(90deg); }
+.disclosure > summary:hover { color: var(--text); }
+
 .prog { height: 4px; background: var(--bg-muted); border-radius: 2px; overflow: hidden; }
 .prog > .bar { height: 100%; background: var(--accent); border-radius: 2px; }
 .prog.success > .bar { background: var(--success); }

@@ -44,7 +44,7 @@ export default async function SettingsRolesPage() {
           <div style={{ maxWidth: 920 }}>
             <div className="t-3xl t-semibold">Roles & permissions</div>
             <div className="t-sm t-muted" style={{ marginTop: 4, marginBottom: 24 }}>
-              Three built-in roles enforced by the Rust backend (<span className="t-mono">require_role</span>).
+              Three built-in roles, enforced by the server on every request.
               Change a user's role from the Members tab.
             </div>
 

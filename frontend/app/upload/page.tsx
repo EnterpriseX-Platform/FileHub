@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import * as React from "react";
 import * as tus from "tus-js-client";
 
@@ -93,7 +94,25 @@ async function walkEntry(entry: FsEntry, prefix: string): Promise<{ file: File; 
   return [];
 }
 
+// useSearchParams needs a Suspense boundary or the production build bails out
+// of static rendering — same pattern as login/page.tsx.
 export default function UploadPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <UploadInner />
+    </React.Suspense>
+  );
+}
+
+function UploadInner() {
+  // Destination context handed over by the Upload buttons on /files (and the
+  // board/gallery variants): ?system_id=&org_id=&folder_id=. Files uploaded
+  // from inside a folder land in that folder instead of the system root.
+  const sp = useSearchParams();
+  const ctxSystem = sp.get("system_id") ?? "";
+  const ctxOrg    = sp.get("org_id") ?? "";
+  const ctxFolder = sp.get("folder_id") ?? "";
+
   const [items, setItems]       = React.useState<Item[]>([]);
   const [dragging, setDragging] = React.useState(false);
   const [systems, setSystems]   = React.useState<System[]>([]);
@@ -118,25 +137,39 @@ export default function UploadPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser]);
 
-  // Bootstrap: load the available systems on mount.
+  // Bootstrap: load the available systems on mount. Prefer the system handed
+  // over in the URL (if it's real) so "Upload" pressed inside a system lands
+  // back in that system; fall back to the first one.
   React.useEffect(() => {
     fetch("/filehub/api/systems").then((r) => r.json()).then((rows: System[]) => {
       setSystems(rows);
-      if (rows.length && !systemId) setSystemId(rows[0].id);
+      if (rows.length && !systemId) {
+        setSystemId(rows.some((r) => r.id === ctxSystem) ? ctxSystem : rows[0].id);
+      }
     }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Whenever the chosen system changes, fetch its orgs so the next dropdown
   // only shows valid choices. Clearing org on system change avoids sending an
-  // org_id that doesn't belong to the selected system.
+  // org_id that doesn't belong to the selected system. The URL's org context
+  // is applied once, on the first org list that contains it — the ref guard
+  // keeps a later manual system switch from resurrecting it.
+  const orgSeeded = React.useRef(false);
   React.useEffect(() => {
     if (!systemId) return;
     setOrgId("");
     fetch(`/filehub/api/orgs?system_id=${encodeURIComponent(systemId)}`)
       .then((r) => r.json())
-      .then((rows: Org[]) => setOrgs(rows))
+      .then((rows: Org[]) => {
+        setOrgs(rows);
+        if (!orgSeeded.current && ctxOrg && rows.some((o) => o.id === ctxOrg)) {
+          setOrgId(ctxOrg);
+        }
+        orgSeeded.current = true;
+      })
       .catch(() => setOrgs([]));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [systemId]);
 
   const activeSystem = systems.find((s) => s.id === systemId);
@@ -210,11 +243,12 @@ export default function UploadPage() {
         content_type: item.file.type || "application/octet-stream",
         tags:         JSON.stringify(tags),
       };
-      if (systemId) meta.system_id = systemId;
-      if (orgId)    meta.org_id    = orgId;
-      if (project)  meta.project   = project;
-      if (status)   meta.status    = status;
-      if (owner)    meta.owner     = owner;
+      if (systemId)  meta.system_id = systemId;
+      if (orgId)     meta.org_id    = orgId;
+      if (ctxFolder) meta.folder_id = ctxFolder;
+      if (project)   meta.project   = project;
+      if (status)    meta.status    = status;
+      if (owner)     meta.owner     = owner;
 
       const upload = new tus.Upload(item.file, {
         endpoint,
@@ -232,11 +266,12 @@ export default function UploadPage() {
     // Small files → simple multipart upload.
     const fd = new FormData();
     fd.append("file", item.file);
-    if (systemId) fd.append("system_id", systemId);
-    if (orgId)    fd.append("org_id",    orgId);
-    if (project)  fd.append("project",   project);
-    if (status)   fd.append("status",    status);
-    if (owner)    fd.append("owner",     owner);
+    if (systemId)  fd.append("system_id", systemId);
+    if (orgId)     fd.append("org_id",    orgId);
+    if (ctxFolder) fd.append("folder_id", ctxFolder);
+    if (project)   fd.append("project",   project);
+    if (status)    fd.append("status",    status);
+    if (owner)     fd.append("owner",     owner);
     fd.append("tags", JSON.stringify(tags));
 
     const xhr = new XMLHttpRequest();
@@ -307,7 +342,7 @@ export default function UploadPage() {
           <div>
             <SectionHd
               title="Upload files"
-              sub="Drop files or whole folders here, or browse. Files are streamed to the Rust backend and encrypted at rest."
+              sub="Drop files or whole folders here, or browse. Everything you upload is encrypted at rest."
             />
 
             <div
@@ -446,20 +481,19 @@ export default function UploadPage() {
                   {orgs.map((o) => <option key={o.id} value={o.id}>{o.name} ({o.code})</option>)}
                 </select>
               </Field>
-              <div className="t-xs t-muted" style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <span>Bucket:</span>
-                <span className="t-mono">{activeSystem?.bucket ?? "—"}</span>
-                <span className="t-subtle">local filesystem · encrypted at rest</span>
-              </div>
             </div>
 
-            <div className="card" style={{ padding: 16, marginBottom: 16 }}>
-              <SectionHd
-                title="Apply metadata to all"
-                sub="Fields are sent with every upload"
-                action={<Pill tone="indigo">{items.length} file{items.length === 1 ? "" : "s"}</Pill>}
-              />
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div className="card" style={{ padding: "4px 16px 8px", marginBottom: 16 }}>
+              {/* Optional metadata, collapsed by default — most uploads only
+                  need a destination. Everything here applies to every file in
+                  the queue. */}
+              <details className="disclosure">
+                <summary>
+                  <span className="t-md t-semibold" style={{ color: "var(--text)" }}>Add details</span>
+                  <span className="t-sm t-subtle">optional · applies to all files</span>
+                  {(project || tags.length > 0 || status !== "Draft") && <Pill tone="indigo" sm>set</Pill>}
+                </summary>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 6 }}>
                 <Field label="Project" htmlFor="project-input">
                   <input
                     id="project-input"
@@ -513,6 +547,7 @@ export default function UploadPage() {
                   />
                 </Field>
               </div>
+              </details>
             </div>
           </div>
         </div>

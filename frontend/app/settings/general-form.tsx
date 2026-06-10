@@ -2,22 +2,17 @@
 
 import * as React from "react";
 
-import { Pill } from "@/components/primitives";
 import type { WorkspaceConfig } from "@/lib/api";
 
-// [key, label, hint, enforced, defaultOn].
-// `enforced` = the backend actually changes behaviour today. The rest persist
-// the admin's intent but need a subsystem that doesn't exist yet (2FA,
-// watermarking, a per-file sharing-state model, a scheduler) — shown as
-// "planned" rather than pretending they work.
+// [key, label, hint, defaultOn].
+// Only policies the backend actually enforces are listed — a toggle that
+// silently does nothing is worse than no toggle. The previously shown
+// "planned" policies (2FA, restricted-by-default, watermarking, business
+// hours) are tracked in TODO.md and come back here once they gate behaviour.
 // `defaultOn` mirrors the backend default when the key is unset — external
 // sharing is allowed by default, so its toggle reads ON until turned off.
-const POLICY_KEYS: Array<[string, string, string, boolean, boolean]> = [
-  ["require_2fa_admins",        "Require 2FA for admins",               "Recommended for workspaces with PII", false, false],
-  ["allow_external_sharing",    "Allow external link sharing",          "When off, creating share links returns 403", true, true],
-  ["default_restricted_sharing","Default to 'restricted' sharing",      "New files start restricted; explicit invite required", false, false],
-  ["watermark_external",        "Watermark previews on external links", "Adds viewer email + timestamp", false, false],
-  ["block_after_hours",         "Block uploads outside business hours", "08:00–18:00 Asia/Bangkok", false, false],
+const POLICY_KEYS: Array<[string, string, string, boolean]> = [
+  ["allow_external_sharing", "Allow external link sharing", "When off, nobody can create new share links", true],
 ];
 
 const parseBool = (s: string | undefined) => s === "true" || s === "1";
@@ -97,11 +92,11 @@ export function GeneralForm({ initial, canMutate }: { initial: WorkspaceConfig; 
       <div className="card" style={{ padding: 20, marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
           <div className="t-md t-semibold">Office documents</div>
-          <Pill sm tone="emerald"><span className="dot" />wired</Pill>
         </div>
         <div className="t-xs t-muted" style={{ marginBottom: 14 }}>
-          Which viewer to embed when an admin clicks a .docx / .xlsx / .pptx file.
-          Collabora Online is fully interactive but needs the docker-compose service to be up.
+          Which viewer opens when someone clicks a .docx / .xlsx / .pptx file.
+          Collabora Online lets people edit right in the browser, but needs its
+          server running and reachable at the URL below.
         </div>
         <div className="form-grid" style={{ alignItems: "center" }}>
           <div className="t-sm t-muted">Office viewer</div>
@@ -134,16 +129,13 @@ export function GeneralForm({ initial, canMutate }: { initial: WorkspaceConfig; 
           <div className="t-md t-semibold">Access policy</div>
         </div>
         <div className="t-xs t-muted" style={{ marginBottom: 14 }}>
-          Toggles persist to <span className="t-mono">workspace_config</span>. Only the
-          {" "}<span className="t-semibold">enforced</span> policies change backend behaviour today; the rest
-          record intent for an upcoming release.
+          Control how files can leave the workspace. Changes apply immediately.
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {POLICY_KEYS.map(([k, label, hint, enforced, defaultOn]) => (
+          {POLICY_KEYS.map(([k, label, hint, defaultOn]) => (
             <Toggle key={k}
                     label={label}
                     hint={hint}
-                    enforced={enforced}
                     on={cfg[k] === undefined ? defaultOn : parseBool(cfg[k])}
                     onChange={(v) => set(k, v ? "true" : "false")}
                     disabled={!canMutate} />
@@ -154,9 +146,9 @@ export function GeneralForm({ initial, canMutate }: { initial: WorkspaceConfig; 
   );
 }
 
-function Toggle({ label, hint, on, onChange, disabled, enforced }: {
+function Toggle({ label, hint, on, onChange, disabled }: {
   label: string; hint: string; on: boolean;
-  onChange: (v: boolean) => void; disabled?: boolean; enforced?: boolean;
+  onChange: (v: boolean) => void; disabled?: boolean;
 }) {
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 12, opacity: disabled ? 0.6 : 1 }}>
@@ -181,10 +173,7 @@ function Toggle({ label, hint, on, onChange, disabled, enforced }: {
         }} />
       </button>
       <div style={{ flex: 1 }}>
-        <div className="t-sm t-semibold" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          {label}
-          <Pill sm tone={enforced ? "emerald" : "slate"}>{enforced ? "enforced" : "planned"}</Pill>
-        </div>
+        <div className="t-sm t-semibold">{label}</div>
         <div className="t-xs t-muted">{hint}</div>
       </div>
     </div>

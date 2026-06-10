@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { Ico } from "@/components/icons";
 import { Pill } from "@/components/primitives";
 import { Sidebar } from "@/components/sidebar";
@@ -9,7 +11,7 @@ import type { FileRow, System } from "@/lib/api";
 
 import { ViewFilterBar } from "../view-filter-bar";
 import { ViewTabs } from "../view-tabs";
-import { fileMatchesFilters, readViewParams } from "../view-params";
+import { buildViewHref, fileMatchesFilters, readViewParams } from "../view-params";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -95,7 +97,7 @@ export default async function FilesCalendarPage({ searchParams }: CalendarProps)
       <Sidebar nav="files" systems={systems} stats={stats} orgs={orgs} systemActive={filters.system_id ?? systems[0]?.id} />
       <TopBar
         crumbs={sys ? ["Workspace", sys.name, "Calendar"] : ["Workspace", "Calendar"]}
-        actions={canMutate(role) ? <a className="btn" href="/upload"><Ico.upload /> Upload</a> : undefined}
+        actions={canMutate(role) ? <Link className="btn" href={buildViewHref("/upload", { system_id: filters.system_id, org_id: filters.org_id })}><Ico.upload /> Upload</Link> : undefined}
       />
       <div className="main">
         <div style={{ padding: "14px 24px 8px", borderBottom: "1px solid var(--border)" }}>
