@@ -30,8 +30,11 @@ pub async fn health() -> &'static str { "ok" }
 /// `readinessProbe` so a pod with a broken DB connection drops out of the
 /// service mesh.  `/api/health` stays cheap for liveness.
 pub async fn ready(State(s): State<Arc<AppState>>) -> ApiResult<Json<serde_json::Value>> {
-    // 1. Database round-trip.
-    let _: i64 = sqlx::query_scalar("SELECT 1").fetch_one(&s.db).await?;
+    // 1. Database round-trip. Cast to bigint — a bare `SELECT 1` is INT4 in
+    //    Postgres and decoding it as i64 trips a type mismatch (this probe is
+    //    the k8s readinessProbe target, so a 500 here means pods never go
+    //    Ready and the rollout hangs).
+    let _: i64 = sqlx::query_scalar("SELECT 1::bigint").fetch_one(&s.db).await?;
 
     // 2. Storage round-trip — write + read + delete a tiny ephemeral blob.
     //    Keeps the probe at O(1) bytes; if the backend is encrypted, the
