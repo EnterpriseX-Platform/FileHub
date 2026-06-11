@@ -1,0 +1,63 @@
+# FileHub frontend (Next.js, basePath /filehub) — mirrors deployment-neb-bga02-app.yaml.
+# NodePort 30814 (next free after 30812/30813 web ports; confirm against the
+# vhost notes before applying). Only the web tier is exposed — the browser
+# never talks to the API directly; Next.js proxies /filehub/api/* in-cluster.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neb-filehub-app
+  namespace: neb-dev
+  labels:
+    app: neb-filehub-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: neb-filehub-app
+  template:
+    metadata:
+      labels:
+        app: neb-filehub-app
+    spec:
+      imagePullSecrets:
+        - name: component-docker
+      containers:
+        - name: neb-filehub-app
+          image: avalantglobal/filehub-web:placeholder
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          env:
+            # The standalone bundle bakes this at image build time (see
+            # frontend/Dockerfile build arg); kept here too so a future
+            # non-standalone runtime picks it up — harmless either way.
+            - name: BACKEND_URL
+              value: "http://neb-filehub-api:8090"
+            - name: TZ
+              value: "Asia/Bangkok"
+          livenessProbe:
+            httpGet: { path: /filehub/login, port: 3000 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /filehub/login, port: 3000 }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests: { memory: "128Mi", cpu: "50m" }
+            limits:   { memory: "512Mi", cpu: "300m" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neb-filehub-app
+  namespace: neb-dev
+spec:
+  selector:
+    app: neb-filehub-app
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+      nodePort: 30814
+  type: NodePort

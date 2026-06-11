@@ -1,0 +1,95 @@
+# FileHub backend (Rust/Axum) — mirrors deployment-neb-bga03-api.yaml.
+# Migrations + seed users run automatically on first boot (sqlx::migrate!).
+# File blobs live on the NFS PV below (STORAGE_ROOT=/data/storage).
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: filehub-storage-pv
+spec:
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  nfs:
+    server: 10.1.102.92
+    path: /datastore/filehub/storage
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: filehub-storage-pvc
+  namespace: neb-dev
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  volumeName: filehub-storage-pv
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neb-filehub-api
+  namespace: neb-dev
+  labels:
+    app: neb-filehub-api
+spec:
+  # Keep at 1: the login throttle is per-process and the storage PV is RWO.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: neb-filehub-api
+  template:
+    metadata:
+      labels:
+        app: neb-filehub-api
+    spec:
+      imagePullSecrets:
+        - name: component-docker
+      containers:
+        - name: neb-filehub-api
+          image: avalantglobal/filehub-api:placeholder
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8090
+          envFrom:
+            - secretRef:
+                name: filehubapi-secret
+          volumeMounts:
+            - name: filehub-storage
+              mountPath: /data/storage
+          # /api/health is a static "ok"; /api/ready does a real DB + storage
+          # round-trip (see backend/src/lib.rs) — exactly the k8s split.
+          livenessProbe:
+            httpGet: { path: /fh/api/health, port: 8090 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /fh/api/ready, port: 8090 }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests: { memory: "128Mi", cpu: "100m" }
+            limits:   { memory: "1Gi",   cpu: "500m" }
+      volumes:
+        - name: filehub-storage
+          persistentVolumeClaim:
+            claimName: filehub-storage-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neb-filehub-api
+  namespace: neb-dev
+spec:
+  selector:
+    app: neb-filehub-api
+  ports:
+    - protocol: TCP
+      port: 8090
+      targetPort: 8090
+  type: ClusterIP

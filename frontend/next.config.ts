@@ -8,6 +8,12 @@ import type { NextConfig } from "next";
 const BACKEND = process.env.BACKEND_URL || "http://127.0.0.1:8090";
 
 const nextConfig: NextConfig = {
+  // Self-contained server bundle for the Docker runtime stage (~10x smaller
+  // than shipping node_modules). NOTE: with standalone output this config —
+  // including the BACKEND value above — is serialized at BUILD time, so the
+  // Docker build must pass the in-cluster BACKEND_URL as a build arg.
+  output: "standalone",
+
   // Everything ships under /filehub so the app composes cleanly with other
   // services on a shared host (e.g., behind nginx).  Next.js prepends the
   // basePath to all <Link> hrefs, static assets, and rewrites automatically.
