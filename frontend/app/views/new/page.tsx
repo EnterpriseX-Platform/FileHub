@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
@@ -114,7 +115,7 @@ export default function ViewBuilderPage() {
         title="New view"
         actions={
           <>
-            <a className="btn ghost" href="/">Cancel</a>
+            <Link className="btn ghost" href="/">Cancel</Link>
             <button className="btn primary" onClick={save} disabled={busy || !name.trim()}>
               {busy ? "Saving…" : "Save view"}
             </button>

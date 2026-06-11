@@ -86,6 +86,9 @@ export function FilePreview({ fileId, fileType, fileName }: { fileId: string; fi
 
   if ((fileType === "img" || fileType === "png" || fileType === "jpg" || fileType === "jpeg") && !imgError) {
     return (
+      // next/image is wrong here: the optimizer refetches server-side without
+      // the session cookie, so the authenticated download endpoint would 401.
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={download}
         alt={fileName}

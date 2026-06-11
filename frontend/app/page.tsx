@@ -37,34 +37,34 @@ export default async function DashboardPage() {
   const usedBytes  = stats ? stats.total_size_bytes  : 0;
   const quotaPct = quotaBytes > 0 ? Math.min(100, Math.round((usedBytes / quotaBytes) * 100)) : 0;
 
-  const cards: Array<[string, string, string, "indigo" | "emerald" | "amber" | "rose", React.ReactNode]> = [
+  const cards: Array<[string, string, string, "indigo" | "emerald" | "amber" | "rose", React.ComponentType<React.SVGProps<SVGSVGElement>>]> = [
     [
       "Total files",
       stats ? fmtCount(stats.total_files) : "—",
       stats ? `${fmtBytes(stats.total_size_bytes)} on disk` : "backend offline",
       "indigo",
-      <Ico.files />,
+      Ico.files,
     ],
     [
       "Storage used",
       stats ? fmtBytes(usedBytes) : "—",
       quotaBytes > 0 ? `${quotaPct}% of ${fmtBytes(quotaBytes)} quota` : "no quota set",
       "emerald",
-      <Ico.database />,
+      Ico.database,
     ],
     [
       "Active orgs",
       stats ? fmtCount(stats.active_orgs) : "—",
       `${(stats?.connected_systems ?? []).length} systems connected`,
       "amber",
-      <Ico.users />,
+      Ico.users,
     ],
     [
       "Awaiting review",
       stats ? fmtCount(stats.awaiting_review) : "—",
       orgsWithReview ? `across ${orgsWithReview} org${orgsWithReview === 1 ? "" : "s"}` : "no pending reviews",
       "rose",
-      <Ico.warning />,
+      Ico.warning,
     ],
   ];
 
@@ -109,11 +109,11 @@ export default async function DashboardPage() {
         </div>
 
         <div className="stat-cards" style={{ marginBottom: 24 }}>
-          {cards.map(([label, value, hint, tone, icon], i) => (
+          {cards.map(([label, value, hint, tone, Icon], i) => (
             <div key={i} className="card" style={{ padding: 16 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                 <div className="t-sm t-muted">{label}</div>
-                <Pill tone={tone}>{icon}</Pill>
+                <Pill tone={tone}><Icon /></Pill>
               </div>
               <div className="t-3xl t-semibold t-tabular" style={{ lineHeight: 1 }}>{value}</div>
               <div className="t-xs t-muted" style={{ marginTop: 8 }}>{hint}</div>
@@ -168,7 +168,7 @@ export default async function DashboardPage() {
               <SectionHd
                 title="Awaiting your review"
                 sub={`${reviewFiles.length} item${reviewFiles.length === 1 ? "" : "s"}`}
-                action={<a className="btn xs ghost" href="/files?status=Review">View all <Ico.chevron className="icon sm" /></a>}
+                action={<Link className="btn xs ghost" href="/files?status=Review">View all <Ico.chevron className="icon sm" /></Link>}
               />
               {reviewFiles.length === 0 ? (
                 <div className="t-sm t-subtle" style={{ padding: "8px 0" }}>Your inbox is clear — no files waiting for your review.</div>

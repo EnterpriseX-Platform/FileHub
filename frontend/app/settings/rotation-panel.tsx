@@ -58,7 +58,7 @@ export function RotationPanel({
         <div>
           <div className="t-md t-semibold">Rotation policies</div>
           <div className="t-xs t-muted">
-            Most-specific wins: user → org → system → workspace.  Zero means "no limit at this scope".
+            Most-specific wins: user → org → system → workspace.  Zero means &quot;no limit at this scope&quot;.
           </div>
         </div>
         {canMutate && (
@@ -91,7 +91,7 @@ export function RotationPanel({
 
       <div className="t-md t-semibold" style={{ marginBottom: 8 }}>Recent runs</div>
       {runs.length === 0 ? (
-        <div className="t-sm t-subtle">No rotation runs yet — press "Run now" to fire one.</div>
+        <div className="t-sm t-subtle">No rotation runs yet — press &quot;Run now&quot; to fire one.</div>
       ) : (
         <table className="tbl">
           <thead>
