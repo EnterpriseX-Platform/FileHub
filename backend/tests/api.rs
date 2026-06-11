@@ -23,6 +23,19 @@ async fn health_returns_ok() {
     assert_eq!(r.text().await.unwrap(), "ok");
 }
 
+// `/api/ready` is the k8s readinessProbe target: it must do a real DB +
+// storage round-trip and return 200. Regression lock for the `SELECT 1`
+// (INT4) vs i64 (INT8) decode mismatch that made it 500 unconditionally —
+// which would have stranded every pod in NotReady on the cluster.
+#[tokio::test]
+async fn ready_returns_ok() {
+    require_backend().await;
+    let r = client().get(format!("{}/api/ready", base())).send().await.unwrap();
+    assert_eq!(r.status(), StatusCode::OK);
+    let body: serde_json::Value = r.json().await.unwrap();
+    assert_eq!(body["ready"], true);
+}
+
 // ---- 2. Dashboard stats --------------------------------------------------
 
 #[tokio::test]
