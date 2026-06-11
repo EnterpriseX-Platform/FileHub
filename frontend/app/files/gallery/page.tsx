@@ -19,6 +19,9 @@ function PreviewBg({ ft, fileId }: { ft: string; fileId: string }) {
     // Real image — the download endpoint streams plaintext bytes thanks to the
     // storage decryption layer, so the browser can render it directly.
     return (
+      // next/image is wrong here: the optimizer refetches server-side without
+      // the session cookie, so the authenticated download endpoint would 401.
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={`/filehub/api/files/${fileId}/download`}
         alt=""

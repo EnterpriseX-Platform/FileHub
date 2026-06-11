@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import * as React from "react";
 import * as tus from "tus-js-client";
@@ -322,7 +323,7 @@ function UploadInner() {
         title="Upload files"
         actions={
           <>
-            <a className="btn ghost" href="/files">Cancel</a>
+            <Link className="btn ghost" href="/files">Cancel</Link>
             {!readOnly && (
               <button className="btn primary" onClick={uploadAll} disabled={queued === 0 || !systemId}>
                 Upload {queued || items.length} file{queued === 1 ? "" : "s"}
@@ -570,7 +571,7 @@ function ReadOnlyNotice() {
         files, but uploading is limited to editors and admins. Ask an admin to change your role if you need to upload.
       </div>
       <div style={{ marginTop: 20 }}>
-        <a className="btn primary" href="/files">Back to files</a>
+        <Link className="btn primary" href="/files">Back to files</Link>
       </div>
     </div>
   );

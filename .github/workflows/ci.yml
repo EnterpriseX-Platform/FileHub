@@ -2,7 +2,7 @@
 #
 # Two independent jobs run on every push and pull request:
 #   * backend  — Rust/Axum (backend/) — build + compile the integration tests.
-#   * frontend — Next.js 15 + TypeScript (frontend/) — typecheck + production build.
+#   * frontend — Next.js 15 + TypeScript (frontend/) — lint + typecheck + production build.
 #
 # The jobs run in parallel; a failure in one does not cancel the other.
 name: CI
@@ -108,13 +108,16 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      # `npm install` (not `npm ci`): @playwright/test was added to package.json
-      # for the e2e specs without regenerating package-lock.json, so a strict
-      # `npm ci` would fail. Run `npm install` locally + commit the lockfile to
-      # switch back to `npm ci` for stricter reproducibility.
       - name: Install dependencies
         working-directory: frontend
-        run: npm install
+        run: npm ci
+
+      # ESLint (eslint-config-next via eslint.config.mjs). `next lint` is
+      # non-interactive once the config file exists. --max-warnings 0 makes
+      # warnings fail CI too (locally `npm run lint` only fails on errors).
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint -- --max-warnings 0
 
       # Typecheck the whole frontend (no emit) before the build.
       - name: Typecheck
