@@ -6,11 +6,13 @@ import { createPortal } from "react-dom";
 import { Ico } from "@/components/icons";
 import { Av } from "@/components/primitives";
 import { useAuth, type Me } from "@/lib/auth-context";
+import { useTheme } from "@/lib/theme-context";
 
 /// Sidebar footer — shows the signed-in user or a "Sign in" CTA.  Drops into
 /// the existing sidebar layout in place of the old hardcoded "Anong K." block.
 export function UserMenu() {
   const { user, loading, logout } = useAuth();
+  const { dark, toggle: toggleTheme } = useTheme();
   const [open, setOpen] = React.useState(false);
   const [pos, setPos] = React.useState<{ top: number; left: number; width: number } | null>(null);
   const btnRef = React.useRef<HTMLButtonElement>(null);
@@ -104,6 +106,16 @@ export function UserMenu() {
         }}>
           <UserItem user={user} />
           <div className="divider" style={{ margin: "4px 0" }} />
+          <button
+            onClick={toggleTheme}
+            role="menuitemcheckbox"
+            aria-checked={dark}
+            className="btn xs ghost"
+            style={{ width: "100%", justifyContent: "flex-start", padding: "6px 8px" }}
+          >
+            <Ico.moon className="icon sm" /> Dark mode
+            <span className="t-xs t-subtle" style={{ marginLeft: "auto" }}>{dark ? "on" : "off"}</span>
+          </button>
           <button
             onClick={() => { setOpen(false); logout(); }}
             className="btn xs ghost"

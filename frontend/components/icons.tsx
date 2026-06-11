@@ -113,6 +113,7 @@ export const Ico = {
     </>
   ),
   plus: make(<path d="M12 5v14M5 12h14" />),
+  moon: make(<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" />),
   more: make(
     <>
       <circle cx="5" cy="12" r="1.2" />

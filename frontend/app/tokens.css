@@ -65,6 +65,9 @@
 }
 
 .dark {
+  /* Native form controls (selects, scrollbars) follow suit. */
+  color-scheme: dark;
+
   --bg: #0c0a09;
   --bg-subtle: #1c1917;
   --bg-muted: #262320;
@@ -84,6 +87,29 @@
   --accent-border: #312e81;
   --accent-text: #c7d2fe;
   --on-accent: #0c0a09;
+
+  --success: #4ade80;
+  --success-soft: #052e16;
+  --success-border: #166534;
+  --warning: #fbbf24;
+  --warning-soft: #451a03;
+  --warning-border: #92400e;
+  --danger: #f87171;
+  --danger-soft: #450a0a;
+  --danger-border: #991b1b;
+  --info: #38bdf8;
+  --info-soft: #082f49;
+  --info-border: #075985;
+
+  /* Tonal palette brightened for dark backgrounds (badges, charts, dots). */
+  --c-indigo: #818cf8;
+  --c-emerald: #34d399;
+  --c-amber: #fbbf24;
+  --c-rose: #fb7185;
+  --c-violet: #a78bfa;
+  --c-cyan: #22d3ee;
+  --c-fuchsia: #e879f9;
+  --c-slate: #94a3b8;
 
   --sh-1: 0 1px 2px rgba(0, 0, 0, 0.2);
   --sh-2: 0 2px 6px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.2);
@@ -209,6 +235,15 @@ a { color: inherit; text-decoration: none; }
 .pill.cyan    { color: var(--c-cyan);    background: #ecfeff; border-color: #a5f3fc; }
 .pill.fuchsia { color: var(--c-fuchsia); background: #fdf4ff; border-color: #f5d0fe; }
 .pill.slate   { color: var(--c-slate);   background: #f8fafc; border-color: #cbd5e1; }
+/* Dark: the light pastels above would glow on a near-black page. */
+.dark .pill.indigo  { background: #1e1b4b; border-color: #312e81; }
+.dark .pill.emerald { background: #052e16; border-color: #166534; }
+.dark .pill.amber   { background: #451a03; border-color: #92400e; }
+.dark .pill.rose    { background: #4c0519; border-color: #9f1239; }
+.dark .pill.violet  { background: #2e1065; border-color: #5b21b6; }
+.dark .pill.cyan    { background: #083344; border-color: #155e75; }
+.dark .pill.fuchsia { background: #4a044e; border-color: #86198f; }
+.dark .pill.slate   { background: #1e293b; border-color: #475569; }
 
 .tag {
   display: inline-flex; align-items: center; gap: 4px;
@@ -350,6 +385,7 @@ a.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .ft.ppt, .ft.pptx { background: #c2410c; }
 .ft.txt, .ft.md, .ft.log { background: #64748b; }
 .ft.fold, .ft.folder { background: linear-gradient(135deg, #d6d3d1, #a8a29e); color: var(--text); }
+.dark .ft.fold, .dark .ft.folder { background: linear-gradient(135deg, #44403c, #57534e); }
 
 /* Tables */
 .tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--t-base); }
