@@ -5,8 +5,50 @@ import * as React from "react";
 import { Ft } from "@/components/primitives";
 
 const OFFICE_TYPES = new Set(["docx", "doc", "xlsx", "xls", "pptx", "ppt", "odt", "ods", "odp"]);
+const TEXT_TYPES   = new Set(["txt", "md", "csv", "log", "json", "xml"]);
 
 type OfficeUrl = { iframe_url: string; viewer: string; mode: string };
+
+// First 64 KB of a text file, rendered in a <pre>. Uses a Range request (the
+// backend supports single ranges) so a 2 GB log file costs one small read;
+// a 206 response means there's more than we show.
+const TEXT_PREVIEW_BYTES = 64 * 1024;
+
+function TextPreview({ download, fileName }: { download: string; fileName: string }) {
+  const [state, setState] = React.useState<{ text: string; truncated: boolean } | { error: string } | null>(null);
+
+  React.useEffect(() => {
+    let alive = true;
+    fetch(download, {
+      credentials: "include",
+      headers: { Range: `bytes=0-${TEXT_PREVIEW_BYTES - 1}` },
+    })
+      .then(async (r) => {
+        if (!r.ok && r.status !== 206) throw new Error(`HTTP ${r.status}`);
+        const text = await r.text();
+        if (alive) setState({ text, truncated: r.status === 206 });
+      })
+      .catch((e) => { if (alive) setState({ error: e instanceof Error ? e.message : String(e) }); });
+    return () => { alive = false; };
+  }, [download]);
+
+  if (state && "error" in state) {
+    return <div className="t-sm t-muted" style={{ padding: 24 }}>Couldn&apos;t load preview ({state.error}) — <a href={download} style={{ color: "var(--accent)" }}>download instead</a>.</div>;
+  }
+
+  return (
+    <div style={{ width: "min(720px, 100%)", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "var(--r-3)", boxShadow: "var(--sh-1)", overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: "1px solid var(--border)" }}>
+        <span className="t-sm t-semibold t-trunc" style={{ flex: 1 }}>{fileName}</span>
+        {state && !("error" in state) && state.truncated && <span className="t-xs t-subtle">first 64 KB</span>}
+        <a href={download} className="btn xs ghost">Download</a>
+      </div>
+      <pre className="t-mono t-sm" style={{ margin: 0, padding: 16, maxHeight: "62vh", overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word", color: "var(--text)" }}>
+        {state === null ? "Loading…" : state.text || "(empty file)"}
+      </pre>
+    </div>
+  );
+}
 
 /// In-place preview of the file. PDFs and images go straight to the browser.
 /// Office docs use the server-rendered PDF preview at /api/files/:id/preview
@@ -67,6 +109,12 @@ export function FilePreview({ fileId, fileType, fileName }: { fileId: string; fi
         <a href={download} className="btn">Download {fileName}</a>
       </video>
     );
+  }
+
+  // Plain text — fetch the first 64 KB inline instead of wasting the whole
+  // preview pane on a "no preview" card.
+  if (TEXT_TYPES.has(fileType)) {
+    return <TextPreview download={download} fileName={fileName} />;
   }
 
   // Audio — same Range-based streaming path.

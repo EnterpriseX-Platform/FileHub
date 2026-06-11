@@ -82,18 +82,18 @@ function LoginInner() {
         maxWidth: SHOW_DEMO_ACCOUNTS ? 880 : 400,
         width: "100%",
       }}>
-        <form onSubmit={submit} className="card" style={{ padding: 28, display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ width: 32, height: 32, borderRadius: 8, background: "var(--accent)", color: "var(--on-accent)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>F</span>
+        <form onSubmit={submit} className="card" style={{ padding: 36, display: "flex", flexDirection: "column", gap: 18, boxShadow: "var(--sh-3)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
+            <span style={{ width: 44, height: 44, borderRadius: 12, background: "var(--accent)", color: "var(--on-accent)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 20 }}>F</span>
             <div>
-              <div className="t-xl t-semibold">File Hub</div>
-              <div className="t-xs t-muted">acme.go.th · Digital Content Platform</div>
+              <div className="t-2xl t-semibold">File Hub</div>
+              <div className="t-sm t-muted">acme.go.th · Digital Content Platform</div>
             </div>
           </div>
 
           <div>
-            <label htmlFor="email" className="t-xs t-subtle t-medium" style={{ display: "block", marginBottom: 4 }}>Email</label>
-            <div className="field" style={{ width: "100%" }}>
+            <label htmlFor="email" className="t-sm t-muted t-medium" style={{ display: "block", marginBottom: 6 }}>Email</label>
+            <div className="field" style={{ width: "100%", height: 42, fontSize: "var(--t-md)" }}>
               <input
                 id="email"
                 type="email"
@@ -108,8 +108,8 @@ function LoginInner() {
           </div>
 
           <div>
-            <label htmlFor="password" className="t-xs t-subtle t-medium" style={{ display: "block", marginBottom: 4 }}>Password</label>
-            <div className="field" style={{ width: "100%" }}>
+            <label htmlFor="password" className="t-sm t-muted t-medium" style={{ display: "block", marginBottom: 6 }}>Password</label>
+            <div className="field" style={{ width: "100%", height: 42, fontSize: "var(--t-md)" }}>
               <input
                 id="password"
                 type="password"
@@ -123,14 +123,14 @@ function LoginInner() {
           </div>
 
           {error && (
-            <div className="t-sm" style={{ color: "var(--danger)", marginTop: -4 }}>{error}</div>
+            <div className="t-sm" style={{ color: "var(--danger)", marginTop: -6 }}>{error}</div>
           )}
 
-          <button type="submit" className="btn primary" disabled={busy} style={{ justifyContent: "center" }}>
+          <button type="submit" className="btn primary" disabled={busy} style={{ justifyContent: "center", height: 42, fontSize: "var(--t-md)" }}>
             {busy ? "Signing in…" : "Sign in"}
           </button>
 
-          <div className="t-xs t-subtle">
+          <div className="t-sm t-subtle">
             Trouble signing in? Contact your workspace admin.
           </div>
         </form>
