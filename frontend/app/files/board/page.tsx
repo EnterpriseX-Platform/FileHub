@@ -17,11 +17,13 @@ import { buildViewHref, fileMatchesFilters, GROUP_FIELDS, readViewParams } from 
 
 // Status grouping (default) — fixed columns with tones, mapping the file's
 // freeform status onto one of four lanes.
+// Accents reference the tonal tokens so the column dots brighten in dark mode
+// instead of staying at their fixed light-mode hex.
 const STATUS_COLUMNS: Array<{ title: string; accent: string }> = [
-  { title: "Inbox",    accent: "#475569" },
-  { title: "Review",   accent: "#d97706" },
-  { title: "Approved", accent: "#059669" },
-  { title: "Archived", accent: "#94a3b8" },
+  { title: "Inbox",    accent: "var(--c-slate)" },
+  { title: "Review",   accent: "var(--c-amber)" },
+  { title: "Approved", accent: "var(--c-emerald)" },
+  { title: "Archived", accent: "var(--c-slate)" },
 ];
 
 const statusToCol: Record<string, string> = {
@@ -29,7 +31,7 @@ const statusToCol: Record<string, string> = {
 };
 
 // Accent palette cycled through for dynamically-derived columns (owner/project).
-const DYNAMIC_ACCENTS = ["#475569", "#d97706", "#059669", "#7c3aed", "#0891b2", "#db2777", "#65a30d", "#dc2626"];
+const DYNAMIC_ACCENTS = ["var(--c-slate)", "var(--c-amber)", "var(--c-emerald)", "var(--c-violet)", "var(--c-cyan)", "var(--c-fuchsia)", "var(--c-indigo)", "var(--c-rose)"];
 
 type BoardProps = { searchParams?: Promise<Record<string, string | string[] | undefined>> };
 

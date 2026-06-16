@@ -339,7 +339,7 @@ function UploadInner() {
         ) : readOnly ? (
           <ReadOnlyNotice />
         ) : (
-        <div className="row-2col" style={{ maxWidth: 1100, margin: "0 auto", padding: "24px 32px" }}>
+        <div className="row-2col" style={{ maxWidth: 1100, margin: "0 auto" }}>
           <div>
             <SectionHd
               title="Upload files"
@@ -362,7 +362,7 @@ function UploadInner() {
                 style={{ display: "none" }}
                 onChange={(e) => e.target.files && addPlainFiles(e.target.files)}
               />
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, pointerEvents: "none" }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--sp-3)", pointerEvents: "none" }}>
                 <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--accent-soft)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent)" }}>
                   <Ico.upload className="icon lg" />
                 </div>
@@ -374,7 +374,7 @@ function UploadInner() {
             </div>
 
             <div className="card" style={{ padding: 0 }}>
-              <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border)" }}>
+              <div style={{ padding: "var(--sp-3) var(--sp-4)", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border)" }}>
                 <div>
                   <div className="t-md t-semibold">
                     Queue · {items.length} file{items.length === 1 ? "" : "s"} · {fmtBytes(totalSize)}
@@ -405,7 +405,7 @@ function UploadInner() {
                 </div>
               )}
               {items.map((it, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderTop: "1px solid var(--border-subtle)" }}>
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "var(--sp-2) var(--sp-4)", borderTop: "1px solid var(--border-subtle)" }}>
                   <Ft type={guessFt(it.file.name)} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -429,8 +429,8 @@ function UploadInner() {
                       </div>
                     )}
                   </div>
-                  <div className="t-xs t-mono t-muted" style={{ width: 70, textAlign: "right" }}>{fmtBytes(it.file.size)}</div>
-                  <div className="t-xs t-tabular t-muted" style={{ width: 40, textAlign: "right" }}>{it.progress}%</div>
+                  <div className="t-xs t-mono t-muted" style={{ width: 70, flexShrink: 0, textAlign: "right" }}>{fmtBytes(it.file.size)}</div>
+                  <div className="t-xs t-tabular t-muted" style={{ width: 40, flexShrink: 0, textAlign: "right" }}>{it.progress}%</div>
                   {it.state === "error" && (
                     <button
                       className="btn xs ghost icon"

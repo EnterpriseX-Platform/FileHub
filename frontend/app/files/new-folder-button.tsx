@@ -120,7 +120,7 @@ export function NewFolderButton({
               />
             ))}
           </div>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12 }}>
+          <label className="t-xs" style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
             <span className={"cb" + (encrypted ? " on" : "")} onClick={() => setEncrypted(!encrypted)} />
             Mark as encrypted (folder-level flag, files still encrypted at rest)
           </label>

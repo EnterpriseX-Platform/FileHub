@@ -132,7 +132,7 @@ export default async function SettingsGeneralPage() {
                       <span className="t-tabular t-semibold">{stats ? fmtCount(stats.total_orgs) : "—"}</span> org record{stats?.total_orgs === 1 ? "" : "s"}
                     </div>
                   </div>
-                  <button className="btn sm danger" disabled title="Use the CLI: scripts/backup.sh then DROP DATABASE">CLI only</button>
+                  <button className="btn sm danger" disabled title="Deleting a workspace requires a system administrator.">Contact admin</button>
                 </div>
               </div>
             </div>

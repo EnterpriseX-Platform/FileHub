@@ -38,7 +38,7 @@ export default async function SettingsAuditPage({ searchParams }: { searchParams
           <div style={{ maxWidth: 1100 }}>
             <div className="t-3xl t-semibold">Audit log</div>
             <div className="t-sm t-muted" style={{ marginTop: 4, marginBottom: 24 }}>
-              Every workspace event from the <span className="t-mono">activity</span> table — uploads, deletions, workflow decisions, bucket CRUD.
+              A complete record of workspace activity — uploads, deletions, shares, approvals, and other changes.
             </div>
 
             <div className="table-scroll">

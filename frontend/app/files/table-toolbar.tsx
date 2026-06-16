@@ -80,7 +80,7 @@ export function FilterMenu({ params, count, base = "/files" }: { params: ViewPar
         <Ico.filter /> {count || 0} filter{count === 1 ? "" : "s"}
       </button>
       {open && (
-        <div className="card" role="menu" style={{ position: "absolute", left: 0, top: "calc(100% + 6px)", zIndex: 50, width: 184, padding: 6, boxShadow: "var(--sh-popover)", display: "flex", flexDirection: "column", gap: 2 }}>
+        <div className="card" role="menu" style={{ position: "absolute", left: 0, top: "calc(100% + 6px)", zIndex: 50, width: 184, maxWidth: "calc(100vw - 16px)", padding: 6, boxShadow: "var(--sh-popover)", display: "flex", flexDirection: "column", gap: 2 }}>
           <div className="t-xs t-subtle t-medium" style={{ padding: "4px 8px" }}>Filter by status</div>
           {STATUS_OPTIONS.map((s) => (
             <button key={s} type="button" role="menuitem" className="btn xs ghost" style={{ width: "100%", justifyContent: "flex-start" }} onClick={() => go(s)}>
@@ -124,7 +124,7 @@ export function SortMenu({ params, sort, dir, base = "/files" }: { params: ViewP
         <Ico.sort /> {label} {dir === "asc" ? "↑" : "↓"}
       </button>
       {open && (
-        <div className="card" role="menu" style={{ position: "absolute", left: 0, top: "calc(100% + 6px)", zIndex: 50, width: 172, padding: 6, boxShadow: "var(--sh-popover)", display: "flex", flexDirection: "column", gap: 2 }}>
+        <div className="card" role="menu" style={{ position: "absolute", left: 0, top: "calc(100% + 6px)", zIndex: 50, width: 172, maxWidth: "calc(100vw - 16px)", padding: 6, boxShadow: "var(--sh-popover)", display: "flex", flexDirection: "column", gap: 2 }}>
           <div className="t-xs t-subtle t-medium" style={{ padding: "4px 8px" }}>Sort by</div>
           {SORT_FIELDS.map((f) => (
             <button key={f.key} type="button" role="menuitem" className="btn xs ghost" style={{ width: "100%", justifyContent: "space-between" }} onClick={() => go(f.key)}>
@@ -157,7 +157,7 @@ export function GroupMenu({ params, group, base = "/files", allowNone = true }: 
         <Ico.group /> {active === "none" ? "No group" : `Group: ${label}`}
       </button>
       {open && (
-        <div className="card" role="menu" style={{ position: "absolute", left: 0, top: "calc(100% + 6px)", zIndex: 50, width: 172, padding: 6, boxShadow: "var(--sh-popover)", display: "flex", flexDirection: "column", gap: 2 }}>
+        <div className="card" role="menu" style={{ position: "absolute", left: 0, top: "calc(100% + 6px)", zIndex: 50, width: 172, maxWidth: "calc(100vw - 16px)", padding: 6, boxShadow: "var(--sh-popover)", display: "flex", flexDirection: "column", gap: 2 }}>
           <div className="t-xs t-subtle t-medium" style={{ padding: "4px 8px" }}>Group by</div>
           {fields.map((f) => (
             <button key={f.key} type="button" role="menuitem" className="btn xs ghost" style={{ width: "100%", justifyContent: "flex-start" }} onClick={() => go(f.key)}>
@@ -199,7 +199,7 @@ export function ViewOptionsMenu({ params, group, hidden, base = "/files" }: {
         <Ico.layers /> View options
       </button>
       {open && (
-        <div className="card" role="menu" style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 50, width: 200, padding: 6, boxShadow: "var(--sh-popover)", display: "flex", flexDirection: "column", gap: 2 }}>
+        <div className="card" role="menu" style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 50, width: 200, maxWidth: "calc(100vw - 16px)", padding: 6, boxShadow: "var(--sh-popover)", display: "flex", flexDirection: "column", gap: 2 }}>
           <div className="t-xs t-subtle t-medium" style={{ padding: "4px 8px" }}>Group by</div>
           {GROUP_FIELDS.map((f) => (
             <button key={f.key} type="button" role="menuitemradio" aria-checked={activeGroup === f.key} className="btn xs ghost" style={{ width: "100%", justifyContent: "flex-start" }} onClick={() => goGroup(f.key)}>
@@ -242,7 +242,7 @@ export function PropertiesMenu({ params, hidden, base = "/files" }: { params: Vi
         <Ico.layers /> Properties
       </button>
       {open && (
-        <div className="card" role="menu" style={{ position: "absolute", left: 0, top: "calc(100% + 6px)", zIndex: 50, width: 180, padding: 6, boxShadow: "var(--sh-popover)", display: "flex", flexDirection: "column", gap: 2 }}>
+        <div className="card" role="menu" style={{ position: "absolute", left: 0, top: "calc(100% + 6px)", zIndex: 50, width: 180, maxWidth: "calc(100vw - 16px)", padding: 6, boxShadow: "var(--sh-popover)", display: "flex", flexDirection: "column", gap: 2 }}>
           <div className="t-xs t-subtle t-medium" style={{ padding: "4px 8px" }}>Columns</div>
           {OPTIONAL_COLUMNS.map((c) => (
             <button key={c.key} type="button" role="menuitemcheckbox" aria-checked={!hiddenSet.has(c.key)} className="btn xs ghost" style={{ width: "100%", justifyContent: "flex-start", alignItems: "center" }} onClick={() => toggle(c.key)}>

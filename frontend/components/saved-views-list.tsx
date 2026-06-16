@@ -6,15 +6,18 @@ import * as React from "react";
 import type { View } from "@/lib/api";
 import { hrefForView } from "@/lib/view-href";
 
+// Named tones resolve to the tonal tokens (not fixed hex) so the dots brighten
+// in dark mode like every other tone-coded element. A user-chosen custom hex
+// (v.color starting with "#") is left verbatim by resolveColor below.
 const COLORS_BY_NAME: Record<string, string> = {
-  rose:    "#e11d48",
-  amber:   "#d97706",
-  emerald: "#16a34a",
-  indigo:  "#4f46e5",
-  violet:  "#7c3aed",
-  cyan:    "#0891b2",
-  fuchsia: "#c026d3",
-  slate:   "#475569",
+  rose:    "var(--c-rose)",
+  amber:   "var(--c-amber)",
+  emerald: "var(--c-emerald)",
+  indigo:  "var(--c-indigo)",
+  violet:  "var(--c-violet)",
+  cyan:    "var(--c-cyan)",
+  fuchsia: "var(--c-fuchsia)",
+  slate:   "var(--c-slate)",
 };
 
 /// Pinned saved-views section for the sidebar.  Previously the four entries

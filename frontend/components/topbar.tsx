@@ -5,6 +5,7 @@ import * as React from "react";
 import { Ico } from "./icons";
 import { NotificationsBell } from "./notifications-bell";
 import { useSidebar } from "@/lib/sidebar-context";
+import { useTheme } from "@/lib/theme-context";
 
 export function TopBar({
   crumbs = [],
@@ -16,6 +17,7 @@ export function TopBar({
   title?: React.ReactNode;
 }) {
   const { toggle } = useSidebar();
+  const { dark, toggle: toggleTheme } = useTheme();
   return (
     <div className="topbar">
       <button
@@ -42,6 +44,18 @@ export function TopBar({
         )}
       </div>
       <div style={{ flex: 1 }} />
+      {/* Theme toggle lives here so light/dark is reachable from every page —
+          the sidebar-footer menu was too buried for OS-dark users to find. */}
+      <button
+        type="button"
+        className="btn icon ghost"
+        onClick={toggleTheme}
+        aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+        aria-pressed={dark}
+        title={dark ? "Switch to light mode" : "Switch to dark mode"}
+      >
+        {dark ? <Ico.sun /> : <Ico.moon />}
+      </button>
       {/* Bell sits on every topbar by default; pages that pass a custom
           `actions` prop append next to it.  Previously each page rendered
           a decorative bell with no popover. */}

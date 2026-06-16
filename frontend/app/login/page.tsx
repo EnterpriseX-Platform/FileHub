@@ -77,14 +77,14 @@ function LoginInner() {
     }}>
       <div style={{
         display: "grid",
-        gridTemplateColumns: SHOW_DEMO_ACCOUNTS ? "repeat(auto-fit, minmax(260px, 1fr))" : "1fr",
+        gridTemplateColumns: SHOW_DEMO_ACCOUNTS ? "repeat(auto-fit, minmax(340px, 1fr))" : "1fr",
         gap: 24,
         maxWidth: SHOW_DEMO_ACCOUNTS ? 880 : 400,
         width: "100%",
       }}>
         <form onSubmit={submit} className="card" style={{ padding: 36, display: "flex", flexDirection: "column", gap: 18, boxShadow: "var(--sh-3)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
-            <span style={{ width: 44, height: 44, borderRadius: 12, background: "var(--accent)", color: "var(--on-accent)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 20 }}>F</span>
+            <span style={{ width: 44, height: 44, borderRadius: "var(--r-5)", background: "var(--accent)", color: "var(--on-accent)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 20 }}>F</span>
             <div>
               <div className="t-2xl t-semibold">File Hub</div>
               <div className="t-sm t-muted">acme.go.th · Digital Content Platform</div>

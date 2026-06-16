@@ -3,11 +3,11 @@
 import { usePathname } from "next/navigation";
 import * as React from "react";
 
-/// Drawer state for the responsive sidebar. At ≥1024px the sidebar is a normal
-/// grid column and this is inert; below that the sidebar becomes an off-canvas
+/// Drawer state for the responsive sidebar. At >860px the sidebar is a normal
+/// grid column and this is inert; at ≤860px the sidebar becomes an off-canvas
 /// drawer (see the @media blocks in tokens.css) that the topbar hamburger
-/// toggles. We auto-close on navigation and when the viewport grows back to
-/// desktop so the drawer never gets "stuck" open.
+/// toggles. We auto-close on navigation and when the viewport grows back past
+/// the breakpoint so the drawer never gets "stuck" open.
 type SidebarCtx = {
   open: boolean;
   setOpen: (v: boolean) => void;
@@ -37,7 +37,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   // Close when the viewport grows past the drawer breakpoint, so a drawer left
   // open on mobile doesn't linger after a resize back to desktop.
   React.useEffect(() => {
-    const mq = window.matchMedia("(min-width: 1024px)");
+    const mq = window.matchMedia("(min-width: 861px)");
     const onChange = () => { if (mq.matches) setOpen(false); };
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);

@@ -33,7 +33,7 @@ function TextPreview({ download, fileName }: { download: string; fileName: strin
   }, [download]);
 
   if (state && "error" in state) {
-    return <div className="t-sm t-muted" style={{ padding: 24 }}>Couldn&apos;t load preview ({state.error}) — <a href={download} style={{ color: "var(--accent)" }}>download instead</a>.</div>;
+    return <div className="t-sm t-muted" style={{ padding: "var(--sp-6)" }}>Couldn&apos;t load preview ({state.error}) — <a href={download} style={{ color: "var(--accent)" }}>download instead</a>.</div>;
   }
 
   return (
@@ -43,7 +43,7 @@ function TextPreview({ download, fileName }: { download: string; fileName: strin
         {state && !("error" in state) && state.truncated && <span className="t-xs t-subtle">first 64 KB</span>}
         <a href={download} className="btn xs ghost">Download</a>
       </div>
-      <pre className="t-mono t-sm" style={{ margin: 0, padding: 16, maxHeight: "62vh", overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word", color: "var(--text)" }}>
+      <pre className="t-mono t-sm" style={{ margin: 0, padding: "var(--sp-4)", maxHeight: "62vh", overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word", color: "var(--text)" }}>
         {state === null ? "Loading…" : state.text || "(empty file)"}
       </pre>
     </div>
@@ -75,7 +75,7 @@ export function FilePreview({ fileId, fileType, fileName }: { fileId: string; fi
       <iframe
         src={preview}
         title={fileName}
-        style={{ width: "min(720px, 100%)", height: "70vh", border: 0, borderRadius: 4, background: "var(--bg)", boxShadow: "var(--sh-3)", colorScheme: "light" }}
+        style={{ width: "min(720px, 100%)", height: "70vh", border: 0, borderRadius: "var(--r-1)", background: "var(--bg)", boxShadow: "var(--sh-3)", colorScheme: "light" }}
       />
     );
   }
@@ -93,7 +93,7 @@ export function FilePreview({ fileId, fileType, fileName }: { fileId: string; fi
         src={download}
         alt={fileName}
         onError={() => setImgError(true)}
-        style={{ maxWidth: "min(720px, 100%)", maxHeight: "70vh", borderRadius: 4, background: "var(--bg)", boxShadow: "var(--sh-3)" }}
+        style={{ maxWidth: "min(720px, 100%)", maxHeight: "70vh", borderRadius: "var(--r-1)", background: "var(--bg)", boxShadow: "var(--sh-3)" }}
       />
     );
   }
@@ -107,7 +107,7 @@ export function FilePreview({ fileId, fileType, fileName }: { fileId: string; fi
         src={download}
         controls
         preload="metadata"
-        style={{ width: "min(720px, 100%)", maxHeight: "70vh", borderRadius: 4, background: "#000", boxShadow: "var(--sh-3)" }}
+        style={{ width: "min(720px, 100%)", maxHeight: "70vh", borderRadius: "var(--r-1)", background: "#000", boxShadow: "var(--sh-3)" }}
       >
         <a href={download} className="btn">Download {fileName}</a>
       </video>
@@ -123,7 +123,7 @@ export function FilePreview({ fileId, fileType, fileName }: { fileId: string; fi
   // Audio — same Range-based streaming path.
   if (fileType === "mp3" || fileType === "wav") {
     return (
-      <div style={{ width: "min(540px, 100%)", padding: 24, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "var(--r-3)", boxShadow: "var(--sh-1)" }}>
+      <div style={{ width: "min(540px, 100%)", padding: "var(--sp-6)", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "var(--r-3)", boxShadow: "var(--sh-1)" }}>
         <div className="t-base t-semibold t-trunc" style={{ marginBottom: 12 }}>{fileName}</div>
         <audio src={download} controls preload="metadata" style={{ width: "100%" }}>
           <a href={download} className="btn">Download {fileName}</a>
@@ -197,7 +197,7 @@ function CollaboraFrame({ iframeUrl, fileName, fileType, mode, download }: {
         src={iframeUrl}
         title={fileName}
         allow="clipboard-read; clipboard-write"
-        style={{ width: "100%", height: "78vh", border: 0, borderRadius: 4, background: "var(--bg)", boxShadow: "var(--sh-3)" }}
+        style={{ width: "100%", height: "78vh", border: 0, borderRadius: "var(--r-1)", background: "var(--bg)", boxShadow: "var(--sh-3)" }}
       />
       <div className="t-xs t-subtle" style={{ marginTop: 6, textAlign: "center" }}>
         File Hub Editor · {mode === "edit" ? "edit mode" : "view-only"} · <a href={download} style={{ color: "var(--accent)" }}>download .{fileType}</a>
@@ -238,7 +238,7 @@ function OfficePreview({ fileId, fileType, fileName, download, preview }: {
   // doesn't flash an empty box.
   if (info === null && err === null) {
     return (
-      <div style={{ width: "min(720px, 100%)", height: "70vh", background: "var(--bg-subtle)", borderRadius: 4 }} />
+      <div style={{ width: "min(720px, 100%)", height: "70vh", background: "var(--bg-subtle)", borderRadius: "var(--r-1)" }} />
     );
   }
 
@@ -266,7 +266,7 @@ function OfficePreview({ fileId, fileType, fileName, download, preview }: {
       <iframe
         src={preview}
         title={fileName}
-        style={{ width: "100%", height: "70vh", border: 0, borderRadius: 4, background: "var(--bg)", boxShadow: "var(--sh-3)", colorScheme: "light" }}
+        style={{ width: "100%", height: "70vh", border: 0, borderRadius: "var(--r-1)", background: "var(--bg)", boxShadow: "var(--sh-3)", colorScheme: "light" }}
       />
       <div className="t-xs t-subtle" style={{ marginTop: 6, textAlign: "center" }}>
         Server-rendered PDF preview · <a href={download} style={{ color: "var(--accent)" }}>download .{fileType}</a>

@@ -31,8 +31,11 @@ export function Av({
   const t: Tone = tone ?? tones[hash % tones.length];
   const initials = name.split(/\s+/).slice(0, 2).map((p) => p[0]).join("").toUpperCase();
   const cls = "av" + (sz === "sm" ? " sm" : sz === "lg" ? " lg" : sz === "xl" ? " xl" : "");
+  // Use the tonal token (not a fixed hex) so the background brightens in dark
+  // mode and `--on-accent` text stays legible in both themes — a hardcoded hex
+  // left dark `--on-accent` text sitting on a mid-tone fill (unreadable).
   return (
-    <span className={cls} style={{ background: toneMap[t], color: "var(--on-accent)", ...style }}>
+    <span className={cls} style={{ background: `var(--c-${t})`, color: "var(--on-accent)", ...style }}>
       {initials}
     </span>
   );

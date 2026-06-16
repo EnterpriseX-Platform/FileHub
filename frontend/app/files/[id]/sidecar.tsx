@@ -108,6 +108,7 @@ function VersionsBlock({ fileId }: { fileId: string }) {
                 className="btn xs ghost"
                 href={`/filehub/api/files/${encodeURIComponent(fileId)}/download?version=${v.version}`}
                 title={`Download v${v.version}`}
+                aria-label={`Download version ${v.version}`}
               >
                 <Ico.download className="icon sm" />
               </a>
@@ -242,7 +243,7 @@ function CommentsBlock({ fileId }: { fileId: string }) {
       )}
 
       {user ? (
-        <div className="field" style={{ flexDirection: "column", alignItems: "stretch", padding: 8 }}>
+        <div className="field" style={{ flexDirection: "column", alignItems: "stretch", padding: "var(--sp-2)" }}>
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}

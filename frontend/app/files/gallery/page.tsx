@@ -101,7 +101,7 @@ export default async function FilesGalleryPage({ searchParams }: GalleryProps) {
           <Section label="Today" items={today} />
           {earlier.length > 0 && <Section label="Earlier" items={earlier} faded />}
           {rows.length === 0 && (
-            <div style={{ padding: 40, textAlign: "center", color: "var(--text-subtle)" }}>
+            <div className="t-muted" style={{ padding: 40, textAlign: "center" }}>
               No files match this view.{canMutate(role) && <> <a href="/upload" style={{ color: "var(--accent)" }}>Upload a file</a>.</>}
             </div>
           )}

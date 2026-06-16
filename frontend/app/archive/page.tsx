@@ -49,7 +49,7 @@ export default async function ArchivePage({ searchParams }: { searchParams?: Pro
                 <Ft type={f.file_type} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="t-base t-medium t-trunc">{f.name}</div>
-                  <div className="t-xs t-muted">{f.bucket} · {f.object_key}</div>
+                  <div className="t-xs t-muted t-trunc">{f.owner}{f.project ? ` · ${f.project}` : ""}</div>
                 </div>
                 <Pill tone="slate"><span className="dot" />Archived</Pill>
                 <div className="t-sm t-mono t-muted" style={{ width: 80, textAlign: "right" }}>{fmtBytes(f.size_bytes)}</div>
