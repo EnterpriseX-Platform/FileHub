@@ -117,7 +117,7 @@ export function FilesTable({ groups, cols, role, folders = [] }: { groups: FileG
         {groups.map((g) => (
           <React.Fragment key={g.key}>
             {g.label && (
-              <div className="t-xs t-subtle t-medium" style={{ textTransform: "uppercase", letterSpacing: "0.04em", padding: "10px 4px 4px" }}>
+              <div className="t-xs t-subtle t-medium" style={{ textTransform: "uppercase", letterSpacing: "0.04em", padding: "var(--sp-2) var(--sp-1) var(--sp-1)" }}>
                 {g.label} <span style={{ marginLeft: 6 }}>{g.rows.length}</span>
               </div>
             )}
@@ -140,7 +140,7 @@ export function FilesTable({ groups, cols, role, folders = [] }: { groups: FileG
                     tabIndex={0}
                     onClick={() => toggle(f.id)}
                     onKeyDown={cbKeyDown(() => toggle(f.id))}
-                    style={{ padding: 12, display: "inline-flex", cursor: "pointer" }}
+                    style={{ padding: "var(--sp-4)", display: "inline-flex", cursor: "pointer" }}
                   >
                     <span className={"cb" + (sel ? " on" : "")} />
                   </span>
@@ -165,7 +165,9 @@ export function FilesTable({ groups, cols, role, folders = [] }: { groups: FileG
         )}
       </div>
 
-      <div className="only-desktop">
+      {/* overflow-x lets the fixed-width columns scroll at narrow desktop
+          widths (861–1100px) instead of clipping the right-hand columns. */}
+      <div className="only-desktop" style={{ overflowX: "auto" }}>
       <table className="tbl">
         <thead>
           <tr>
@@ -209,7 +211,7 @@ export function FilesTable({ groups, cols, role, folders = [] }: { groups: FileG
                 const tags = parseJsonArray(f.tags);
                 const sel = selected.has(f.id);
                 return (
-                  <tr key={f.id} style={sel ? { background: "var(--accent-soft)" } : undefined}>
+                  <tr key={f.id} className={sel ? "sel" : undefined}>
                     <td>
                       <span
                         className={"cb" + (sel ? " on" : "")}
@@ -265,6 +267,9 @@ export function FilesTable({ groups, cols, role, folders = [] }: { groups: FileG
         </tbody>
       </table>
       </div>
+
+      {/* Reserve space so the fixed bulk bar never covers the last row/card. */}
+      {selected.size > 0 && <div aria-hidden style={{ height: 72 }} />}
 
       {selected.size > 0 && (
         <div
@@ -437,7 +442,7 @@ function MoveMenu({ folders, busy, onMove }: { folders: Folder[]; busy: boolean;
             </button>
           ))}
           {folders.length === 0 && (
-            <div className="t-xs t-subtle" style={{ padding: "4px 8px" }}>No folders in this system yet.</div>
+            <div className="t-xs t-subtle" style={{ padding: "4px 8px" }}>No folders here yet — use “New folder” to create one.</div>
           )}
         </div>
       )}

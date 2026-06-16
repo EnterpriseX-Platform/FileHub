@@ -107,7 +107,7 @@ export function GeneralForm({ initial, canMutate }: { initial: WorkspaceConfig; 
             disabled={!canMutate}
             style={{ width: 280 }}
           >
-            <option value="pdf">PDF (LibreOffice headless on backend)</option>
+            <option value="pdf">PDF (server-rendered)</option>
             <option value="collabora">Collabora Online (interactive editor)</option>
             <option value="disabled">Disabled (Download only)</option>
           </select>
@@ -169,7 +169,7 @@ function Toggle({ label, hint, on, onChange, disabled }: {
         <span style={{
           position: "absolute", top: 2, left: on ? 16 : 2,
           width: 14, height: 14, borderRadius: 7, background: "var(--on-accent)",
-          boxShadow: "0 1px 2px rgba(0,0,0,0.2)", transition: "left .15s",
+          boxShadow: "var(--sh-2)", transition: "left .15s",
         }} />
       </button>
       <div style={{ flex: 1 }}>

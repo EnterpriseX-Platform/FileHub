@@ -98,7 +98,7 @@ export default async function DashboardPage() {
               ) : stats ? (
                 <>Your inbox is clear — no files awaiting review.</>
               ) : (
-                <>Backend offline — start the Rust API on :8090 to load real data.</>
+                <>We couldn’t load your workspace data right now. Please refresh in a moment.</>
               )}
             </div>
           </div>
@@ -116,7 +116,7 @@ export default async function DashboardPage() {
                 <Pill tone={tone}><Icon /></Pill>
               </div>
               <div className="t-3xl t-semibold t-tabular" style={{ lineHeight: 1 }}>{value}</div>
-              <div className="t-xs t-muted" style={{ marginTop: 8 }}>{hint}</div>
+              <div className="t-xs t-muted" style={{ marginTop: "var(--sp-2)" }}>{hint}</div>
             </div>
           ))}
         </div>
@@ -130,7 +130,7 @@ export default async function DashboardPage() {
                 action={<a className="btn sm ghost" href="/orgs">View details <Ico.chevron className="icon sm" /></a>}
               />
               {storageBySystem.length === 0 ? (
-                <div className="t-sm t-subtle" style={{ padding: "12px 0" }}>Upload a file to see storage usage by system.</div>
+                <div className="t-sm t-muted" style={{ padding: "12px 0" }}>Upload a file to see storage usage by system.</div>
               ) : (
                 <>
                   <div style={{ display: "flex", height: 10, borderRadius: 5, overflow: "hidden", marginBottom: 12 }}>
@@ -146,9 +146,9 @@ export default async function DashboardPage() {
                     {storageBySystem.map((r) => (
                       <div key={r.system_id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ width: 8, height: 8, borderRadius: 2, background: `var(--c-${r.tone})`, flexShrink: 0 }} />
-                        <span className="t-base t-medium" style={{ flex: 1, minWidth: 0 }}>{r.name}</span>
-                        <span className="t-sm t-mono t-muted">{fmtBytes(r.size_bytes)}</span>
-                        <span className="t-sm t-mono t-faint" style={{ width: 32, textAlign: "right" }}>
+                        <span className="t-base t-medium t-trunc" style={{ flex: 1, minWidth: 0 }}>{r.name}</span>
+                        <span className="t-sm t-mono t-muted" style={{ flexShrink: 0, whiteSpace: "nowrap" }}>{fmtBytes(r.size_bytes)}</span>
+                        <span className="t-sm t-mono t-faint" style={{ width: 32, textAlign: "right", flexShrink: 0 }}>
                           {Math.round((r.size_bytes / totalStorage) * 100)}%
                         </span>
                       </div>
@@ -171,7 +171,7 @@ export default async function DashboardPage() {
                 action={<Link className="btn xs ghost" href="/files?status=Review">View all <Ico.chevron className="icon sm" /></Link>}
               />
               {reviewFiles.length === 0 ? (
-                <div className="t-sm t-subtle" style={{ padding: "8px 0" }}>Your inbox is clear — no files waiting for your review.</div>
+                <div className="t-sm t-muted" style={{ padding: "8px 0" }}>Your inbox is clear — no files waiting for your review.</div>
               ) : reviewFiles.map((f, i) => {
                 const sys = systems.find((s) => s.id === f.system_id);
                 return (
@@ -190,7 +190,7 @@ export default async function DashboardPage() {
             <div className="card" style={{ padding: 16 }}>
               <SectionHd title="Pinned views" action={<Ico.pin className="icon sm" />} />
               {pinnedViews.length === 0 ? (
-                <div className="t-sm t-subtle" style={{ padding: "8px 0" }}>No pinned views yet. Save a filter in Files, then pin it here.</div>
+                <div className="t-sm t-muted" style={{ padding: "8px 0" }}>No pinned views yet. Save a filter in Files, then pin it here.</div>
               ) : pinnedViews.map((v, i) => {
                 const icon = v.layout === "board" ? <Ico.board /> : v.layout === "gallery" ? <Ico.gallery /> : <Ico.table />;
                 const tone: "indigo" | "rose" | "emerald" | "amber" =
@@ -232,7 +232,7 @@ export default async function DashboardPage() {
                 </div>
               ))}
               {(stats?.connected_systems ?? []).length === 0 && (
-                <div className="t-sm t-subtle" style={{ padding: "8px 0" }}>No storage systems connected. Admins can add one in Settings.</div>
+                <div className="t-sm t-muted" style={{ padding: "8px 0" }}>No storage systems connected. Admins can add one in Settings.</div>
               )}
             </div>
           </div>

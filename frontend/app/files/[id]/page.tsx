@@ -63,7 +63,7 @@ export default async function FileDetailPage({ params }: { params: Promise<{ id:
 
         <div style={{ padding: "12px 16px", flex: 1, overflow: "auto" }}>
           <Label>System fields</Label>
-          <Prop label="Status" icon={<span style={{ width: 6, height: 6, background: `var(--c-${statusTone(file.status)})`, borderRadius: 3 }} />}>
+          <Prop label="Status" icon={<span style={{ width: 6, height: 6, background: `var(--c-${statusTone(file.status)})`, borderRadius: "50%" }} />}>
             <Pill tone={statusTone(file.status)}><span className="dot" />{file.status}</Pill>
           </Prop>
           {file.project && (
@@ -97,8 +97,8 @@ export default async function FileDetailPage({ params }: { params: Promise<{ id:
               away by default. Native <details> keeps this a server component. */}
           <details className="disclosure">
             <summary>Technical details</summary>
-            <Prop label="Bucket" icon={<Ico.bucket className="icon sm" />}><span className="t-mono t-sm">{file.bucket}</span></Prop>
-            <Prop label="Path"   icon={<Ico.folder className="icon sm" />}><span className="t-mono t-sm t-trunc">{file.object_key}</span></Prop>
+            <Prop label="Storage location" icon={<Ico.bucket className="icon sm" />}><span className="t-mono t-sm">{file.bucket}</span></Prop>
+            <Prop label="Object path"      icon={<Ico.folder className="icon sm" />}><span className="t-mono t-sm t-trunc">{file.object_key}</span></Prop>
             {file.etag && <Prop label="Checksum" icon={<Ico.tag className="icon sm" />}><span className="t-mono t-xs t-trunc">{file.etag}</span></Prop>}
             <Prop label="Encryption" icon={<Ico.shield className="icon sm" />}>
               {file.encrypted ? <Pill tone="emerald"><span className="dot" />Encrypted at rest</Pill> : <Pill>Not encrypted</Pill>}
