@@ -10,10 +10,11 @@ import { SideLabel, SideRow } from "./primitives";
 import { SavedViewsList } from "./saved-views-list";
 import { UserMenu } from "./user-menu";
 import { fmtCount } from "@/lib/format";
+import { useI18n } from "@/lib/i18n";
 import { useSidebar } from "@/lib/sidebar-context";
 import type { Org, System, DashboardStats } from "@/lib/api";
 
-export type NavKey = "dashboard" | "files" | "activity" | "views" | "share" | "archive" | "trash" | "settings";
+export type NavKey = "dashboard" | "ask" | "files" | "search" | "activity" | "reports" | "views" | "share" | "archive" | "trash" | "settings";
 
 /// Sidebar is a pure synchronous component so it can render correctly inside
 /// both server and client pages. Data is supplied entirely via props; pages
@@ -34,6 +35,7 @@ export function Sidebar({
   stats?: DashboardStats | null;
 }) {
   const { open, setOpen } = useSidebar();
+  const { t } = useI18n();
   const activeSystemId = systemActive ?? systems[0]?.id;
 
   const fileCountBySystem: Record<string, number> = {};
@@ -45,7 +47,7 @@ export function Sidebar({
     <>
     <div className={"side" + (open ? " open" : "")}>
       <div className="ws">
-        <span className="ws-logo" style={{ background: "var(--accent)" }}>F</span>
+        <span className="ws-logo" style={{ background: "var(--grad)" }}>F</span>
         <div className="ws-name">
           {stats?.workspace_display || "File Hub"}
           <div className="t-sm t-muted">{stats?.workspace_name || "acme.go.th"}</div>
@@ -56,12 +58,15 @@ export function Sidebar({
       <GlobalSearch />
 
       <div className="side-section">
-        <SideRow href="/"          icon={<Ico.home />}     label="Dashboard" active={nav === "dashboard"} />
-        <SideRow href="/files"     icon={<Ico.files />}    label="All files" active={nav === "files"} count={stats ? fmtCount(stats.total_files) : undefined} />
-        <SideRow href="/activity"  icon={<Ico.activity />} label="Activity"  active={nav === "activity"} />
-        <SideRow href="/views/new" icon={<Ico.views />}    label="Views"     active={nav === "views"} />
-        <SideRow href="/share"     icon={<Ico.share />}    label="Shared"    active={nav === "share"} />
-        <SideRow href="/archive"   icon={<Ico.archive />}  label="Archive"   active={nav === "archive"} />
+        <SideRow href="/"          icon={<Ico.home />}     label={t("nav.dashboard")} active={nav === "dashboard"} />
+        <SideRow href="/ask"       icon={<Ico.sparkle />}  label={t("nav.ask")} active={nav === "ask"} />
+        <SideRow href="/files"     icon={<Ico.files />}    label={t("nav.files")} active={nav === "files"} count={stats ? fmtCount(stats.total_files) : undefined} />
+        <SideRow href="/search"    icon={<Ico.search />}   label={t("nav.search")} active={nav === "search"} />
+        <SideRow href="/activity"  icon={<Ico.activity />} label={t("nav.activity")}  active={nav === "activity"} />
+        <SideRow href="/reports"   icon={<Ico.history />}  label={t("nav.reports")} active={nav === "reports"} />
+        <SideRow href="/views/new" icon={<Ico.views />}    label={t("nav.views")}     active={nav === "views"} />
+        <SideRow href="/share"     icon={<Ico.share />}    label={t("nav.shared")}    active={nav === "share"} />
+        <SideRow href="/archive"   icon={<Ico.archive />}  label={t("nav.archive")}   active={nav === "archive"} />
         {/* My Drive — only renders for signed-in users; reads the personal
             drive id from the backend on mount. */}
         <MyDriveLink />
@@ -126,8 +131,8 @@ export function Sidebar({
       </div>
 
       <div style={{ borderTop: "1px solid var(--border)", padding: "8px 8px" }}>
-        <SideRow href="/trash"    icon={<Ico.trash />}    label="Trash" active={nav === "trash"} />
-        <SideRow href="/settings" icon={<Ico.cog />}      label="Settings" active={nav === "settings"} />
+        <SideRow href="/trash"    icon={<Ico.trash />}    label={t("nav.trash")} active={nav === "trash"} />
+        <SideRow href="/settings" icon={<Ico.cog />}      label={t("nav.settings")} active={nav === "settings"} />
         <UserMenu />
       </div>
     </div>

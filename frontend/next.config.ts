@@ -45,6 +45,8 @@ const nextConfig: NextConfig = {
     // and the API rewrites keep working.
     return [
       { source: "/files",         destination: "/filehub/files",         basePath: false, permanent: false },
+      { source: "/search",        destination: "/filehub/search",        basePath: false, permanent: false },
+      { source: "/ask",           destination: "/filehub/ask",           basePath: false, permanent: false },
       { source: "/files/:path*",  destination: "/filehub/files/:path*",  basePath: false, permanent: false },
       { source: "/upload",        destination: "/filehub/upload",        basePath: false, permanent: false },
       { source: "/share",         destination: "/filehub/share",         basePath: false, permanent: false },
@@ -52,6 +54,7 @@ const nextConfig: NextConfig = {
       { source: "/views",         destination: "/filehub/views",         basePath: false, permanent: false },
       { source: "/views/:path*",  destination: "/filehub/views/:path*",  basePath: false, permanent: false },
       { source: "/activity",      destination: "/filehub/activity",      basePath: false, permanent: false },
+      { source: "/reports",       destination: "/filehub/reports",       basePath: false, permanent: false },
       { source: "/archive",       destination: "/filehub/archive",       basePath: false, permanent: false },
       { source: "/trash",         destination: "/filehub/trash",         basePath: false, permanent: false },
       { source: "/orgs",          destination: "/filehub/orgs",          basePath: false, permanent: false },

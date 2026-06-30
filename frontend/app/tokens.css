@@ -15,12 +15,14 @@
   --text-subtle: #a8a29e;
   --text-faint: #d6d3d1;
 
-  --accent: #4f46e5;
-  --accent-hover: #4338ca;
-  --accent-soft: #eef2ff;
-  --accent-border: #c7d2fe;
-  --accent-text: #4338ca;
+  --accent: #6d5cf6;
+  --accent-hover: #5a47f0;
+  --accent-soft: #f0edff;
+  --accent-border: #d6cffb;
+  --accent-text: #4b3fcf;
   --on-accent: #ffffff;
+  /* Signature AI gradient — used on primary actions, active nav, the logo. */
+  --grad: linear-gradient(135deg, #7d6dff 0%, #5a47f0 100%);
 
   --success: #16a34a;
   --success-soft: #f0fdf4;
@@ -86,12 +88,13 @@
   --text-subtle: #78716c;
   --text-faint: #44403c;
 
-  --accent: #818cf8;
-  --accent-hover: #a5b4fc;
-  --accent-soft: #1e1b4b;
-  --accent-border: #312e81;
-  --accent-text: #c7d2fe;
+  --accent: #8b7bff;
+  --accent-hover: #a99cff;
+  --accent-soft: #221c46;
+  --accent-border: #3a3173;
+  --accent-text: #c5bcff;
   --on-accent: #0c0a09;
+  --grad: linear-gradient(135deg, #8b7bff 0%, #6a58f5 100%);
 
   --success: #4ade80;
   --success-soft: #052e16;
@@ -186,8 +189,8 @@ a { color: inherit; text-decoration: none; }
 .btn:focus-visible, .seg-item:focus-visible, .side-row:focus-visible, .crumb-item:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px;
 }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-.btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn.primary { background: var(--grad); border-color: transparent; color: #fff; box-shadow: 0 3px 10px rgba(109,92,246,.32); }
+.btn.primary:hover { filter: brightness(1.06); }
 .btn.ghost { border-color: transparent; background: transparent; color: var(--text-muted); }
 .btn.ghost:hover { background: var(--bg-muted); color: var(--text); }
 .btn.danger { color: var(--danger); border-color: var(--danger-border); background: var(--danger-soft); }
@@ -299,7 +302,7 @@ a.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   text-decoration: none;
 }
 .side-row:hover { background: var(--bg-muted); color: var(--text); }
-.side-row.active { background: var(--bg-muted); color: var(--text); }
+.side-row.active { background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
 .side-row.active::before {
   content: ''; position: absolute; left: 0; top: 6px; bottom: 6px;
   width: 2px; background: var(--accent); border-radius: 0 2px 2px 0;
@@ -622,3 +625,11 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-mu
   .form-grid, .row-2col { grid-template-columns: 1fr; gap: 8px; align-items: stretch; }
   .main-pad { padding: 16px; }
 }
+
+/* AI enrichment skeleton shimmer (ai-panel.tsx) */
+.ai-sk{border-radius:6px;background:linear-gradient(90deg,var(--bg-muted) 25%,var(--bg-strong) 37%,var(--bg-muted) 63%);background-size:400% 100%;animation:aiShimmer 1.3s ease-in-out infinite}
+@keyframes aiShimmer{0%{background-position:100% 0}100%{background-position:0 0}}
+
+/* Inline citation chip (ask-client.tsx) */
+.cite-chip{display:inline-block;font-size:11px;font-weight:600;line-height:1.4;color:var(--c-violet);background:color-mix(in srgb, var(--c-violet) 15%, transparent);border-radius:5px;padding:0 5px;margin:0 1px;text-decoration:none;vertical-align:1px}
+.cite-chip:hover{background:color-mix(in srgb, var(--c-violet) 26%, transparent)}

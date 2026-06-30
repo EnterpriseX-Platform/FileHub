@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { Ico } from "./icons";
 import { NotificationsBell } from "./notifications-bell";
+import { useI18n } from "@/lib/i18n";
 import { useSidebar } from "@/lib/sidebar-context";
 import { useTheme } from "@/lib/theme-context";
 
@@ -18,6 +19,7 @@ export function TopBar({
 }) {
   const { toggle } = useSidebar();
   const { dark, toggle: toggleTheme } = useTheme();
+  const { locale, setLocale } = useI18n();
   return (
     <div className="topbar">
       <button
@@ -44,6 +46,17 @@ export function TopBar({
         )}
       </div>
       <div style={{ flex: 1 }} />
+      {/* Locale switch (Thai/English) — MEA TOR 5.3.1.12. */}
+      <button
+        type="button"
+        className="btn sm ghost"
+        onClick={() => setLocale(locale === "en" ? "th" : "en")}
+        aria-label={locale === "en" ? "เปลี่ยนเป็นภาษาไทย" : "Switch to English"}
+        title={locale === "en" ? "ภาษาไทย" : "English"}
+        style={{ fontVariant: "small-caps", fontWeight: 600, minWidth: 38 }}
+      >
+        {locale === "en" ? "ไทย" : "EN"}
+      </button>
       {/* Theme toggle lives here so light/dark is reachable from every page —
           the sidebar-footer menu was too buried for OS-dark users to find. */}
       <button

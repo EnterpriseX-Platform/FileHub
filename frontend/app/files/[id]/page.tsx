@@ -10,8 +10,11 @@ import { fmtAgo, fmtBytes, parseJsonArray, statusTone } from "@/lib/format";
 import { canMutate } from "@/lib/roles";
 
 import { FileActions } from "./actions";
+import { FileAiPanel } from "./ai-panel";
+import { CheckoutPanel } from "./checkout-panel";
 import { FilePreview } from "./preview";
 import { FileSidecar } from "./sidecar";
+import { WatermarkOverlay } from "./watermark";
 
 export default async function FileDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -42,8 +45,11 @@ export default async function FileDetailPage({ params }: { params: Promise<{ id:
       />
 
       <div className="main" style={{ background: "var(--bg-muted)", overflow: "auto" }}>
-        <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-          <FilePreview fileId={file.id} fileType={file.file_type} fileName={file.name} />
+        <div style={{ position: "relative", minHeight: "100%" }}>
+          <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+            <FilePreview fileId={file.id} fileType={file.file_type} fileName={file.name} />
+          </div>
+          <WatermarkOverlay status={file.status} />
         </div>
       </div>
 
@@ -62,6 +68,9 @@ export default async function FileDetailPage({ params }: { params: Promise<{ id:
         </div>
 
         <div style={{ padding: "12px 16px", flex: 1, overflow: "auto" }}>
+          <CheckoutPanel fileId={file.id} />
+          <FileAiPanel fileId={file.id} />
+          <div className="divider" />
           <Label>System fields</Label>
           <Prop label="Status" icon={<span style={{ width: 6, height: 6, background: `var(--c-${statusTone(file.status)})`, borderRadius: "50%" }} />}>
             <Pill tone={statusTone(file.status)}><span className="dot" />{file.status}</Pill>
