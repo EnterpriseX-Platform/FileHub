@@ -257,6 +257,8 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         // Document status report + exports (TOR 5.3.1.16, 5.3.7.6).
         .route("/api/reports/status",         get(reports::status_report))
         .route("/api/reports/status.csv",     get(reports::status_csv))
+        // AI usage / token metering for billing (admin-only).
+        .route("/api/reports/ai-usage",       get(reports::ai_usage_report))
         .route("/api/activity/export.csv",    get(reports::audit_csv))
         .route("/api/activity",               get(handlers::list_activity))
         .route("/api/views",                  get(handlers::list_views).post(handlers::create_view))

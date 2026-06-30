@@ -912,3 +912,23 @@ async fn audit_export_csv_filters_and_streams() {
     assert!(body.starts_with('\u{feff}'));
     assert!(body.trim_start_matches('\u{feff}').starts_with("timestamp,user,action,target,system"));
 }
+
+#[tokio::test]
+async fn ai_usage_report_is_admin_only() {
+    require_backend().await;
+    // Admin gets the report (shape holds even with zero usage rows).
+    let admin = auth_client_as("admin@acme.go.th", "admin123").await;
+    let r = admin.get(format!("{}/api/reports/ai-usage", base())).send().await.unwrap();
+    assert_eq!(r.status(), StatusCode::OK);
+    let v: Value = r.json().await.unwrap();
+    assert!(v["total_ops"].as_i64().is_some());
+    assert!(v["by_op"].is_array());
+    assert!(v["by_model"].is_array());
+
+    // Editor and viewer are billing-blind — 403.
+    for (email, pw) in [("anong@acme.go.th", "anong123"), ("viewer@acme.go.th", "viewer123")] {
+        let c = auth_client_as(email, pw).await;
+        let r = c.get(format!("{}/api/reports/ai-usage", base())).send().await.unwrap();
+        assert_eq!(r.status(), StatusCode::FORBIDDEN, "{email} should be forbidden");
+    }
+}

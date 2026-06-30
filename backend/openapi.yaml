@@ -623,6 +623,21 @@ paths:
       responses:
         "200": { description: CSV download, content: { "text/csv": { schema: { type: string } } } }
         "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/reports/ai-usage:
+    get:
+      tags: [Reports, AI]
+      summary: AI token/op usage metering for billing (admin-only)
+      description: >-
+        Totals plus per-op and per-model breakdowns of AI usage recorded by the
+        backend on every billable op (embed / ask / summarize). Workspace-wide
+        billing concern — **admin only** (editors/viewers get 403).
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date-time }, description: ISO timestamp lower bound (inclusive) }
+        - { name: to,   in: query, schema: { type: string, format: date-time }, description: ISO timestamp upper bound (inclusive) }
+      responses:
+        "200": { description: Usage report, content: { application/json: { schema: { $ref: "#/components/schemas/AiUsageReport" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /api/activity/export.csv:
     get:
       tags: [Reports]
@@ -942,3 +957,18 @@ components:
         retention: { type: integer }
         deleted:   { type: integer, description: Cumulative hard-deleted count from rotation history }
         items:     { type: array, items: { $ref: "#/components/schemas/StatusItem" } }
+    AiUsageBucket:
+      type: object
+      properties:
+        key:           { type: string, description: The op or model name this bucket aggregates }
+        ops:           { type: integer }
+        input_tokens:  { type: integer }
+        output_tokens: { type: integer }
+    AiUsageReport:
+      type: object
+      properties:
+        total_ops:           { type: integer }
+        total_input_tokens:  { type: integer }
+        total_output_tokens: { type: integer }
+        by_op:    { type: array, items: { $ref: "#/components/schemas/AiUsageBucket" } }
+        by_model: { type: array, items: { $ref: "#/components/schemas/AiUsageBucket" } }
