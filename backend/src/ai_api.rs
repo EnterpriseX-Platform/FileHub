@@ -69,10 +69,9 @@ pub async fn semantic_search(
 
     // Embed the query, then kNN. We over-fetch chunks and dedupe to the best
     // chunk per file in Rust (simpler than DISTINCT ON + re-sort in SQL).
-    let qvec = s
-        .ai
-        .embed(std::slice::from_ref(&term.to_string()))
-        .await?
+    let (qvecs, usage) = s.ai.embed(std::slice::from_ref(&term.to_string())).await?;
+    ai::record_usage(&s.db, Some(&user.0.id), q.system_id.as_deref(), "embed", s.ai.embed_model(), &usage).await;
+    let qvec = qvecs
         .into_iter()
         .next()
         .ok_or_else(|| ApiError::Other(anyhow::anyhow!("no embedding returned for query")))?;
@@ -252,10 +251,9 @@ pub async fn ask(
     let scope = effective_system_ids(&s.db, &user.0).await?;
 
     // 1) embed the question, 2) retrieve the best chunk per file (permission-scoped).
-    let qvec = s
-        .ai
-        .embed(std::slice::from_ref(&question))
-        .await?
+    let (qvecs, embed_usage) = s.ai.embed(std::slice::from_ref(&question)).await?;
+    ai::record_usage(&s.db, Some(&user.0.id), q.system_id.as_deref(), "embed", s.ai.embed_model(), &embed_usage).await;
+    let qvec = qvecs
         .into_iter()
         .next()
         .ok_or_else(|| ApiError::Other(anyhow::anyhow!("no embedding returned for question")))?;
@@ -340,7 +338,8 @@ pub async fn ask(
         If the sources do not contain the answer, say you don't have that information. \
         Be concise and do not invent facts.";
     let prompt = format!("Question: {question}\n\nSources:\n{context}");
-    let answer = s.ai.chat(system, &prompt).await?;
+    let (answer, chat_usage) = s.ai.chat(system, &prompt).await?;
+    ai::record_usage(&s.db, Some(&user.0.id), q.system_id.as_deref(), "ask", s.ai.chat_model(), &chat_usage).await;
 
     Ok(Json(AskResponse { answer: answer.trim().to_string(), citations }))
 }
