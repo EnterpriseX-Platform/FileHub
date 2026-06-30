@@ -324,6 +324,11 @@ async fn finalise(s: &AppState, tus_id: Uuid, temp_key: &str, user_id: &str) -> 
     crate::p1::index_thumbnail(&s.db, new_file_id, &file_type, &body_bytes).await;
     crate::p1::index_office_preview(&s.db, new_file_id, &file_type, &name, &body_bytes).await;
 
+    // AI-native: enqueue understanding for the resumable-upload path too.
+    if s.ai.enabled() {
+        crate::ai_worker::enqueue(&s.db, new_file_id).await;
+    }
+
     let _ = fs::remove_file(&path).await;
     Ok(())
 }

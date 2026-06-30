@@ -63,6 +63,8 @@ tags:
   - name: Systems & Orgs
   - name: Admin
   - name: Reports
+  - name: AI
+  - name: Checkout
   - name: Health
 
 security:
@@ -312,6 +314,128 @@ paths:
       responses:
         "200": { description: Matching files, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/File" } } } } }
 
+  # ─────────────────────────── AI ───────────────────────────
+  /api/search/semantic:
+    post:
+      tags: [AI, Search]
+      summary: Meaning-based search over chunk embeddings (pgvector kNN)
+      description: >-
+        Embeds the query and returns the best-matching chunk per file, ranked by
+        cosine similarity. Permission-scoped exactly like keyword search
+        (`effective_system_ids`). Returns **400** when AI is disabled
+        (`AI_ENABLED=false`) or `q` is empty.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [q]
+              properties:
+                q:         { type: string, description: Natural-language query }
+                limit:     { type: integer, default: 10, minimum: 1, maximum: 50 }
+                system_id: { type: string, description: Optional — restrict to one system the caller can read }
+      responses:
+        "200":
+          description: Best-matching chunk per file, closest first
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/SemanticHit" } }
+        "400": { description: AI disabled or empty query, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/ask:
+    post:
+      tags: [AI]
+      summary: RAG — grounded, cited, permission-aware answer over accessible content
+      description: >-
+        Retrieves the most relevant chunks the caller is allowed to read, grounds
+        the chat model on them, and returns an answer with inline `[n]` citations.
+        Retrieval is filtered by the caller's current `effective_system_ids`, so an
+        answer can never draw on content the caller can't read. When nothing
+        relevant is found, returns a benign "no information" answer with empty
+        citations (still **200**).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question:  { type: string }
+                system_id: { type: string, description: Optional — scope to one system }
+                file_id:   { type: string, format: uuid, description: Optional — pin the answer to one document }
+                limit:     { type: integer, default: 6, minimum: 1, maximum: 10, description: Max sources to ground on }
+      responses:
+        "200":
+          description: Cited answer
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AskResponse" }
+        "400": { description: AI disabled or empty question, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/files/{id}/ai:
+    get:
+      tags: [AI, Files]
+      summary: Per-file AI understanding (summary / tags / sensitivity) + enrichment status
+      description: >-
+        Returns the asynchronously-produced AI summary, tags, detected language and
+        sensitivity for a file, plus the enrichment lifecycle `status`
+        (`none | queued | running | done | failed`) for the UI. `ai` is null until
+        the worker finishes. **404** (not 403) when the caller can't see the file.
+      parameters:
+        - $ref: "#/components/parameters/FileId"
+      responses:
+        "200":
+          description: AI panel data
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FileAiResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # ─────────────────────────── Checkout ───────────────────────────
+  /api/files/{id}/lock:
+    get:
+      tags: [Checkout, Files]
+      summary: Current check-out lock state for a file
+      parameters:
+        - $ref: "#/components/parameters/FileId"
+      responses:
+        "200": { description: Lock state, content: { application/json: { schema: { $ref: "#/components/schemas/LockInfo" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/files/{id}/checkout:
+    post:
+      tags: [Checkout, Files]
+      summary: Check out (lock) a file to the current user
+      description: >-
+        Locks the file so others may view but not edit or check it out. Idempotent
+        when already held by the caller. Requires role admin or editor. Stale locks
+        are auto-released by the rotation worker (`CHECKOUT_TTL_HOURS`, default 8h).
+      parameters:
+        - $ref: "#/components/parameters/FileId"
+      responses:
+        "200": { description: Locked (or already held by caller), content: { application/json: { schema: { $ref: "#/components/schemas/LockInfo" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Already checked out by another user, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/files/{id}/checkin:
+    post:
+      tags: [Checkout, Files]
+      summary: Check in (release) a file's lock
+      description: Only the lock holder or an admin may check in. No-op when already free.
+      parameters:
+        - $ref: "#/components/parameters/FileId"
+      responses:
+        "200": { description: Released, content: { application/json: { schema: { $ref: "#/components/schemas/LockInfo" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Caller is neither the holder nor an admin, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
   # ─────────────────────────── Folders ───────────────────────────
   /api/folders:
     get:
@@ -481,6 +605,36 @@ paths:
     get: { tags: [Reports], summary: Report — counts/size by category, responses: { "200": { description: Report } } }
   /api/reports/by-time:
     get: { tags: [Reports], summary: Report — activity over time, responses: { "200": { description: Report } } }
+  /api/reports/status:
+    get:
+      tags: [Reports]
+      summary: Document status report (active / inactive / retention / deleted)
+      description: >-
+        Lifecycle counts plus the 200 most recently modified items, mapping
+        FileHub's soft-delete + rotation lifecycle onto the four TOR states.
+        Permission-scoped via `effective_system_ids`.
+      responses:
+        "200": { description: Status report, content: { application/json: { schema: { $ref: "#/components/schemas/StatusReport" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/reports/status.csv:
+    get:
+      tags: [Reports]
+      summary: Document status report as Excel-readable CSV (UTF-8 BOM)
+      responses:
+        "200": { description: CSV download, content: { "text/csv": { schema: { type: string } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/activity/export.csv:
+    get:
+      tags: [Reports]
+      summary: User audit-log export as CSV (date range + user filter)
+      description: Searchable by date range and user; exported as Excel-readable CSV (UTF-8 BOM). Permission-scoped. Capped at 5000 rows.
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date-time }, description: ISO timestamp lower bound (inclusive) }
+        - { name: to,   in: query, schema: { type: string, format: date-time }, description: ISO timestamp upper bound (inclusive) }
+        - { name: user, in: query, schema: { type: string }, description: Substring match on actor name (ILIKE) }
+      responses:
+        "200": { description: CSV download, content: { "text/csv": { schema: { type: string } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
 
   # ─────────────────────────── Systems & Orgs ───────────────────────────
   /api/systems:
@@ -723,3 +877,68 @@ components:
         awaiting_review:   { type: integer }
         connected_systems: { type: array, items: { type: object } }
         storage_by_system: { type: array, items: { type: object } }
+    SemanticHit:
+      type: object
+      description: One file's best-matching chunk for a semantic query.
+      properties:
+        file_id:   { type: string, format: uuid }
+        name:      { type: string }
+        file_type: { type: string, example: pdf }
+        system_id: { type: string, example: sys_hr }
+        snippet:   { type: string, description: First ~280 chars of the matching chunk }
+        seq:       { type: integer, description: Chunk sequence within the file }
+        score:     { type: number, format: double, description: "Cosine similarity in [-1,1] (1 = closest)" }
+    Citation:
+      type: object
+      properties:
+        n:         { type: integer, description: Inline bracket number used in the answer }
+        file_id:   { type: string, format: uuid }
+        name:      { type: string }
+        system_id: { type: string }
+        snippet:   { type: string }
+        score:     { type: number, format: double }
+    AskResponse:
+      type: object
+      properties:
+        answer:    { type: string, description: "Grounded answer with inline [n] citations" }
+        citations: { type: array, items: { $ref: "#/components/schemas/Citation" } }
+    FileAi:
+      type: object
+      properties:
+        summary:     { type: string, nullable: true }
+        tags:        { type: array, items: { type: string } }
+        language:    { type: string, nullable: true }
+        sensitivity: { type: string, enum: [none, pii, confidential] }
+        model:       { type: string, nullable: true }
+        updated_at:  { type: string, format: date-time }
+    FileAiResponse:
+      type: object
+      properties:
+        status: { type: string, enum: [none, queued, running, done, failed], description: Enrichment lifecycle for the UI }
+        ai:     { allOf: [{ $ref: "#/components/schemas/FileAi" }], nullable: true }
+    LockInfo:
+      type: object
+      properties:
+        locked:  { type: boolean }
+        by_id:   { type: string, nullable: true }
+        by_name: { type: string, nullable: true }
+        at:      { type: string, format: date-time, nullable: true }
+        by_me:   { type: boolean, description: True when the current caller is the holder }
+    StatusItem:
+      type: object
+      properties:
+        id:          { type: string, format: uuid }
+        name:        { type: string }
+        system_id:   { type: string }
+        status:      { type: string, description: FileHub's own status field }
+        state:       { type: string, enum: [active, inactive, retention], description: TOR lifecycle state }
+        modified_at: { type: string, format: date-time }
+        deleted_at:  { type: string, format: date-time, nullable: true }
+    StatusReport:
+      type: object
+      properties:
+        active:    { type: integer }
+        inactive:  { type: integer }
+        retention: { type: integer }
+        deleted:   { type: integer, description: Cumulative hard-deleted count from rotation history }
+        items:     { type: array, items: { $ref: "#/components/schemas/StatusItem" } }

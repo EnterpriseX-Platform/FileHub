@@ -35,6 +35,21 @@ async fn main() -> anyhow::Result<()> {
         None
     };
 
+    // AI enrichment worker — drains the ai_jobs queue (extract → chunk → embed →
+    // summarise). Only spawned when AI is enabled; cadence via AI_WORKER_INTERVAL_SECS
+    // (default 15s — responsive without busy-looping). See ai_worker.rs.
+    let ai_handle: Option<JoinHandle<()>> = if state.ai.enabled() {
+        let secs: u64 = std::env::var("AI_WORKER_INTERVAL_SECS")
+            .ok().and_then(|v| v.parse().ok()).unwrap_or(15);
+        Some(filehub_backend::ai_worker::spawn_worker(
+            Arc::clone(&state),
+            std::time::Duration::from_secs(secs.max(1)),
+        ))
+    } else {
+        tracing::info!("ai enrichment worker disabled (AI_ENABLED=false)");
+        None
+    };
+
     let app = build_router(state);
 
     let port: u16 = std::env::var("PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(8090);
@@ -49,6 +64,10 @@ async fn main() -> anyhow::Result<()> {
     // Without this, k8s' default 30-second SIGTERM window would orphan any
     // partially-deleted storage objects mid-loop.
     if let Some(h) = rotation_handle {
+        h.abort();
+        let _ = h.await;
+    }
+    if let Some(h) = ai_handle {
         h.abort();
         let _ = h.await;
     }

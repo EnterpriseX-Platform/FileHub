@@ -2,11 +2,16 @@
 //! handlers + storage + models the binary uses.  The CLI entrypoint lives in
 //! `main.rs` and calls into this crate.
 
+pub mod ai;
+pub mod ai_api;
+pub mod ai_worker;
 pub mod auth;
+pub mod checkout;
 pub mod error;
 pub mod handlers;
 pub mod models;
 pub mod p1;
+pub mod reports;
 pub mod rotation;
 pub mod seed_demo;
 pub mod state;
@@ -181,6 +186,10 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         // endpoints themselves are public — see above.
         .route("/api/files/:id/office-url",   get(wopi::office_url))
         .route("/api/search",                 get(handlers::search_files))
+        // AI-native: meaning-based search (pgvector kNN), permission-scoped.
+        .route("/api/search/semantic",        axum::routing::post(ai_api::semantic_search))
+        // AI-native: RAG — grounded, cited, permission-aware answer.
+        .route("/api/ask",                    axum::routing::post(ai_api::ask))
         // File CRUD lives in its own sub-router so we can raise the body
         // limit on the multipart endpoints (upload, batch, new version, and
         // patch which may rewrite bytes) without affecting JSON-only routes.
@@ -234,11 +243,21 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/files/:id/comments/:comment_id",
             axum::routing::delete(p1::delete_comment))
         .route("/api/files/:id/extras",       get(p1::file_extras))
+        // AI-native: per-file summary / tags / sensitivity + enrichment status.
+        .route("/api/files/:id/ai",           get(ai_api::file_ai))
+        // Check-out / check-in locking (TOR 5.3.8.4-5).
+        .route("/api/files/:id/lock",         get(checkout::get_lock))
+        .route("/api/files/:id/checkout",     axum::routing::post(checkout::checkout))
+        .route("/api/files/:id/checkin",      axum::routing::post(checkout::checkin))
         .route("/api/notifications",          get(p1::list_notifications))
         .route("/api/notifications/unread-count", get(p1::unread_count))
         .route("/api/notifications/:id/read", axum::routing::post(p1::mark_notification_read))
         .route("/api/reports/by-category",    get(handlers::report_by_category))
         .route("/api/reports/by-time",        get(handlers::report_by_time))
+        // Document status report + exports (TOR 5.3.1.16, 5.3.7.6).
+        .route("/api/reports/status",         get(reports::status_report))
+        .route("/api/reports/status.csv",     get(reports::status_csv))
+        .route("/api/activity/export.csv",    get(reports::audit_csv))
         .route("/api/activity",               get(handlers::list_activity))
         .route("/api/views",                  get(handlers::list_views).post(handlers::create_view))
         .route("/api/permissions/:file_id",   get(handlers::list_permissions))

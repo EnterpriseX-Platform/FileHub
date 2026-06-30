@@ -34,6 +34,15 @@ pub fn extract_text_from(file_type: &str, body: &[u8]) -> Option<String> {
             let cap = body.len().min(1024 * 1024);
             std::str::from_utf8(&body[..cap]).ok().map(|s| s.to_string())
         }
+        // Office documents (MEA TOR 5.3.4.2 full-text on Word/Excel/PPT): route
+        // through the same LibreOffice→PDF conversion the preview uses, then
+        // extract text from the PDF. No-ops cleanly if soffice isn't installed.
+        "docx" | "doc" | "xlsx" | "xls" | "pptx" | "ppt" | "odt" | "ods" | "odp" => {
+            let pdf = convert_to_pdf(&format!("document.{file_type}"), body)?;
+            pdf_extract::extract_text_from_mem(&pdf)
+                .ok()
+                .filter(|t| !t.trim().is_empty())
+        }
         _ => None,
     }
 }

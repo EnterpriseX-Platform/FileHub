@@ -785,3 +785,130 @@ async fn all_seeded_keys_match_their_type() {
         assert!(id.starts_with("org_"), "org id should be cuid-style: {id}");
     }
 }
+
+// ---- 19. Check-out / check-in locking (TOR 5.3.8.4-5) -------------------
+
+/// Full happy path for a single editor: a fresh file starts unlocked, can be
+/// checked out (the caller becomes the holder), and checked back in.
+#[tokio::test]
+async fn checkout_lifecycle() {
+    require_backend().await;
+    let row = upload_text("checkout-life.txt", "lock me", SYS_HR).await;
+    let id = row["id"].as_str().unwrap().to_string();
+    let c = auth_client().await;
+
+    let lock: Value = c.get(format!("{}/api/files/{id}/lock", base()))
+        .send().await.unwrap().json().await.unwrap();
+    assert_eq!(lock["locked"], false);
+
+    let out: Value = c.post(format!("{}/api/files/{id}/checkout", base()))
+        .send().await.unwrap().json().await.unwrap();
+    assert_eq!(out["locked"], true);
+    assert_eq!(out["by_me"], true);
+    assert!(out["by_name"].as_str().is_some());
+
+    // Checking out again as the same holder is idempotent, not a conflict.
+    let again = c.post(format!("{}/api/files/{id}/checkout", base())).send().await.unwrap();
+    assert_eq!(again.status(), StatusCode::OK);
+
+    let back: Value = c.post(format!("{}/api/files/{id}/checkin", base()))
+        .send().await.unwrap().json().await.unwrap();
+    assert_eq!(back["locked"], false);
+
+    let _ = c.delete(format!("{}/api/files/{id}", base())).send().await;
+}
+
+/// A lock held by one user blocks both a new-version upload and a checkout
+/// attempt by a *different* non-admin user (409), and clears once released.
+#[tokio::test]
+async fn checkout_blocks_other_users() {
+    require_backend().await;
+    // anong (editor) owns the file; admin takes the lock.
+    let row = upload_text("checkout-block.txt", "v1", SYS_HR).await;
+    let id = row["id"].as_str().unwrap().to_string();
+    let admin = auth_client_as("admin@acme.go.th", "admin123").await;
+    let editor = auth_client().await; // anong, non-holder, non-admin
+
+    let out: Value = admin.post(format!("{}/api/files/{id}/checkout", base()))
+        .send().await.unwrap().json().await.unwrap();
+    assert_eq!(out["locked"], true);
+
+    // The non-holder editor can't upload a new version…
+    let part = multipart::Part::text("v2".to_string()).file_name("checkout-block.txt".to_string());
+    let form = multipart::Form::new().part("file", part);
+    let blocked = editor.post(format!("{}/api/files/{id}/versions", base()))
+        .multipart(form).send().await.unwrap();
+    assert_eq!(blocked.status(), StatusCode::CONFLICT);
+
+    // …nor steal the lock.
+    let steal = editor.post(format!("{}/api/files/{id}/checkout", base())).send().await.unwrap();
+    assert_eq!(steal.status(), StatusCode::CONFLICT);
+
+    // Admin releases; the editor can now take it.
+    let ci = admin.post(format!("{}/api/files/{id}/checkin", base())).send().await.unwrap();
+    assert_eq!(ci.status(), StatusCode::OK);
+    let taken = editor.post(format!("{}/api/files/{id}/checkout", base())).send().await.unwrap();
+    assert_eq!(taken.status(), StatusCode::OK);
+
+    let _ = editor.delete(format!("{}/api/files/{id}", base())).send().await;
+}
+
+/// Viewers are read-only: checkout is gated by require_role before anything
+/// else, so even a valid file id returns 403.
+#[tokio::test]
+async fn checkout_forbidden_for_viewer() {
+    require_backend().await;
+    let viewer = auth_client_as("viewer@acme.go.th", "viewer123").await;
+    let r = viewer.post(format!("{}/api/files/{FILE_001}/checkout", base()))
+        .send().await.unwrap();
+    assert_eq!(r.status(), StatusCode::FORBIDDEN);
+}
+
+// ---- 20. Status report + CSV exports (TOR 5.3.1.16, 5.3.7.6) ------------
+
+#[tokio::test]
+async fn report_status_returns_counts_and_items() {
+    require_backend().await;
+    let rep: Value = auth_client().await
+        .get(format!("{}/api/reports/status", base()))
+        .send().await.unwrap().json().await.unwrap();
+    assert!(rep["active"].as_i64().unwrap() >= 1);
+    for k in ["inactive", "retention", "deleted"] {
+        assert!(rep[k].as_i64().is_some(), "missing count {k}");
+    }
+    let items = rep["items"].as_array().unwrap();
+    for it in items {
+        let state = it["state"].as_str().unwrap();
+        assert!(
+            matches!(state, "active" | "inactive" | "retention"),
+            "unexpected lifecycle state: {state}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn report_status_csv_has_bom_and_header() {
+    require_backend().await;
+    let r = auth_client().await
+        .get(format!("{}/api/reports/status.csv", base()))
+        .send().await.unwrap();
+    assert_eq!(r.status(), StatusCode::OK);
+    assert!(r.headers()["content-type"].to_str().unwrap().starts_with("text/csv"));
+    let body = r.text().await.unwrap();
+    // UTF-8 BOM so Excel renders Thai; header row follows immediately.
+    assert!(body.starts_with('\u{feff}'), "CSV should lead with a UTF-8 BOM");
+    assert!(body.trim_start_matches('\u{feff}').starts_with("name,system,status,state,"));
+}
+
+#[tokio::test]
+async fn audit_export_csv_filters_and_streams() {
+    require_backend().await;
+    let r = auth_client().await
+        .get(format!("{}/api/activity/export.csv?user=anong", base()))
+        .send().await.unwrap();
+    assert_eq!(r.status(), StatusCode::OK);
+    assert!(r.headers()["content-type"].to_str().unwrap().starts_with("text/csv"));
+    let body = r.text().await.unwrap();
+    assert!(body.starts_with('\u{feff}'));
+    assert!(body.trim_start_matches('\u{feff}').starts_with("timestamp,user,action,target,system"));
+}
