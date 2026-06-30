@@ -13,6 +13,8 @@ pub enum ApiError {
     Unauthorized,
     #[error("forbidden")]
     Forbidden,
+    #[error("conflict: {0}")]
+    Conflict(String),
     #[error("payload too large: {0}")]
     PayloadTooLarge(String),
     #[error("too many requests: {0}")]
@@ -30,6 +32,7 @@ impl IntoResponse for ApiError {
             ApiError::BadRequest(m)     => (StatusCode::BAD_REQUEST,         m.clone()),
             ApiError::Unauthorized      => (StatusCode::UNAUTHORIZED,        "unauthorized".to_string()),
             ApiError::Forbidden         => (StatusCode::FORBIDDEN,           "forbidden".to_string()),
+            ApiError::Conflict(m)       => (StatusCode::CONFLICT,            m.clone()),
             ApiError::PayloadTooLarge(m)=> (StatusCode::PAYLOAD_TOO_LARGE,   m.clone()),
             ApiError::TooManyRequests(m)=> (StatusCode::TOO_MANY_REQUESTS,   m.clone()),
             ApiError::Db(sqlx::Error::RowNotFound) => (StatusCode::NOT_FOUND, "not found".to_string()),

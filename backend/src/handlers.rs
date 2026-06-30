@@ -703,6 +703,12 @@ async fn persist_upload(s: &AppState, actor: Option<&str>, f: UploadFields) -> A
         crate::p1::index_office_preview(&s.db, id, &file_type, &name, &bytes).await;
     }
 
+    // AI-native: enqueue understanding (embed + summarise). Async + best-effort,
+    // so the upload response stays fast and an AI outage never blocks uploads.
+    if s.ai.enabled() {
+        crate::ai_worker::enqueue(&s.db, id).await;
+    }
+
     Ok(sqlx::query_as::<_, File>(&format!("SELECT {FILE_COLS} FROM files WHERE id = $1"))
         .bind(id).fetch_one(&s.db).await?)
 }
@@ -1132,6 +1138,12 @@ pub async fn upload_version(
         .bind(id).fetch_optional(&s.db).await?
         .ok_or(ApiError::NotFound)?;
     crate::auth::ensure_system_access(&s.db, &user.0, &file.system_id).await?;
+
+    // Check-out lock (TOR 5.3.8.4): a file checked out by someone else can't be
+    // updated by anyone but the holder.
+    if let Some(holder) = crate::checkout::lock_blocks(&s.db, id, &user.0.id).await {
+        return Err(ApiError::Conflict(format!("checked out by {holder} — check in first to upload a new version")));
+    }
 
     let mut body: Option<BytesMut> = None;
     let mut content_type: Option<String> = None;

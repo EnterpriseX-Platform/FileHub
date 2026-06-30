@@ -138,7 +138,31 @@ async fn run_inner(state: &AppState) -> anyhow::Result<RotationStats> {
     // disconnects mid-upload leaks a partial blob and a DB row forever.
     stats.tus_reaped += reap_tus_uploads(state).await?;
 
+    // (5) Auto-release stale check-out locks (TOR 5.3.8.5) — a file checked out
+    // and never checked back in shouldn't stay locked forever. TTL via
+    // CHECKOUT_TTL_HOURS (default 8h).
+    let _ = reap_stale_checkouts(state).await;
+
     Ok(stats)
+}
+
+/// Clear check-out locks older than CHECKOUT_TTL_HOURS so an abandoned lock
+/// can't block edits indefinitely. Best-effort; logged, never fatal.
+async fn reap_stale_checkouts(state: &AppState) -> anyhow::Result<u64> {
+    let ttl_hours: i64 = std::env::var("CHECKOUT_TTL_HOURS")
+        .ok().and_then(|v| v.parse().ok()).unwrap_or(8);
+    let res = sqlx::query(
+        "UPDATE files SET checked_out_by = NULL, checked_out_by_name = NULL, checked_out_at = NULL \
+          WHERE checked_out_at IS NOT NULL \
+            AND checked_out_at < now() - make_interval(hours => $1::int)",
+    )
+    .bind(ttl_hours as i32)
+    .execute(&state.db)
+    .await?;
+    if res.rows_affected() > 0 {
+        tracing::info!("rotation: released {} stale check-out lock(s)", res.rows_affected());
+    }
+    Ok(res.rows_affected())
 }
 
 /// Delete `tus_uploads` rows that expired without ever finalising, plus the

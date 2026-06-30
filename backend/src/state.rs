@@ -2,11 +2,13 @@ use anyhow::Context;
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 
+use crate::ai::{AiClient, AiConfig};
 use crate::storage::Storage;
 
 pub struct AppState {
     pub db: PgPool,
     pub storage: Storage,
+    pub ai: AiClient,
 }
 
 impl AppState {
@@ -55,7 +57,16 @@ impl AppState {
         let storage_root = std::env::var("STORAGE_ROOT").unwrap_or_else(|_| "./storage".into());
         let storage = Storage::init(&storage_root).await?;
 
-        Ok(Self { db, storage })
+        // AI provider — local-first (Ollama) by default; see crate::ai. Disabled
+        // cleanly via AI_ENABLED=false, in which case enrichment is skipped and
+        // FileHub behaves exactly as before.
+        let ai = AiClient::new(AiConfig::from_env());
+        tracing::info!(
+            "AI provider: enabled={} embed_model={} chat_model={}",
+            ai.enabled(), ai.embed_model(), ai.chat_model(),
+        );
+
+        Ok(Self { db, storage, ai })
     }
 }
 
