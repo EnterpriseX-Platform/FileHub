@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 
 import { AuthProvider } from "@/lib/auth-context";
+import { I18nProvider, type Locale } from "@/lib/i18n";
 import { SidebarProvider } from "@/lib/sidebar-context";
 import { ThemeProvider } from "@/lib/theme-context";
 
@@ -17,11 +19,14 @@ export const metadata: Metadata = {
 // this sets.
 const THEME_BOOT = `try{var t=localStorage.getItem("fh-theme");var d=t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches;if(d)document.documentElement.classList.add("dark")}catch(e){}`;
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Read the locale cookie server-side so the first render is already in the
+  // user's language (no flash, no hydration mismatch on translated text).
+  const locale: Locale = (await cookies()).get("fh-locale")?.value === "th" ? "th" : "en";
   return (
     // suppressHydrationWarning: the boot script mutates <html> className
     // before React hydrates, which is exactly the mismatch React warns about.
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -38,7 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
-        <ThemeProvider><AuthProvider><SidebarProvider>{children}</SidebarProvider></AuthProvider></ThemeProvider>
+        <I18nProvider initialLocale={locale}><ThemeProvider><AuthProvider><SidebarProvider>{children}</SidebarProvider></AuthProvider></ThemeProvider></I18nProvider>
       </body>
     </html>
   );
