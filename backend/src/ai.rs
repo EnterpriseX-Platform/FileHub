@@ -13,6 +13,18 @@ use anyhow::{bail, Context, Result};
 use serde::Deserialize;
 use serde_json::json;
 use std::time::Duration;
+use uuid::Uuid;
+
+/// Token usage for one AI op, parsed from the OpenAI-compatible `usage` block.
+/// Embeddings responses carry only `prompt_tokens`; chat carries both. Missing
+/// fields default to 0 (some local providers omit usage entirely).
+#[derive(Debug, Clone, Copy, Default, Deserialize)]
+pub struct Usage {
+    #[serde(rename = "prompt_tokens", default)]
+    pub input_tokens: i32,
+    #[serde(rename = "completion_tokens", default)]
+    pub output_tokens: i32,
+}
 
 /// The embedding dimension baked into `migrations/0016_ai_pgvector.sql`
 /// (`vector(768)`). The default embed model (`nomic-embed-text`) is 768-dim.
@@ -67,6 +79,8 @@ pub struct AiClient {
 #[derive(Deserialize)]
 struct EmbeddingResponse {
     data: Vec<EmbeddingDatum>,
+    #[serde(default)]
+    usage: Usage,
 }
 #[derive(Deserialize)]
 struct EmbeddingDatum {
@@ -78,6 +92,8 @@ struct EmbeddingDatum {
 #[derive(Deserialize)]
 struct ChatResponse {
     choices: Vec<ChatChoice>,
+    #[serde(default)]
+    usage: Usage,
 }
 #[derive(Deserialize)]
 struct ChatChoice {
@@ -123,10 +139,11 @@ impl AiClient {
         }
     }
 
-    /// Embed a batch of texts. Returns one vector per input, in input order.
-    pub async fn embed(&self, inputs: &[String]) -> Result<Vec<Vec<f32>>> {
+    /// Embed a batch of texts. Returns one vector per input (in input order)
+    /// plus the token usage reported by the provider (for `ai_usage` metering).
+    pub async fn embed(&self, inputs: &[String]) -> Result<(Vec<Vec<f32>>, Usage)> {
         if inputs.is_empty() {
-            return Ok(vec![]);
+            return Ok((vec![], Usage::default()));
         }
         let url = self.endpoint("embeddings");
         let resp = self
@@ -141,18 +158,20 @@ impl AiClient {
             bail!("embeddings request failed ({status}): {body}");
         }
         let mut parsed: EmbeddingResponse = resp.json().await.context("decode embeddings response")?;
+        let usage = parsed.usage;
         // Some providers don't guarantee response order; sort by index defensively.
         parsed.data.sort_by_key(|d| d.index);
         let out: Vec<Vec<f32>> = parsed.data.into_iter().map(|d| d.embedding).collect();
         if out.len() != inputs.len() {
             bail!("embedding count mismatch: got {} for {} inputs", out.len(), inputs.len());
         }
-        Ok(out)
+        Ok((out, usage))
     }
 
-    /// Single non-streaming chat completion (used for summaries/tags). Streaming
+    /// Single non-streaming chat completion (used for summaries/tags). Returns
+    /// the message content plus token usage (for `ai_usage` metering). Streaming
     /// for the RAG "ask" endpoint lands in P1.
-    pub async fn chat(&self, system: &str, user: &str) -> Result<String> {
+    pub async fn chat(&self, system: &str, user: &str) -> Result<(String, Usage)> {
         let url = self.endpoint("chat/completions");
         let resp = self
             .auth(self.http.post(&url))
@@ -173,12 +192,42 @@ impl AiClient {
             bail!("chat request failed ({status}): {body}");
         }
         let parsed: ChatResponse = resp.json().await.context("decode chat response")?;
-        parsed
+        let usage = parsed.usage;
+        let content = parsed
             .choices
             .into_iter()
             .next()
             .map(|c| c.message.content)
-            .context("chat response had no choices")
+            .context("chat response had no choices")?;
+        Ok((content, usage))
+    }
+}
+
+/// Record one billable AI op into `ai_usage` (→ ONEWEB billing). Best-effort:
+/// metering must never fail a request, so errors are logged and swallowed.
+pub async fn record_usage(
+    db: &sqlx::PgPool,
+    user_id: Option<&str>,
+    system_id: Option<&str>,
+    op: &str,
+    model: &str,
+    usage: &Usage,
+) {
+    if let Err(e) = sqlx::query(
+        r#"INSERT INTO ai_usage (id, user_id, system_id, op, model, input_tokens, output_tokens)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)"#,
+    )
+    .bind(Uuid::now_v7())
+    .bind(user_id)
+    .bind(system_id)
+    .bind(op)
+    .bind(model)
+    .bind(usage.input_tokens)
+    .bind(usage.output_tokens)
+    .execute(db)
+    .await
+    {
+        tracing::warn!("ai_usage insert failed (op={op}): {e}");
     }
 }
 
@@ -196,4 +245,44 @@ pub fn vector_literal(v: &[f32]) -> String {
     }
     s.push(']');
     s
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn vector_literal_formats_pgvector() {
+        assert_eq!(vector_literal(&[]), "[]");
+        assert_eq!(vector_literal(&[1.0]), "[1]");
+        assert_eq!(vector_literal(&[0.5, -0.25, 2.0]), "[0.5,-0.25,2]");
+    }
+
+    #[test]
+    fn usage_parses_chat_shape() {
+        // OpenAI chat usage carries both token counts.
+        let u: Usage = serde_json::from_str(
+            r#"{"prompt_tokens":120,"completion_tokens":45,"total_tokens":165}"#,
+        )
+        .unwrap();
+        assert_eq!(u.input_tokens, 120);
+        assert_eq!(u.output_tokens, 45);
+    }
+
+    #[test]
+    fn usage_parses_embedding_shape_without_completion() {
+        // Embeddings usage has no completion_tokens — it must default to 0.
+        let u: Usage =
+            serde_json::from_str(r#"{"prompt_tokens":8,"total_tokens":8}"#).unwrap();
+        assert_eq!(u.input_tokens, 8);
+        assert_eq!(u.output_tokens, 0);
+    }
+
+    #[test]
+    fn usage_defaults_when_provider_omits_it() {
+        // Some local providers omit usage entirely; both counts default to 0.
+        let u: Usage = serde_json::from_str("{}").unwrap();
+        assert_eq!(u.input_tokens, 0);
+        assert_eq!(u.output_tokens, 0);
+    }
 }

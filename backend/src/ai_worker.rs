@@ -116,13 +116,13 @@ async fn process_next(state: &AppState) -> anyhow::Result<bool> {
 /// summarise. Each step is guarded so a partial failure leaves a coherent state.
 async fn enrich_file(state: &AppState, file_id: Uuid) -> anyhow::Result<()> {
     // 1) Load the file's storage coordinates.
-    let row: Option<(String, bool, String, String)> = sqlx::query_as(
-        "SELECT object_key, encrypted, file_type, name FROM files WHERE id=$1 AND deleted_at IS NULL",
+    let row: Option<(String, bool, String, String, String)> = sqlx::query_as(
+        "SELECT object_key, encrypted, file_type, name, system_id FROM files WHERE id=$1 AND deleted_at IS NULL",
     )
     .bind(file_id)
     .fetch_optional(&state.db)
     .await?;
-    let (object_key, encrypted, file_type, name) = match row {
+    let (object_key, encrypted, file_type, name, system_id) = match row {
         Some(r) => r,
         None => return Ok(()), // file deleted before we got to it — nothing to do
     };
@@ -146,7 +146,8 @@ async fn enrich_file(state: &AppState, file_id: Uuid) -> anyhow::Result<()> {
     // 3) Chunk, embed, and (re)write the vector index for this file.
     let chunks = chunk_text(&text);
     let texts: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();
-    let embeddings = state.ai.embed(&texts).await?;
+    let (embeddings, embed_usage) = state.ai.embed(&texts).await?;
+    ai::record_usage(&state.db, None, Some(&system_id), "embed", state.ai.embed_model(), &embed_usage).await;
     if embeddings.len() != chunks.len() {
         anyhow::bail!("embeddings/chunks length mismatch");
     }
@@ -186,7 +187,7 @@ async fn enrich_file(state: &AppState, file_id: Uuid) -> anyhow::Result<()> {
 
     // 4) Summarise + tag (best-effort — embeddings already landed, so a chat
     //    failure here doesn't lose the searchable index).
-    let (summary, tags, language, sensitivity) = match summarise(state, &name, &text).await {
+    let (summary, tags, language, sensitivity) = match summarise(state, &system_id, &name, &text).await {
         Ok(v) => v,
         Err(e) => {
             tracing::warn!("summarise {file_id} failed (index still written): {e:#}");
@@ -245,6 +246,7 @@ struct Analysis {
 /// first {...} block out of the response in case the model wraps it in prose.
 async fn summarise(
     state: &AppState,
+    system_id: &str,
     name: &str,
     text: &str,
 ) -> anyhow::Result<(Option<String>, Vec<String>, Option<String>, String)> {
@@ -256,7 +258,8 @@ async fn summarise(
          language (ISO 639-1 code), sensitivity (one of \"none\", \"pii\", \"confidential\"). \
          Document:\n\n{head}"
     );
-    let raw = state.ai.chat(system, &user).await?;
+    let (raw, usage) = state.ai.chat(system, &user).await?;
+    ai::record_usage(&state.db, None, Some(system_id), "summarize", state.ai.chat_model(), &usage).await;
     let json_slice = match (raw.find('{'), raw.rfind('}')) {
         (Some(a), Some(b)) if b > a => &raw[a..=b],
         _ => raw.trim(),
