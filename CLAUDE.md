@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Stack & layout
 
-- **Backend** — Rust + Axum (`backend/`). Postgres via `sqlx` (not SQLite). Pluggable object storage (`fs` default, `s3`/MinIO available) with optional AES-256-GCM encryption layered in front.
-- **Frontend** — Next.js 15 App Router + TypeScript (`frontend/`). React 18. No CSS framework — design tokens in `app/tokens.css`.
-- **Infra** — `docker-compose.yml` runs Postgres (port 5434 → 5432), an *optional* MinIO (S3 API 9000, console 9001) + `minio-setup` bucket bootstrapper for the `s3` storage backend, and an *optional* branded Collabora Online container (port 9980) for in-browser Office editing. The Collabora image is built from `infra/collabora/` (Dockerfile patches `bundle.js` to empty the Help tab; `branding.css` rebrands the UI).
+- **Backend** — Rust + Axum (`backend/`). Postgres via `sqlx` (not SQLite; **pgvector** for AI embeddings). Pluggable object storage (`fs` default, `s3`/MinIO available) with optional AES-256-GCM encryption layered in front. Optional **AI-native layer** (semantic search + RAG, local-first via Ollama) — see `ai.rs`/`ai_api.rs`/`ai_worker.rs`, toggle with `AI_ENABLED`.
+- **Frontend** — Next.js 15 App Router + TypeScript (`frontend/`). React 18. No CSS framework — design tokens in `app/tokens.css`. Bilingual (EN/TH) via `lib/i18n.tsx`.
+- **Infra** — `docker-compose.yml` runs Postgres (port 5434 → 5432), an *optional* MinIO (S3 API 9000, console 9001) + `minio-setup` bucket bootstrapper for the `s3` storage backend, and an *optional* branded Collabora Online container (port 9980) for in-browser Office editing. The Collabora image is built from `infra/collabora/` (Dockerfile patches `bundle.js` to empty the Help tab; `branding.css` rebrands the UI). `infra/litellm/config.yaml` is an *optional* OpenAI-compatible gateway for the AI layer (point `AI_BASE_URL` at it to centralise keys/routing across providers). The Postgres image is `pgvector/pgvector:pg16` (the AI migration needs `CREATE EXTENSION vector`).
 - **Scripts** — `scripts/test-api.sh` (curl + python3 end-to-end suite), `seed-bodies.sh` (upload demo files), `backup.sh`/`restore.sh`.
 - **CI** — `.github/workflows/ci.yml`: two parallel jobs on every push/PR — backend (cargo build + compile tests, with a Postgres service) and frontend (typecheck + production build).
 - **Roadmap** — `TODO.md` tracks planned work (P0/P1/P2 with what/why/where per item). Check it before starting a feature — it may already be specced there.
@@ -82,7 +82,10 @@ Consequences:
 - `ensure_system_access(&db, &user, system_id).await?` — before touching any caller-supplied file/system id. Returns 403 if a non-admin reaches into someone else's `system_type='personal'` drive; **returns Ok for a non-existent system** so the handler's own "unknown system" path (400/empty) still wins. Reads map the denial to 404 (don't leak existence); writes let 403 propagate.
 - `effective_system_ids(&db, &user).await?` — `None` for admins (see everything) or `Some(vec)` to scope list/search queries with `AND system_id = ANY($n)`.
 - `handlers.rs` — the bulk of CRUD: stats, systems, orgs, files (incl. multipart upload, download, soft-delete), folders, share links, workspace config, members, rotation, search, reports, activity, views.
-- `p1.rs` — workflow / comments / notifications / thumbnails / PDF text extraction / preview pipeline. Co-located so the four features can share helpers.
+- `p1.rs` — workflow / comments / notifications / thumbnails / PDF text extraction / preview pipeline. Co-located so the four features can share helpers. Office docs (docx/xlsx/pptx/odf) are full-text extracted by routing through the same LibreOffice→PDF conversion the preview uses.
+- `ai.rs` + `ai_api.rs` + `ai_worker.rs` — **AI-native layer, local-first and pluggable.** `ai.rs` is one HTTP client against the OpenAI-compatible API shape (Ollama by default — zero egress; any OpenAI-compatible endpoint via `AI_BASE_URL`/`AI_API_KEY`/model names, no code change). `ai_worker.rs` drains the `ai_jobs` queue (extract → chunk → embed → summarise), enqueued from both upload paths (`handlers::persist_upload`, `tus::finalise`); spawned only when `Ai::enabled()`. `ai_api.rs` serves the read side: semantic search (pgvector kNN), `/api/ask` RAG (grounded + cited), and per-file AI. **All retrieval is scoped by `effective_system_ids`** — a user can never get an answer drawn from content they can't read. Set `AI_ENABLED=false` to disable everything; FileHub then behaves exactly as before. Embedding dim is fixed at 768 (`migrations/0016`); changing models to another dim needs a migration + re-embed.
+- `checkout.rs` — document check-out / check-in locking (TOR 5.3.8.4-5). Lock state is three nullable columns on `files` (`migration 0017`); enforcement on edits lives in the mutating handlers via `checkout::lock_blocks` (wired into `handlers::upload_version`). `rotation.rs` auto-releases stale locks (`CHECKOUT_TTL_HOURS`, default 8h).
+- `reports.rs` — document status report (active/inactive/retention/deleted, mapping FileHub's soft-delete + rotation lifecycle onto the four TOR states) + CSV exports (status, audit log) with a UTF-8 BOM so Excel renders Thai. Permission-scoped via `effective_system_ids`.
 - `tus.rs` — TUS 1.0.0 resumable upload (`creation` + `termination` extensions). On final chunk, runs the same encrypt → ObjectStore → DB → preview pipeline as a regular upload.
 - `wopi.rs` — WOPI host for Collabora/OnlyOffice. Per-file access tokens are HMAC-SHA256 (no DB lookup on every request).
 - `rotation.rs` — background worker for version pruning, archive (soft delete), hard delete. Resolution rule: **most-specific wins (user > org > system > workspace)**. Hard-delete is transactional and re-checks the `deleted_at` cutoff inside the `DELETE` (so a concurrent restore wins the race) and preserves `activity` rows (FK is `ON DELETE SET NULL`). Each tick also reaps abandoned TUS sessions (`tus_uploads` past `expires_at` + their `.part` blobs).
@@ -119,7 +122,15 @@ Backend (`backend/.env`):
 - `WOPI_SECRET` — **required in release**, HMAC key for Collabora access tokens. Generate with `openssl rand -hex 32`.
 - `DATABASE_MAX_CONNECTIONS` / `DATABASE_ACQUIRE_TIMEOUT_SECS` / `DATABASE_IDLE_TIMEOUT_SECS` — pool tuning. Defaults `32` / `30` / `600`.
 - `ROTATION_INTERVAL_SECS` — rotation worker cadence; `0` disables.
+- `CHECKOUT_TTL_HOURS` — auto-release a check-out lock held longer than this (reaped by the rotation worker). Default `8`.
+- `AI_ENABLED` — master switch for the AI-native layer (default `true`). `false` skips the enrichment worker and makes `/api/search/semantic` + `/api/ask` return 400 — FileHub behaves exactly as before AI.
+- `AI_BASE_URL` / `AI_API_KEY` — OpenAI-compatible endpoint + optional key. Default `http://localhost:11434/v1` (Ollama, no key). Point at vLLM / LiteLLM / OpenAI / Azure to switch providers with no code change.
+- `AI_EMBED_MODEL` / `AI_EMBED_DIM` — default `nomic-embed-text` / `768`. **`AI_EMBED_DIM` must match the `vector(768)` column in `migrations/0016`** (the backend warns at boot on mismatch); a different dim needs a migration + re-embed.
+- `AI_CHAT_MODEL` / `AI_MAX_CONTEXT_TOKENS` / `AI_TIMEOUT_SECS` — chat model (default `qwen2.5`) and limits.
+- `AI_WORKER_INTERVAL_SECS` — enrichment queue poll cadence. Default `15`.
 - `RUST_LOG` — tracing filter.
+
+> **AI requires pgvector.** `docker-compose.yml` uses `pgvector/pgvector:pg16`; `migrations/0016` runs `CREATE EXTENSION vector`. Local AI quick start: `ollama serve` then `ollama pull nomic-embed-text qwen2.5`.
 
 Frontend (`frontend/.env`):
 - `BACKEND_URL` — used by both server-side `lib/api.ts` and the `next.config.ts` rewrite. Default `http://127.0.0.1:8090`.
