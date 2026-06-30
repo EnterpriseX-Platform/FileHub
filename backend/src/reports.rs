@@ -20,7 +20,7 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::auth::{effective_system_ids, AuthUser};
+use crate::auth::{effective_system_ids, require_role, AuthUser};
 use crate::error::ApiResult;
 use crate::state::AppState;
 
@@ -190,6 +190,63 @@ pub async fn audit_csv(
         ));
     }
     Ok(csv("audit-log.csv", body))
+}
+
+// ---- AI usage / metering report (admin-only) -------------------------------
+
+#[derive(Serialize)]
+pub struct AiUsageBucket {
+    pub key: String,
+    pub ops: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+}
+
+#[derive(Serialize)]
+pub struct AiUsageReport {
+    pub total_ops: i64,
+    pub total_input_tokens: i64,
+    pub total_output_tokens: i64,
+    pub by_op: Vec<AiUsageBucket>,
+    pub by_model: Vec<AiUsageBucket>,
+}
+
+async fn usage_grouped(db: &sqlx::PgPool, col: &str, q: &AuditQ) -> Vec<AiUsageBucket> {
+    // `col` is a fixed identifier ("op" | "model"), never user input — safe to format.
+    let sql = format!(
+        "SELECT coalesce({col}, '') AS k, count(*)::bigint, \
+                coalesce(sum(input_tokens),0)::bigint, coalesce(sum(output_tokens),0)::bigint \
+         FROM ai_usage \
+         WHERE ($1::timestamptz IS NULL OR created_at >= $1::timestamptz) \
+           AND ($2::timestamptz IS NULL OR created_at <= $2::timestamptz) \
+         GROUP BY k ORDER BY 2 DESC"
+    );
+    sqlx::query_as::<_, (String, i64, i64, i64)>(&sql)
+        .bind(&q.from)
+        .bind(&q.to)
+        .fetch_all(db)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(key, ops, input_tokens, output_tokens)| AiUsageBucket { key, ops, input_tokens, output_tokens })
+        .collect()
+}
+
+/// GET /fh/api/reports/ai-usage?from=&to= — token/op metering for billing
+/// (the producer side lives in `ai::record_usage`). **Admin-only** — usage is a
+/// workspace-wide billing concern, not per-system.
+pub async fn ai_usage_report(
+    State(s): State<Arc<AppState>>,
+    user: AuthUser,
+    Query(q): Query<AuditQ>,
+) -> ApiResult<Json<AiUsageReport>> {
+    require_role(&user.0, &["admin"])?;
+    let by_op = usage_grouped(&s.db, "op", &q).await;
+    let by_model = usage_grouped(&s.db, "model", &q).await;
+    let total_ops = by_op.iter().map(|b| b.ops).sum();
+    let total_input_tokens = by_op.iter().map(|b| b.input_tokens).sum();
+    let total_output_tokens = by_op.iter().map(|b| b.output_tokens).sum();
+    Ok(Json(AiUsageReport { total_ops, total_input_tokens, total_output_tokens, by_op, by_model }))
 }
 
 fn cell(s: &str) -> String {
