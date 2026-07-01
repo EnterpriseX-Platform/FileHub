@@ -10,19 +10,19 @@ import { useI18n } from "@/lib/i18n";
 /// Unified search/command palette. One entry point for the three things that
 /// used to be scattered across a sidebar box, a "Search" page, and an "Ask"
 /// page: keyword file search, meaning-based (semantic) search, and a grounded
-/// answer. Open with ⌘K / Ctrl+K (or click the trigger). Enter runs the active
-/// mode; the "Go to" list jumps to a destination.
+/// answer. Open with ⌘K / Ctrl+K (or click the trigger). ↑/↓ move the
+/// selection, Enter activates it; the "Go to" list jumps to a destination.
 type Mode = "files" | "meaning" | "ask";
 
-const NAV_TARGETS: { label: string; href: string; key: string }[] = [
-  { label: "Dashboard", href: "/",         key: "dashboard" },
-  { label: "All files", href: "/files",    key: "files" },
-  { label: "Upload",    href: "/upload",   key: "upload" },
-  { label: "Reports",   href: "/reports",  key: "reports" },
-  { label: "Activity",  href: "/activity", key: "activity" },
-  { label: "Shared",    href: "/share",    key: "share" },
-  { label: "Trash",     href: "/trash",    key: "trash" },
-  { label: "Settings",  href: "/settings", key: "settings" },
+const NAV_TARGETS: { labelKey: string; href: string; key: string }[] = [
+  { labelKey: "nav.dashboard", href: "/",         key: "dashboard" },
+  { labelKey: "nav.files",     href: "/files",    key: "files" },
+  { labelKey: "nav.upload",    href: "/upload",   key: "upload" },
+  { labelKey: "nav.reports",   href: "/reports",  key: "reports" },
+  { labelKey: "nav.activity",  href: "/activity", key: "activity" },
+  { labelKey: "nav.shared",    href: "/share",    key: "share" },
+  { labelKey: "nav.trash",     href: "/trash",    key: "trash" },
+  { labelKey: "nav.settings",  href: "/settings", key: "settings" },
 ];
 
 export function GlobalSearch() {
@@ -31,10 +31,11 @@ export function GlobalSearch() {
   const [openState, setOpen] = React.useState(false);
   const [mode, setMode] = React.useState<Mode>("files");
   const [q, setQ] = React.useState("");
+  const [sel, setSel] = React.useState(0);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   const open = React.useCallback(() => setOpen(true), []);
-  const close = React.useCallback(() => { setOpen(false); setQ(""); }, []);
+  const close = React.useCallback(() => { setOpen(false); setQ(""); setSel(0); }, []);
 
   // Global ⌘K / Ctrl+K toggles the palette from anywhere.
   React.useEffect(() => {
@@ -54,8 +55,8 @@ export function GlobalSearch() {
 
   const go = (href: string) => { close(); router.push(href); };
 
+  const term = q.trim();
   const runSearch = () => {
-    const term = q.trim();
     if (!term) return;
     const dest =
       mode === "ask" ? `/ask?q=${encodeURIComponent(term)}`
@@ -64,10 +65,30 @@ export function GlobalSearch() {
     go(dest);
   };
 
-  const term = q.trim().toLowerCase();
-  const matches = term
-    ? NAV_TARGETS.filter((n) => n.label.toLowerCase().includes(term))
+  const lower = term.toLowerCase();
+  const navMatches = lower
+    ? NAV_TARGETS.filter((n) => t(n.labelKey).toLowerCase().includes(lower))
     : NAV_TARGETS;
+
+  // Flat action list drives keyboard selection: the search-run row (when there
+  // is a query) sits at index 0, the nav jumps follow.
+  const runVerb = mode === "ask" ? t("cmd.ask") : mode === "meaning" ? t("cmd.findMeaning") : t("cmd.searchFiles");
+  const actions: { run: () => void }[] = [
+    ...(term ? [{ run: runSearch }] : []),
+    ...navMatches.map((n) => ({ run: () => go(n.href) })),
+  ];
+  const navOffset = term ? 1 : 0;
+
+  // Keep the selection in range as the query filters the list.
+  React.useEffect(() => { setSel(0); }, [q, mode]);
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (actions.length === 0) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => (s + 1) % actions.length); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => (s - 1 + actions.length) % actions.length); }
+    else if (e.key === "Enter") { e.preventDefault(); actions[Math.min(sel, actions.length - 1)]?.run(); }
+    else if (e.key === "Escape") { e.preventDefault(); close(); }
+  };
 
   const MODES: { id: Mode; label: string; icon: React.ReactNode }[] = [
     { id: "files",   label: t("nav.files"),  icon: <Ico.search className="icon sm" /> },
@@ -92,7 +113,7 @@ export function GlobalSearch() {
 
       {openState && (
         <div className="cmd-backdrop" onClick={close} role="presentation">
-          <div className="cmd-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Search">
+          <div className="cmd-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t("search.button")}>
             <div className="cmd-input">
               <Ico.search />
               <input
@@ -100,10 +121,10 @@ export function GlobalSearch() {
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder={t("search.placeholder")}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") { e.preventDefault(); runSearch(); }
-                  if (e.key === "Escape") { e.preventDefault(); close(); }
-                }}
+                onKeyDown={onKeyDown}
+                role="combobox"
+                aria-expanded="true"
+                aria-controls="cmd-list"
               />
               <Kbd>esc</Kbd>
             </div>
@@ -121,27 +142,45 @@ export function GlobalSearch() {
               ))}
             </div>
 
-            {q.trim() && (
-              <button type="button" className="cmd-row cmd-run" onClick={runSearch}>
-                <Ico.search className="icon sm" />
-                <span>
-                  {mode === "ask" ? "Ask" : mode === "meaning" ? "Find by meaning" : "Search files"}: <strong>{q.trim()}</strong>
-                </span>
-                <Kbd>↵</Kbd>
-              </button>
-            )}
-
-            <div className="cmd-label">Go to</div>
-            {matches.length === 0 ? (
-              <div className="cmd-empty">No matching pages.</div>
-            ) : (
-              matches.map((n) => (
-                <button key={n.key} type="button" className="cmd-row" onClick={() => go(n.href)}>
-                  <Ico.chevron className="icon sm" />
-                  <span>{n.label}</span>
+            <div className="cmd-results" id="cmd-list" role="listbox">
+              {term && (
+                <button
+                  type="button"
+                  className={"cmd-row cmd-run" + (sel === 0 ? " selected" : "")}
+                  role="option"
+                  aria-selected={sel === 0}
+                  onMouseMove={() => setSel(0)}
+                  onClick={runSearch}
+                >
+                  <Ico.search className="icon sm" />
+                  <span>{runVerb}: <strong>{term}</strong></span>
+                  <Kbd>↵</Kbd>
                 </button>
-              ))
-            )}
+              )}
+
+              <div className="cmd-label">{t("cmd.goto")}</div>
+              {navMatches.length === 0 ? (
+                <div className="cmd-empty">{t("cmd.noMatch")}</div>
+              ) : (
+                navMatches.map((n, i) => {
+                  const idx = navOffset + i;
+                  return (
+                    <button
+                      key={n.key}
+                      type="button"
+                      className={"cmd-row" + (sel === idx ? " selected" : "")}
+                      role="option"
+                      aria-selected={sel === idx}
+                      onMouseMove={() => setSel(idx)}
+                      onClick={() => go(n.href)}
+                    >
+                      <Ico.chevron className="icon sm" />
+                      <span>{t(n.labelKey)}</span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>
       )}
