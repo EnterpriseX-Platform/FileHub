@@ -52,7 +52,7 @@ export function HomeClient({
         </EdaySection>
       )}
 
-      <EdaySection titleKey="eday.recent" href="/my" viewAll={recent.length > 0}>
+      <EdaySection titleKey="eday.recent" href="/recent" viewAll={recent.length > 0}>
         {recent.length === 0 ? (
           <div className="t-sm t-subtle" style={{ padding: "6px 0" }}>{t("eday.noFiles")}</div>
         ) : (

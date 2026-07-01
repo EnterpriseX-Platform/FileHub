@@ -15,11 +15,13 @@ export function MyFilesClient({
   files,
   titleKey,
   title,
+  emptyKey = "eday.noFiles",
   canUpload,
 }: {
   files: FileRow[];
   titleKey?: string;
   title?: string;
+  emptyKey?: string;
   canUpload: boolean;
 }) {
   const { t } = useI18n();
@@ -51,7 +53,7 @@ export function MyFilesClient({
       </div>
 
       {shown.length === 0 ? (
-        <div className="t-sm t-subtle" style={{ padding: "28px 0", textAlign: "center" }}>{t("eday.noFiles")}</div>
+        <div className="t-sm t-subtle" style={{ padding: "28px 0", textAlign: "center" }}>{t(emptyKey)}</div>
       ) : view === "grid" ? (
         <div className="eday-cards" style={{ marginTop: 16 }}>
           {shown.map((f) => <FileTile key={f.id} file={f} />)}
