@@ -436,6 +436,40 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { description: Caller is neither the holder nor an admin, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
 
+  # ─────────────────────────── Starred ───────────────────────────
+  /api/starred:
+    get:
+      tags: [Files]
+      summary: The caller's starred files (permission-scoped)
+      responses:
+        "200": { description: Starred files, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/File" } } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/files/{id}/star:
+    get:
+      tags: [Files]
+      summary: Whether the caller has starred this file
+      parameters: [{ $ref: "#/components/parameters/FileId" }]
+      responses:
+        "200": { description: Star state, content: { application/json: { schema: { $ref: "#/components/schemas/StarState" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [Files]
+      summary: Star a file (idempotent)
+      parameters: [{ $ref: "#/components/parameters/FileId" }]
+      responses:
+        "200": { description: Starred, content: { application/json: { schema: { $ref: "#/components/schemas/StarState" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [Files]
+      summary: Unstar a file
+      parameters: [{ $ref: "#/components/parameters/FileId" }]
+      responses:
+        "200": { description: Unstarred, content: { application/json: { schema: { $ref: "#/components/schemas/StarState" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
   # ─────────────────────────── Folders ───────────────────────────
   /api/folders:
     get:
@@ -931,6 +965,10 @@ components:
       properties:
         status: { type: string, enum: [none, queued, running, done, failed], description: Enrichment lifecycle for the UI }
         ai:     { allOf: [{ $ref: "#/components/schemas/FileAi" }], nullable: true }
+    StarState:
+      type: object
+      properties:
+        starred: { type: boolean }
     LockInfo:
       type: object
       properties:

@@ -932,3 +932,41 @@ async fn ai_usage_report_is_admin_only() {
         assert_eq!(r.status(), StatusCode::FORBIDDEN, "{email} should be forbidden");
     }
 }
+
+// ---- 21. Starred / favorites ------------------------------------------------
+
+#[tokio::test]
+async fn star_lifecycle() {
+    require_backend().await;
+    let row = upload_text("star-me.txt", "fav", SYS_HR).await;
+    let id = row["id"].as_str().unwrap().to_string();
+    let c = auth_client().await;
+
+    // Initially not starred.
+    let s0: Value = c.get(format!("{}/api/files/{id}/star", base())).send().await.unwrap().json().await.unwrap();
+    assert_eq!(s0["starred"], false);
+
+    // Star (idempotent — do it twice).
+    let s1: Value = c.put(format!("{}/api/files/{id}/star", base())).send().await.unwrap().json().await.unwrap();
+    assert_eq!(s1["starred"], true);
+    let _ = c.put(format!("{}/api/files/{id}/star", base())).send().await.unwrap();
+
+    // Appears in the starred list.
+    let list: Vec<Value> = c.get(format!("{}/api/starred", base())).send().await.unwrap().json().await.unwrap();
+    assert!(list.iter().any(|f| f["id"] == id), "starred list should contain the file");
+
+    // Unstar → gone.
+    let s2: Value = c.delete(format!("{}/api/files/{id}/star", base())).send().await.unwrap().json().await.unwrap();
+    assert_eq!(s2["starred"], false);
+    let list2: Vec<Value> = c.get(format!("{}/api/starred", base())).send().await.unwrap().json().await.unwrap();
+    assert!(!list2.iter().any(|f| f["id"] == id));
+
+    let _ = c.delete(format!("{}/api/files/{id}", base())).send().await;
+}
+
+#[tokio::test]
+async fn star_missing_file_returns_404() {
+    require_backend().await;
+    let r = auth_client().await.put(format!("{}/api/files/{MISSING_UUID}/star", base())).send().await.unwrap();
+    assert_eq!(r.status(), StatusCode::NOT_FOUND);
+}

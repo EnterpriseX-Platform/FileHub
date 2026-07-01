@@ -21,7 +21,7 @@ use crate::state::AppState;
 
 /// Column list shared by every `files` read.  Keeps `search_tsv` (added in
 /// migration 0004) out so sqlx::FromRow has nothing to map it to.
-const FILE_COLS: &str = "id, name, file_type, size_bytes, system_id, org_id, bucket, object_key, project, status, owner, tags, version, metadata, etag, created_at, modified_at, folder_id, encrypted, deleted_at, created_by";
+pub(crate) const FILE_COLS: &str = "id, name, file_type, size_bytes, system_id, org_id, bucket, object_key, project, status, owner, tags, version, metadata, etag, created_at, modified_at, folder_id, encrypted, deleted_at, created_by";
 
 pub async fn health() -> &'static str { "ok" }
 
