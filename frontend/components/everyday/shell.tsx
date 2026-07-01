@@ -50,7 +50,28 @@ export function EverydayShell({ children }: { children: React.ReactNode }) {
         <EdayUserMenu />
       </header>
       <main className="eday-main">{children}</main>
+
+      {/* Phone-only bottom tab bar (the top nav hides on mobile). Upload sits
+          center as a raised action for editors/admins. */}
+      <nav className="eday-bottomnav">
+        <BottomTab href="/home" icon={<Ico.home />} label={t("eday.nav.home")} active={pathname === "/home"} />
+        <BottomTab href="/my" icon={<Ico.files />} label={t("eday.nav.myfiles")} active={pathname === "/my"} />
+        {canMutate(user?.role ?? null) && (
+          <a href="/upload" className="eday-bottom-upload" aria-label="Upload"><Ico.upload /></a>
+        )}
+        <BottomTab href="/shared" icon={<Ico.share />} label={t("eday.nav.shared")} active={pathname === "/shared"} />
+        <BottomTab href="/recent" icon={<Ico.history />} label={t("eday.nav.recent")} active={pathname === "/recent"} />
+      </nav>
     </div>
+  );
+}
+
+function BottomTab({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active: boolean }) {
+  return (
+    <a href={href} className={"eday-bottomtab" + (active ? " active" : "")}>
+      {icon}
+      <span>{label}</span>
+    </a>
   );
 }
 

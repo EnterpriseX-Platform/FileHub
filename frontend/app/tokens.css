@@ -708,11 +708,33 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-mu
   .eday-fileinfo { position: static; }
 }
 
+/* Phone bottom tab bar — hidden on desktop, replaces the top nav on phones. */
+.eday-bottomnav { display: none; }
+.eday-bottomtab {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 7px 0; text-decoration: none; color: var(--text-subtle); font-size: 10px; font-weight: 500;
+}
+.eday-bottomtab.active { color: var(--accent-text); }
+.eday-bottomtab svg { width: 20px; height: 20px; }
+.eday-bottom-upload {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 46px; height: 46px; margin: -14px 4px 0; border-radius: 50%;
+  background: var(--grad, var(--accent)); color: #fff; box-shadow: var(--sh-2); flex-shrink: 0;
+}
+.eday-bottom-upload svg { width: 22px; height: 22px; }
+
 @media (max-width: 720px) {
   .eday-search { display: none; }
   .eday-brand-name { display: none; }
-  .eday-upload span { display: none; }
-  .eday-main { padding: 20px 16px 64px; }
+  .eday-nav { display: none; }
+  .eday-upload { display: none; }
+  .eday-main { padding: 20px 16px 84px; }
+  .eday-bottomnav {
+    display: flex; align-items: center;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    background: var(--bg); border-top: 1px solid var(--border);
+    padding: 0 6px; padding-bottom: env(safe-area-inset-bottom, 0);
+  }
 }
 
 /* Command palette (components/global-search.tsx) */
