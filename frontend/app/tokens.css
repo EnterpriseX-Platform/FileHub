@@ -693,6 +693,21 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-mu
 .eday-viewtoggle { display: inline-flex; gap: 2px; border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
 .eday-viewtoggle .btn.active { background: var(--accent-soft); color: var(--accent-text); }
 
+/* Friendly file view (components/everyday/file-view-client.tsx) */
+.eday-back { display: inline-flex; align-items: center; gap: 4px; text-decoration: none; color: var(--text-subtle); font-size: var(--t-sm); margin-bottom: 12px; }
+.eday-back:hover { color: var(--text); }
+.eday-fileview-hd { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 18px; }
+.eday-fileview { display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
+.eday-preview { min-width: 0; border: 1px solid var(--border); border-radius: var(--r-4); overflow: hidden; background: var(--bg-muted); }
+.eday-fileinfo { position: sticky; top: 72px; }
+.eday-meta { display: grid; grid-template-columns: 88px 1fr; gap: 6px 10px; align-items: center; padding: 5px 0; }
+.eday-fulllink { display: inline-block; margin-top: 12px; text-decoration: none; }
+.eday-fulllink:hover { color: var(--text); }
+@media (max-width: 860px) {
+  .eday-fileview { grid-template-columns: 1fr; }
+  .eday-fileinfo { position: static; }
+}
+
 @media (max-width: 720px) {
   .eday-search { display: none; }
   .eday-brand-name { display: none; }

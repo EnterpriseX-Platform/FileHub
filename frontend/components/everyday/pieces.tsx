@@ -11,10 +11,9 @@ import { useI18n } from "@/lib/i18n";
 
 /// Shared everyday building blocks. Deliberately plain: a file is shown by its
 /// icon, name, and a friendly "who · when" line — no status/project/tag/version
-/// columns. (Phase 2 swaps the file link for a friendly /f/[id] view; for now
-/// it opens the existing detail page.)
+/// columns. Files open the friendly /f/[id] view, not the technical detail page.
 function fileHref(id: string) {
-  return `/files/${encodeURIComponent(id)}`;
+  return `/f/${encodeURIComponent(id)}`;
 }
 
 export function EdaySection({
