@@ -38,6 +38,11 @@ export function Sidebar({
   const { t } = useI18n();
   const activeSystemId = systemActive ?? systems[0]?.id;
 
+  // Secondary destinations live under a collapsible "More" so the primary rail
+  // stays short. Auto-expand when the user is already on one of them.
+  const inMore = nav === "activity" || nav === "reports" || nav === "archive";
+  const [moreOpen, setMoreOpen] = React.useState(inMore);
+
   const fileCountBySystem: Record<string, number> = {};
   for (const sys of stats?.connected_systems ?? []) {
     fileCountBySystem[sys.id] = sys.file_count;
@@ -61,21 +66,38 @@ export function Sidebar({
         <SideRow href="/"          icon={<Ico.home />}     label={t("nav.dashboard")} active={nav === "dashboard"} />
         <SideRow href="/ask"       icon={<Ico.sparkle />}  label={t("nav.ask")} active={nav === "ask"} />
         <SideRow href="/files"     icon={<Ico.files />}    label={t("nav.files")} active={nav === "files"} count={stats ? fmtCount(stats.total_files) : undefined} />
-        <SideRow href="/search"    icon={<Ico.search />}   label={t("nav.search")} active={nav === "search"} />
-        <SideRow href="/activity"  icon={<Ico.activity />} label={t("nav.activity")}  active={nav === "activity"} />
-        <SideRow href="/reports"   icon={<Ico.history />}  label={t("nav.reports")} active={nav === "reports"} />
-        <SideRow href="/views/new" icon={<Ico.views />}    label={t("nav.views")}     active={nav === "views"} />
         <SideRow href="/share"     icon={<Ico.share />}    label={t("nav.shared")}    active={nav === "share"} />
-        <SideRow href="/archive"   icon={<Ico.archive />}  label={t("nav.archive")}   active={nav === "archive"} />
         {/* My Drive — only renders for signed-in users; reads the personal
             drive id from the backend on mount. */}
         <MyDriveLink />
+
+        {/* Secondary destinations, collapsed by default to keep the rail short. */}
+        <button
+          type="button"
+          className={"side-row" + (moreOpen ? " active" : "")}
+          aria-expanded={moreOpen}
+          onClick={() => setMoreOpen((o) => !o)}
+          style={{ width: "100%", background: "none", border: 0, cursor: "pointer", textAlign: "left", font: "inherit" }}
+        >
+          <Ico.more />
+          <span>{t("nav.more")}</span>
+          <span className="count"><Ico.chevron className="icon sm" style={{ transform: moreOpen ? "rotate(90deg)" : "none" }} /></span>
+        </button>
+        {moreOpen && (
+          <>
+            <SideRow indent={1} href="/activity"  icon={<Ico.activity />} label={t("nav.activity")} active={nav === "activity"} />
+            <SideRow indent={1} href="/reports"   icon={<Ico.history />}  label={t("nav.reports")}  active={nav === "reports"} />
+            <SideRow indent={1} href="/archive"   icon={<Ico.archive />}  label={t("nav.archive")}  active={nav === "archive"} />
+          </>
+        )}
       </div>
 
       <div className="divider" style={{ margin: "4px 12px" }} />
 
       <div className="side-section">
-        <SideLabel action={<Link href="/views/new" title="Create a saved view" aria-label="Create a saved view" style={{ display: "inline-flex", color: "inherit" }}><Ico.plus className="icon sm" /></Link>}>Saved views</SideLabel>
+        <SideLabel action={<Link href="/views/new" title="Create a saved view" aria-label="Create a saved view" style={{ display: "inline-flex", color: "inherit" }}><Ico.plus className="icon sm" /></Link>}>
+          <Link href="/views" title="Manage all saved views" style={{ color: "inherit", textDecoration: "none" }}>{t("nav.savedViews")}</Link>
+        </SideLabel>
         {/* Pulled live from /api/views (pinned rows).  Each click derives a
             `/files?field=value` URL from the first equality filter so the
             sidebar actually narrows the file table instead of being a dead

@@ -54,6 +54,12 @@ export function SemanticSearch() {
     }
   }, []);
 
+  // Auto-run when arriving with ?q= (handoff from the ⌘K command palette).
+  React.useEffect(() => {
+    const q0 = new URLSearchParams(window.location.search).get("q");
+    if (q0 && q0.trim()) { setQ(q0); run(q0); }
+  }, [run]);
+
   return (
     <div className="page">
       <div className="t-3xl t-semibold" style={{ marginBottom: 4 }}>{t("search.title")}</div>
