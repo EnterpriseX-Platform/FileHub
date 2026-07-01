@@ -695,17 +695,38 @@ async fn persist_upload(s: &AppState, actor: Option<&str>, f: UploadFields) -> A
     // We re-fetch the plaintext body from storage so the encryption layer
     // hands us decrypted bytes; we already wrote it once and don't want to
     // keep a second copy in memory.
+    let mut ocr_scheduled = false;
     if let Some((bytes, _)) = s.storage.get(&object_key, encrypted).await.ok().flatten() {
-        if let Some(text) = crate::p1::extract_text_from(&file_type, &bytes) {
-            crate::p1::index_file_content(&s.db, id, &text).await;
+        let extracted = crate::p1::extract_text_from(&file_type, &bytes);
+        if let Some(text) = &extracted {
+            crate::p1::index_file_content(&s.db, id, text).await;
         }
         crate::p1::index_thumbnail(&s.db, id, &file_type, &bytes).await;
         crate::p1::index_office_preview(&s.db, id, &file_type, &name, &bytes).await;
+
+        // OCR fallback for scanned images / image-only PDFs (no extractable
+        // text). Runs in the background so the upload response stays fast; when
+        // it recognises text it indexes it for full-text search and enqueues AI.
+        if extracted.is_none() && crate::ocr::enabled() && crate::ocr::is_ocrable(&file_type) {
+            ocr_scheduled = true;
+            let db = s.db.clone();
+            let ft = file_type.clone();
+            let ai_on = s.ai.enabled();
+            tokio::spawn(async move {
+                if let Some(text) = crate::ocr::ocr_extract(&ft, &bytes).await {
+                    crate::p1::index_file_content(&db, id, &text).await;
+                    if ai_on {
+                        crate::ai_worker::enqueue(&db, id).await;
+                    }
+                }
+            });
+        }
     }
 
     // AI-native: enqueue understanding (embed + summarise). Async + best-effort,
     // so the upload response stays fast and an AI outage never blocks uploads.
-    if s.ai.enabled() {
+    // When OCR is scheduled, that task enqueues AI once the text is ready.
+    if s.ai.enabled() && !ocr_scheduled {
         crate::ai_worker::enqueue(&s.db, id).await;
     }
 
