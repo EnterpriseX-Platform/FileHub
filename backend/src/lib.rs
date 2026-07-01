@@ -14,6 +14,7 @@ pub mod p1;
 pub mod reports;
 pub mod rotation;
 pub mod seed_demo;
+pub mod stars;
 pub mod state;
 pub mod storage;
 pub mod store;
@@ -249,6 +250,12 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/files/:id/lock",         get(checkout::get_lock))
         .route("/api/files/:id/checkout",     axum::routing::post(checkout::checkout))
         .route("/api/files/:id/checkin",      axum::routing::post(checkout::checkin))
+        // Per-user favorites ("Starred" in the everyday UI).
+        .route("/api/starred",                get(stars::list_starred))
+        .route("/api/files/:id/star",
+            get(stars::get_star)
+                .put(stars::add_star)
+                .delete(stars::remove_star))
         .route("/api/notifications",          get(p1::list_notifications))
         .route("/api/notifications/unread-count", get(p1::unread_count))
         .route("/api/notifications/:id/read", axum::routing::post(p1::mark_notification_read))
