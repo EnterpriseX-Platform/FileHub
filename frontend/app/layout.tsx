@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 
+import { MobileUploadFab } from "@/components/mobile-upload-fab";
 import { AuthProvider } from "@/lib/auth-context";
 import { I18nProvider, type Locale } from "@/lib/i18n";
 import { SidebarProvider } from "@/lib/sidebar-context";
@@ -43,7 +44,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body>
-        <I18nProvider initialLocale={locale}><ThemeProvider><AuthProvider><SidebarProvider>{children}</SidebarProvider></AuthProvider></ThemeProvider></I18nProvider>
+        <I18nProvider initialLocale={locale}><ThemeProvider><AuthProvider><SidebarProvider>{children}<MobileUploadFab /></SidebarProvider></AuthProvider></ThemeProvider></I18nProvider>
       </body>
     </html>
   );

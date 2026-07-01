@@ -574,6 +574,21 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-mu
 .nav-toggle   { display: none; }
 .side-backdrop{ display: none; }
 
+/* Mobile Upload FAB (components/mobile-upload-fab.tsx) — phones only; on larger
+   screens the topbar/dashboard Upload button is reachable. */
+.fab { display: none; }
+@media (max-width: 620px) {
+  .fab {
+    display: inline-flex; align-items: center; justify-content: center;
+    position: fixed; right: 16px; bottom: 16px; z-index: 50;
+    width: 52px; height: 52px; border-radius: 50%;
+    background: var(--grad, var(--accent)); color: #fff;
+    box-shadow: var(--sh-3); border: none; text-decoration: none;
+  }
+  .fab:active { transform: scale(0.96); }
+  .fab svg { width: 22px; height: 22px; }
+}
+
 /* Inspector stacks below content when the 3-pane gets tight. */
 @media (max-width: 1279px) {
   .scr.with-inspector { grid-template-columns: 240px 1fr; grid-template-rows: 52px 1fr auto; }
@@ -629,6 +644,41 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-mu
 /* AI enrichment skeleton shimmer (ai-panel.tsx) */
 .ai-sk{border-radius:6px;background:linear-gradient(90deg,var(--bg-muted) 25%,var(--bg-strong) 37%,var(--bg-muted) 63%);background-size:400% 100%;animation:aiShimmer 1.3s ease-in-out infinite}
 @keyframes aiShimmer{0%{background-position:100% 0}100%{background-position:0 0}}
+
+/* Command palette (components/global-search.tsx) */
+.cmd-backdrop {
+  position: fixed; inset: 0; z-index: 80;
+  background: var(--scrim, rgba(0,0,0,0.4));
+  display: flex; justify-content: center; align-items: flex-start;
+  padding: 12vh 16px 16px;
+}
+.cmd-panel {
+  width: 100%; max-width: 560px;
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--r-4);
+  box-shadow: var(--sh-3); overflow: hidden;
+  max-height: 70vh; display: flex; flex-direction: column;
+}
+.cmd-input { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.cmd-input input { flex: 1; border: 0; outline: none; background: transparent; font: inherit; font-size: var(--t-md); color: var(--text); }
+.cmd-modes { display: flex; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.cmd-mode {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 999px; cursor: pointer;
+  font-size: var(--t-sm); font-weight: 500;
+  background: var(--bg-muted); color: var(--text-muted); border: 1px solid transparent;
+}
+.cmd-mode.active { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent); }
+.cmd-label { padding: 10px 14px 4px; font-size: var(--t-xs); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-subtle); }
+.cmd-empty { padding: 10px 14px 14px; font-size: var(--t-sm); color: var(--text-subtle); }
+.cmd-row {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 14px; border: 0; background: none; cursor: pointer;
+  font: inherit; font-size: var(--t-sm); color: var(--text); text-align: left;
+}
+.cmd-row:hover, .cmd-row:focus-visible { background: var(--bg-muted); outline: none; }
+.cmd-run { color: var(--accent-text); }
+.cmd-run strong { font-weight: 600; }
 
 /* Inline citation chip (ask-client.tsx) */
 .cite-chip{display:inline-block;font-size:11px;font-weight:600;line-height:1.4;color:var(--c-violet);background:color-mix(in srgb, var(--c-violet) 15%, transparent);border-radius:5px;padding:0 5px;margin:0 1px;text-decoration:none;vertical-align:1px}

@@ -71,6 +71,22 @@ export default async function DashboardPage() {
   const storageBySystem = stats?.storage_by_system ?? [];
   const totalStorage = storageBySystem.reduce((s, r) => s + r.size_bytes, 0) || 1;
 
+  // Collapse the legend to the largest few systems + an "others" bucket so the
+  // dashboard doesn't list 7 systems when 5 are at ~0%.
+  const STORAGE_TOP = 4;
+  const storageSorted = [...storageBySystem].sort((a, b) => b.size_bytes - a.size_bytes);
+  const storageDisplay = storageSorted.length > STORAGE_TOP + 1
+    ? [
+        ...storageSorted.slice(0, STORAGE_TOP),
+        {
+          system_id: "__others__",
+          name: `+${storageSorted.length - STORAGE_TOP} more`,
+          tone: "slate",
+          size_bytes: storageSorted.slice(STORAGE_TOP).reduce((s, r) => s + r.size_bytes, 0),
+        },
+      ]
+    : storageSorted;
+
   const pinnedViews = views.filter((v) => Boolean(v.pinned)).slice(0, 4);
 
   return (
@@ -104,7 +120,7 @@ export default async function DashboardPage() {
           </div>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
             <SyncButton />
-            {canMutate(role) && <a className="btn primary" href="/upload"><Ico.upload /> Quick upload</a>}
+            {canMutate(role) && <a className="btn primary" href="/upload"><Ico.upload /> Upload</a>}
           </div>
         </div>
 
@@ -134,7 +150,7 @@ export default async function DashboardPage() {
               ) : (
                 <>
                   <div style={{ display: "flex", height: 10, borderRadius: 5, overflow: "hidden", marginBottom: 12 }}>
-                    {storageBySystem.map((r) => (
+                    {storageDisplay.map((r) => (
                       <div
                         key={r.system_id}
                         style={{ flex: r.size_bytes / totalStorage, background: `var(--c-${r.tone})` }}
@@ -143,7 +159,7 @@ export default async function DashboardPage() {
                     ))}
                   </div>
                   <div className="legend-grid">
-                    {storageBySystem.map((r) => (
+                    {storageDisplay.map((r) => (
                       <div key={r.system_id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ width: 8, height: 8, borderRadius: 2, background: `var(--c-${r.tone})`, flexShrink: 0 }} />
                         <span className="t-base t-medium t-trunc" style={{ flex: 1, minWidth: 0 }}>{r.name}</span>
