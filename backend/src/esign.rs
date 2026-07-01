@@ -82,6 +82,25 @@ async fn notify(state: &AppState, user_id: &str, title: &str, body: &str, file_i
     .bind(format!("/f/{file_id}"))
     .execute(&state.db)
     .await;
+
+    // Mirror to email when configured — sign-turn/complete alerts (ANNEX-38).
+    // Spawned so SMTP latency never slows the request; no-op when mail is off.
+    if crate::mailer::enabled() {
+        if let Ok(Some((email,))) =
+            sqlx::query_as::<_, (String,)>("SELECT email FROM users WHERE id = $1")
+                .bind(user_id)
+                .fetch_optional(&state.db)
+                .await
+        {
+            let subject = title.to_string();
+            let text = format!("{body}\n\nOpen: {}/f/{file_id}", crate::mailer::base_url());
+            tokio::spawn(async move {
+                if let Err(e) = crate::mailer::send(&email, &subject, &text).await {
+                    tracing::warn!("signature email failed: {e}");
+                }
+            });
+        }
+    }
 }
 
 // ---- Signature library ------------------------------------------------------
