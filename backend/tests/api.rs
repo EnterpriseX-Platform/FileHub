@@ -1041,6 +1041,62 @@ async fn esign_sequential_turn_guard() {
     let _ = anong.delete(format!("{}/api/files/{id}", base())).send().await;
 }
 
+// ---- 23. Boolean search + version restore ----------------------------------
+
+#[tokio::test]
+async fn search_boolean_or() {
+    require_backend().await;
+    // Distinct bare-word content so the full-text tokens are unambiguous.
+    let a = upload_text("bool-a.txt", "alphaword shared", SYS_HR).await;
+    let b = upload_text("bool-b.txt", "deltaword shared", SYS_HR).await;
+    let ida = a["id"].as_str().unwrap().to_string();
+    let idb = b["id"].as_str().unwrap().to_string();
+
+    // OR matches either file.
+    let r: Vec<Value> = auth_client().await
+        .get(format!("{}/api/search?q=alphaword%20OR%20deltaword", base()))
+        .send().await.unwrap().json().await.unwrap();
+    let ids: Vec<&str> = r.iter().filter_map(|f| f["id"].as_str()).collect();
+    assert!(ids.contains(&ida.as_str()) && ids.contains(&idb.as_str()), "OR should match both files");
+
+    // AND (space) of two words that never co-occur matches neither.
+    let r2: Vec<Value> = auth_client().await
+        .get(format!("{}/api/search?q=alphaword%20deltaword", base()))
+        .send().await.unwrap().json().await.unwrap();
+    let ids2: Vec<&str> = r2.iter().filter_map(|f| f["id"].as_str()).collect();
+    assert!(!ids2.contains(&ida.as_str()) && !ids2.contains(&idb.as_str()), "AND of non-co-occurring words matches neither");
+
+    let c = auth_client().await;
+    let _ = c.delete(format!("{}/api/files/{ida}", base())).send().await;
+    let _ = c.delete(format!("{}/api/files/{idb}", base())).send().await;
+}
+
+#[tokio::test]
+async fn restore_version_roundtrip() {
+    require_backend().await;
+    let v1 = upload_text("restore-it.txt", "aaa-original", SYS_HR).await;
+    let id = v1["id"].as_str().unwrap().to_string();
+
+    // Upload v2 (new bytes).
+    let part = multipart::Part::text("bbb-updated".to_string()).file_name("restore-it.txt".to_string());
+    let form = multipart::Form::new().part("file", part);
+    let v2: Value = auth_client().await.post(format!("{}/api/files/{id}/versions", base()))
+        .multipart(form).send().await.unwrap().json().await.unwrap();
+    assert_eq!(v2["version"], 2);
+
+    // Restore version 1 → current bytes revert to the original.
+    let restored: Value = auth_client().await
+        .post(format!("{}/api/files/{id}/versions/1/restore", base()))
+        .send().await.unwrap().json().await.unwrap();
+    assert!(restored["version"].as_i64().unwrap() >= 3, "version should bump past current");
+
+    let dl = auth_client().await.get(format!("{}/api/files/{id}/download", base()))
+        .send().await.unwrap().bytes().await.unwrap();
+    assert_eq!(&dl[..], b"aaa-original", "download should return the restored v1 bytes");
+
+    let _ = auth_client().await.delete(format!("{}/api/files/{id}", base())).send().await;
+}
+
 #[tokio::test]
 async fn esign_create_requires_editor() {
     require_backend().await;

@@ -1091,15 +1091,18 @@ pub async fn search_files(
 
     let like_pattern = format!("%{}%", term);
     let mut sql = format!(
+        // websearch_to_tsquery gives Boolean search — AND (space), OR, quoted
+        // \"phrases\", and -negation (TOR Annex A); the ILIKE fallbacks keep
+        // substring / wildcard-style matching working for partial terms.
         "SELECT {FILE_COLS} \
          FROM files \
          WHERE deleted_at IS NULL AND ( \
-            search_tsv @@ plainto_tsquery('simple', $1) \
+            search_tsv @@ websearch_to_tsquery('simple', $1) \
             OR name ILIKE $2 \
             OR tags ILIKE $2 \
             OR coalesce(owner,'') ILIKE $2 \
             OR coalesce(project,'') ILIKE $2 \
-            OR id IN (SELECT file_id FROM file_content WHERE content_tsv @@ plainto_tsquery('simple', $1)) \
+            OR id IN (SELECT file_id FROM file_content WHERE content_tsv @@ websearch_to_tsquery('simple', $1)) \
          )"
     );
     let mut str_binds: Vec<String> = vec![term.to_string(), like_pattern];
@@ -1244,6 +1247,69 @@ pub async fn upload_version(
 
     let updated: File = sqlx::query_as(&format!("SELECT {FILE_COLS} FROM files WHERE id = $1"))
         .bind(file.id).fetch_one(&s.db).await?;
+    Ok(Json(updated))
+}
+
+/// POST /api/files/:id/versions/:v/restore — make an earlier version current
+/// again (TOR Annex A: revert document version). Non-destructive: the current
+/// bytes are first snapshotted as a new version, then the file is pointed at the
+/// chosen version's blob and bumped to a fresh version number.
+pub async fn restore_version(
+    State(s): State<Arc<AppState>>,
+    user: AuthUser,
+    Path((id, v)): Path<(Uuid, i64)>,
+) -> ApiResult<Json<File>> {
+    crate::auth::require_role(&user.0, &["admin", "editor"])?;
+    let file: File = sqlx::query_as(&format!("SELECT {FILE_COLS} FROM files WHERE id = $1 AND deleted_at IS NULL"))
+        .bind(id).fetch_optional(&s.db).await?.ok_or(ApiError::NotFound)?;
+    crate::auth::ensure_system_access(&s.db, &user.0, &file.system_id).await?;
+    if let Some(holder) = crate::checkout::lock_blocks(&s.db, id, &user.0.id).await {
+        return Err(ApiError::Conflict(format!("checked out by {holder} — check in first")));
+    }
+
+    let target: Option<(String, i64, Option<String>)> = sqlx::query_as(
+        "SELECT object_key, size_bytes, etag FROM file_versions WHERE file_id = $1 AND version = $2",
+    )
+    .bind(id).bind(v).fetch_optional(&s.db).await?;
+    let (tobj, tsize, tetag) = target.ok_or(ApiError::NotFound)?;
+
+    // Preserve the current bytes as a version (idempotent on version number).
+    sqlx::query(
+        r#"INSERT INTO file_versions (id, file_id, version, object_key, size_bytes, etag, uploaded_by, note)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (file_id, version) DO NOTHING"#,
+    )
+    .bind(Uuid::now_v7()).bind(id).bind(file.version)
+    .bind(&file.object_key).bind(file.size_bytes).bind(&file.etag)
+    .bind(&user.0.display_name).bind("state before restore")
+    .execute(&s.db).await?;
+
+    let maxv: i64 = sqlx::query_scalar("SELECT coalesce(max(version),0) FROM file_versions WHERE file_id = $1")
+        .bind(id).fetch_one(&s.db).await?;
+    let new_version = maxv + 1;
+    sqlx::query(
+        "UPDATE files SET object_key=$2, size_bytes=$3, etag=$4, version=$5, modified_at=now() WHERE id=$1",
+    )
+    .bind(id).bind(&tobj).bind(tsize).bind(&tetag).bind(new_version)
+    .execute(&s.db).await?;
+
+    // Re-index full-text content from the restored bytes (best-effort).
+    if let Some((bytes, _)) = s.storage.get(&tobj, file.encrypted).await.ok().flatten() {
+        if let Some(text) = crate::p1::extract_text_from(&file.file_type, &bytes) {
+            crate::p1::index_file_content(&s.db, id, &text).await;
+        }
+    }
+
+    let _ = sqlx::query(
+        r#"INSERT INTO activity (id, actor, actor_tone, action, target, target_type, file_id, system_id, org_id, created_at, actor_id)
+           VALUES ($1,$2,'slate',$3,$4,'file',$5,$6,$7,now(),$8)"#,
+    )
+    .bind(Uuid::now_v7()).bind(&user.0.display_name)
+    .bind(format!("restored version {v} of"))
+    .bind(&file.name).bind(id).bind(&file.system_id).bind(&file.org_id).bind(&user.0.id)
+    .execute(&s.db).await;
+
+    let updated: File = sqlx::query_as(&format!("SELECT {FILE_COLS} FROM files WHERE id = $1"))
+        .bind(id).fetch_one(&s.db).await?;
     Ok(Json(updated))
 }
 
