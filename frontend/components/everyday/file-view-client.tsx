@@ -5,6 +5,7 @@ import * as React from "react";
 
 import { FileAiPanel } from "@/app/files/[id]/ai-panel";
 import { FilePreview } from "@/app/files/[id]/preview";
+import { StarButton } from "@/components/everyday/star-button";
 import { Ico } from "@/components/icons";
 import { Av, Ft, Tag } from "@/components/primitives";
 import { useAuth } from "@/lib/auth-context";
@@ -41,6 +42,7 @@ export function FileViewClient({ file, areaName }: { file: FileRow; areaName: st
         <a className="btn primary sm" href={download} download>
           <Ico.download className="icon sm" /> {t("eday.download")}
         </a>
+        <StarButton fileId={file.id} />
         <Link className="btn sm" href="/ask">
           <span style={{ color: "var(--c-violet)", display: "inline-flex" }}><Ico.sparkle className="icon sm" /></span> {t("eday.ask")}
         </Link>

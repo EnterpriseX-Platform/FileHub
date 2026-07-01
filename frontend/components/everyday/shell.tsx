@@ -16,11 +16,13 @@ import { useViewMode } from "@/lib/view-mode";
 /// The Everyday (consumer) app shell — a clean top bar over a centered content
 /// column, deliberately different from the Workspace sidebar so the two
 /// personas feel distinct. Chrome is shared (⌘K palette, notifications, theme).
+// Recent isn't a nav item — it overlaps My files (recency sort) and Home's
+// recent section; it stays reachable at /recent via Home's "View all".
 const NAV = [
-  { href: "/home",   labelKey: "eday.nav.home" },
-  { href: "/my",     labelKey: "eday.nav.myfiles" },
-  { href: "/shared", labelKey: "eday.nav.shared" },
-  { href: "/recent", labelKey: "eday.nav.recent" },
+  { href: "/home",    labelKey: "eday.nav.home" },
+  { href: "/my",      labelKey: "eday.nav.myfiles" },
+  { href: "/shared",  labelKey: "eday.nav.shared" },
+  { href: "/starred", labelKey: "eday.nav.starred" },
 ];
 
 export function EverydayShell({ children }: { children: React.ReactNode }) {
@@ -60,7 +62,7 @@ export function EverydayShell({ children }: { children: React.ReactNode }) {
           <a href="/upload" className="eday-bottom-upload" aria-label="Upload"><Ico.upload /></a>
         )}
         <BottomTab href="/shared" icon={<Ico.share />} label={t("eday.nav.shared")} active={pathname === "/shared"} />
-        <BottomTab href="/recent" icon={<Ico.history />} label={t("eday.nav.recent")} active={pathname === "/recent"} />
+        <BottomTab href="/starred" icon={<Ico.star />} label={t("eday.nav.starred")} active={pathname === "/starred"} />
       </nav>
     </div>
   );

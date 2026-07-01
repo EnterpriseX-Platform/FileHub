@@ -280,6 +280,19 @@ export async function safeFiles(q: Record<string, string> = {}, cookieHeader?: s
   } catch { return []; }
 }
 
+/// The caller's starred files (GET /api/starred). Server-side reads forward the
+/// cookie; client-side hits the same-origin proxy.
+export async function safeStarred(cookieHeader?: string): Promise<FileRow[]> {
+  try {
+    const r = await fetch(`${BASE}/api/starred`, {
+      cache: "no-store",
+      headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+    });
+    if (!r.ok) return [];
+    return (await r.json()) as FileRow[];
+  } catch { return []; }
+}
+
 export async function safeOrgs(system_id?: string, cookieHeader?: string): Promise<Org[]> {
   if (cookieHeader === undefined) {
     try { return await api.orgs(system_id); } catch { return []; }
