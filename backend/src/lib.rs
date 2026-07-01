@@ -10,6 +10,7 @@ pub mod checkout;
 pub mod error;
 pub mod esign;
 pub mod handlers;
+pub mod mailer;
 pub mod models;
 pub mod ocr;
 pub mod p1;
