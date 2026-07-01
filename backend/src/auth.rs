@@ -331,15 +331,23 @@ impl FromRequestParts<Arc<AppState>> for AuthUser {
             .map(|c| c.value().to_string())
             .ok_or(ApiError::Unauthorized)?;
 
-        let row: Option<(String, DateTime<Utc>)> = sqlx::query_as(
-            "SELECT user_id, expires_at FROM sessions WHERE token = $1",
+        let row: Option<(String, DateTime<Utc>, DateTime<Utc>)> = sqlx::query_as(
+            "SELECT user_id, expires_at, last_seen_at FROM sessions WHERE token = $1",
         )
         .bind(&token)
         .fetch_optional(&state.db)
         .await?;
-        let (user_id, expires_at) = row.ok_or(ApiError::Unauthorized)?;
+        let (user_id, expires_at, last_seen_at) = row.ok_or(ApiError::Unauthorized)?;
         if Utc::now() > expires_at {
             return Err(ApiError::Unauthorized);
+        }
+        // Idle timeout (TOR Annex A: Session Time-Out) — expire a session left
+        // idle longer than SESSION_IDLE_MINUTES. Disabled when unset/0.
+        if let Some(mins) = idle_timeout_mins() {
+            if Utc::now() - last_seen_at > Duration::minutes(mins) {
+                let _ = sqlx::query("DELETE FROM sessions WHERE token = $1").bind(&token).execute(&state.db).await;
+                return Err(ApiError::Unauthorized);
+            }
         }
 
         // Touch last_seen_at — fire-and-forget; failures here don't kill the request.
@@ -355,6 +363,15 @@ impl FromRequestParts<Arc<AppState>> for AuthUser {
             .ok_or(ApiError::Unauthorized)?;
         Ok(AuthUser(user))
     }
+}
+
+/// Idle-session timeout in minutes (TOR Session Time-Out). `None` (disabled)
+/// unless SESSION_IDLE_MINUTES is set to a positive value.
+fn idle_timeout_mins() -> Option<i64> {
+    std::env::var("SESSION_IDLE_MINUTES")
+        .ok()
+        .and_then(|v| v.parse::<i64>().ok())
+        .filter(|&m| m > 0)
 }
 
 /// Optional-auth extractor — `None` when the user isn't logged in.  Useful
