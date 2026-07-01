@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import * as React from "react";
 import { createPortal } from "react-dom";
 
@@ -7,12 +8,15 @@ import { Ico } from "@/components/icons";
 import { Av } from "@/components/primitives";
 import { useAuth, type Me } from "@/lib/auth-context";
 import { useTheme } from "@/lib/theme-context";
+import { useViewMode } from "@/lib/view-mode";
 
 /// Sidebar footer — shows the signed-in user or a "Sign in" CTA.  Drops into
 /// the existing sidebar layout in place of the old hardcoded "Anong K." block.
 export function UserMenu() {
   const { user, loading, logout } = useAuth();
   const { dark, toggle: toggleTheme } = useTheme();
+  const { setMode } = useViewMode();
+  const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [pos, setPos] = React.useState<{ top: number; left: number; width: number } | null>(null);
   const btnRef = React.useRef<HTMLButtonElement>(null);
@@ -115,6 +119,14 @@ export function UserMenu() {
           >
             <Ico.moon className="icon sm" /> Dark mode
             <span className="t-xs t-subtle" style={{ marginLeft: "auto" }}>{dark ? "on" : "off"}</span>
+          </button>
+          <button
+            onClick={() => { setOpen(false); setMode("everyday"); router.push("/home"); }}
+            role="menuitem"
+            className="btn xs ghost"
+            style={{ width: "100%", justifyContent: "flex-start", padding: "6px 8px" }}
+          >
+            <Ico.home className="icon sm" /> Switch to simple view
           </button>
           <button
             onClick={() => { setOpen(false); logout(); }}

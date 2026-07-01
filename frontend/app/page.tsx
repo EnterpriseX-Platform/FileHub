@@ -1,3 +1,6 @@
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+
 import { Ico } from "@/components/icons";
 import { Pill, SectionHd } from "@/components/primitives";
 import { Sidebar } from "@/components/sidebar";
@@ -19,6 +22,13 @@ export default async function DashboardPage() {
   // session cookie must be forwarded or the backend 401s and the dashboard
   // renders "Backend offline" with "—" in every stat card.
   const { cookieHeader, role } = await loadServerCtx();
+
+  // `/` is the Workspace (power) home. Everyday-mode users belong in the
+  // simplified app — bounce them to /home. Mode = the fh-view cookie, or a
+  // role default when unset (admins → workspace, everyone else → everyday).
+  const viewCookie = (await cookies()).get("fh-view")?.value;
+  const mode = viewCookie ?? (role === "admin" ? "workspace" : "everyday");
+  if (mode === "everyday") redirect("/home");
   const [stats, activity, systems, reviewFiles, views] = await Promise.all([
     safeStats(cookieHeader),
     safeActivity(8, cookieHeader),
