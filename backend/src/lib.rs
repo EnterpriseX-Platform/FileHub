@@ -8,6 +8,7 @@ pub mod ai_worker;
 pub mod auth;
 pub mod checkout;
 pub mod error;
+pub mod esign;
 pub mod handlers;
 pub mod models;
 pub mod ocr;
@@ -257,6 +258,16 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             get(stars::get_star)
                 .put(stars::add_star)
                 .delete(stars::remove_star))
+        // Electronic signatures (TOR Annex A: ระบบลายมือชื่ออิเล็กทรอนิกส์).
+        .route("/api/signatures",
+            get(esign::list_signatures).post(esign::create_signature))
+        .route("/api/signatures/:id",         axum::routing::delete(esign::delete_signature))
+        .route("/api/files/:id/sign-requests",
+            get(esign::list_file_requests).post(esign::create_request))
+        .route("/api/sign-requests/mine",     get(esign::my_queue))
+        .route("/api/sign-requests/:id/sign", axum::routing::post(esign::sign))
+        .route("/api/sign-requests/:id/decline", axum::routing::post(esign::decline))
+        .route("/api/sign-requests/:id/verify",  get(esign::verify))
         .route("/api/notifications",          get(p1::list_notifications))
         .route("/api/notifications/unread-count", get(p1::unread_count))
         .route("/api/notifications/:id/read", axum::routing::post(p1::mark_notification_read))

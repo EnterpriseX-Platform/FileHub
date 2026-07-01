@@ -65,6 +65,7 @@ tags:
   - name: Reports
   - name: AI
   - name: Checkout
+  - name: Signatures
   - name: Health
 
 security:
@@ -435,6 +436,49 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { description: Caller is neither the holder nor an admin, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  # ─────────────────────────── E-signatures ───────────────────────────
+  /api/signatures:
+    get:  { tags: [Signatures], summary: My signature library, responses: { "200": { description: Signatures } } }
+    post: { tags: [Signatures], summary: Save a signature mark (label/kind/image data-URL), responses: { "200": { description: Created }, "400": { description: image required } } }
+  /api/signatures/{id}:
+    delete: { tags: [Signatures], summary: Delete a signature, responses: { "204": { description: Deleted } } }
+  /api/files/{id}/sign-requests:
+    get:
+      tags: [Signatures]
+      summary: Sign requests on a file
+      parameters: [{ $ref: "#/components/parameters/FileId" }]
+      responses: { "200": { description: Requests + signers }, "404": { $ref: "#/components/responses/NotFound" } }
+    post:
+      tags: [Signatures]
+      summary: Start a signing request (editor+); ordered or parallel multi-signer
+      description: "Body: { order_mode: sequential|parallel, message, expires_at, signers: [{ user_id, seq, page, pos_x, pos_y, width, height }] }. Captures a SHA-256 of the document at creation and notifies the first signer(s)."
+      parameters: [{ $ref: "#/components/parameters/FileId" }]
+      responses:
+        "200": { description: Created request + signers }
+        "400": { description: no signers }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/sign-requests/mine:
+    get: { tags: [Signatures], summary: Documents awaiting my signature (with my_turn), responses: { "200": { description: Queue } } }
+  /api/sign-requests/{id}/sign:
+    post:
+      tags: [Signatures]
+      summary: Sign (assigned signer; your turn if sequential)
+      description: "Body: { signature_id? }. Records a SHA-256 of the document at signing + signer IP; completes the request when all have signed."
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        "200": { description: Updated request + signers }
+        "404": { description: not an assigned signer / unknown request }
+        "409": { description: not your turn / already resolved / expired }
+  /api/sign-requests/{id}/decline:
+    post: { tags: [Signatures], summary: Decline to sign, parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }], responses: { "200": { description: Declined }, "404": { $ref: "#/components/responses/NotFound" } } }
+  /api/sign-requests/{id}/verify:
+    get:
+      tags: [Signatures]
+      summary: Integrity + signer audit (intact = document unchanged since signing)
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { "200": { description: Verify result }, "404": { $ref: "#/components/responses/NotFound" } }
 
   # ─────────────────────────── Starred ───────────────────────────
   /api/starred:
