@@ -17,8 +17,10 @@ import { useViewMode } from "@/lib/view-mode";
 /// column, deliberately different from the Workspace sidebar so the two
 /// personas feel distinct. Chrome is shared (⌘K palette, notifications, theme).
 const NAV = [
-  { href: "/home", labelKey: "eday.nav.home" },
-  { href: "/my",   labelKey: "eday.nav.myfiles" },
+  { href: "/home",   labelKey: "eday.nav.home" },
+  { href: "/my",     labelKey: "eday.nav.myfiles" },
+  { href: "/shared", labelKey: "eday.nav.shared" },
+  { href: "/recent", labelKey: "eday.nav.recent" },
 ];
 
 export function EverydayShell({ children }: { children: React.ReactNode }) {
