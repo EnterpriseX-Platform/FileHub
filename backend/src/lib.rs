@@ -253,6 +253,8 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/files/:id/lock",         get(checkout::get_lock))
         .route("/api/files/:id/checkout",     axum::routing::post(checkout::checkout))
         .route("/api/files/:id/checkin",      axum::routing::post(checkout::checkin))
+        // Restore an earlier file version (TOR Annex A: revert version).
+        .route("/api/files/:id/versions/:v/restore", axum::routing::post(handlers::restore_version))
         // Per-user favorites ("Starred" in the everyday UI).
         .route("/api/starred",                get(stars::list_starred))
         .route("/api/files/:id/star",
