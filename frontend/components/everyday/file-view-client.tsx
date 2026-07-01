@@ -5,6 +5,7 @@ import * as React from "react";
 
 import { FileAiPanel } from "@/app/files/[id]/ai-panel";
 import { FilePreview } from "@/app/files/[id]/preview";
+import { SignPanel } from "@/components/everyday/sign-panel";
 import { StarButton } from "@/components/everyday/star-button";
 import { Ico } from "@/components/icons";
 import { Av, Ft, Tag } from "@/components/primitives";
@@ -54,6 +55,8 @@ export function FileViewClient({ file, areaName }: { file: FileRow; areaName: st
         </div>
         <aside className="eday-fileinfo">
           <FileAiPanel fileId={file.id} />
+          <div className="divider" style={{ margin: "14px 0" }} />
+          <SignPanel fileId={file.id} canRequest={canMutate(user?.role ?? null)} />
           <div className="divider" style={{ margin: "14px 0" }} />
           <Meta label={t("eday.owner")}>
             <Av name={file.owner} tone="slate" /> <span className="t-sm t-trunc">{file.owner}</span>
