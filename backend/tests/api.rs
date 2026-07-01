@@ -970,3 +970,83 @@ async fn star_missing_file_returns_404() {
     let r = auth_client().await.put(format!("{}/api/files/{MISSING_UUID}/star", base())).send().await.unwrap();
     assert_eq!(r.status(), StatusCode::NOT_FOUND);
 }
+
+// ---- 22. Electronic signatures ---------------------------------------------
+
+#[tokio::test]
+async fn esign_signature_library_crud() {
+    require_backend().await;
+    let c = auth_client().await;
+    let created: Value = c.post(format!("{}/api/signatures", base()))
+        .json(&serde_json::json!({"label":"My sig","kind":"typed","image":"data:image/png;base64,AAAA"}))
+        .send().await.unwrap().json().await.unwrap();
+    let sid = created["id"].as_str().unwrap().to_string();
+    let list: Vec<Value> = c.get(format!("{}/api/signatures", base())).send().await.unwrap().json().await.unwrap();
+    assert!(list.iter().any(|s| s["id"] == sid));
+    let del = c.delete(format!("{}/api/signatures/{sid}", base())).send().await.unwrap();
+    assert_eq!(del.status(), StatusCode::NO_CONTENT);
+}
+
+#[tokio::test]
+async fn esign_single_signer_flow() {
+    require_backend().await;
+    let row = upload_text("sign-me.txt", "please sign", SYS_HR).await;
+    let id = row["id"].as_str().unwrap().to_string();
+    let c = auth_client().await; // anong = usr_anong
+
+    let req: Value = c.post(format!("{}/api/files/{id}/sign-requests", base()))
+        .json(&serde_json::json!({"signers":[{"user_id":"usr_anong"}]}))
+        .send().await.unwrap().json().await.unwrap();
+    let req_id = req["id"].as_str().unwrap().to_string();
+    assert_eq!(req["status"], "pending");
+
+    // Appears in my queue as my turn.
+    let q: Vec<Value> = c.get(format!("{}/api/sign-requests/mine", base())).send().await.unwrap().json().await.unwrap();
+    assert!(q.iter().any(|x| x["request_id"] == req_id && x["my_turn"] == true));
+
+    // Sign → request completes.
+    let signed: Value = c.post(format!("{}/api/sign-requests/{req_id}/sign", base()))
+        .json(&serde_json::json!({})).send().await.unwrap().json().await.unwrap();
+    assert_eq!(signed["status"], "completed");
+
+    // Verify → intact (document unchanged since signing).
+    let v: Value = c.get(format!("{}/api/sign-requests/{req_id}/verify", base())).send().await.unwrap().json().await.unwrap();
+    assert_eq!(v["intact"], true);
+    assert_eq!(v["status"], "completed");
+
+    let _ = c.delete(format!("{}/api/files/{id}", base())).send().await;
+}
+
+#[tokio::test]
+async fn esign_sequential_turn_guard() {
+    require_backend().await;
+    let row = upload_text("sign-seq.txt", "x", SYS_HR).await;
+    let id = row["id"].as_str().unwrap().to_string();
+    let anong = auth_client().await;
+
+    // admin signs first (seq 0), anong second (seq 1).
+    let req: Value = anong.post(format!("{}/api/files/{id}/sign-requests", base()))
+        .json(&serde_json::json!({
+            "order_mode":"sequential",
+            "signers":[{"user_id":"usr_admin","seq":0},{"user_id":"usr_anong","seq":1}]
+        }))
+        .send().await.unwrap().json().await.unwrap();
+    let req_id = req["id"].as_str().unwrap().to_string();
+
+    // anong (seq 1) can't sign before admin (seq 0) → 409.
+    let early = anong.post(format!("{}/api/sign-requests/{req_id}/sign", base()))
+        .json(&serde_json::json!({})).send().await.unwrap();
+    assert_eq!(early.status(), StatusCode::CONFLICT);
+
+    let _ = anong.delete(format!("{}/api/files/{id}", base())).send().await;
+}
+
+#[tokio::test]
+async fn esign_create_requires_editor() {
+    require_backend().await;
+    let viewer = auth_client_as("viewer@acme.go.th", "viewer123").await;
+    let r = viewer.post(format!("{}/api/files/{FILE_001}/sign-requests", base()))
+        .json(&serde_json::json!({"signers":[{"user_id":"usr_viewer"}]}))
+        .send().await.unwrap();
+    assert_eq!(r.status(), StatusCode::FORBIDDEN);
+}
