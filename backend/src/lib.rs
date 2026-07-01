@@ -19,6 +19,7 @@ pub mod rotation;
 pub mod seed_demo;
 pub mod stars;
 pub mod state;
+pub mod workflow;
 pub mod storage;
 pub mod store;
 pub mod tus;
@@ -242,6 +243,13 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             get(p1::list_workflow).post(p1::start_workflow))
         .route("/api/workflow-steps/:id/decision",
             axum::routing::post(p1::decide_step))
+        // Workflow engine: reusable templates + send-back (TOR Annex A).
+        .route("/api/workflow-templates",
+            get(workflow::list_templates).post(workflow::create_template))
+        .route("/api/workflow-templates/:id",
+            axum::routing::delete(workflow::delete_template))
+        .route("/api/workflow-steps/:id/send-back",
+            axum::routing::post(workflow::send_back))
         .route("/api/files/:id/comments",
             get(p1::list_comments).post(p1::create_comment))
         .route("/api/files/:id/comments/:comment_id",

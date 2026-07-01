@@ -268,6 +268,10 @@ pub struct Workflow {
     pub note:       Option<String>,
     pub created_by: Option<String>,
     pub created_at: DateTime<Utc>,
+    #[sqlx(default)]
+    pub order_mode: String,
+    #[sqlx(default)]
+    pub template_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -290,14 +294,45 @@ pub struct WorkflowStep {
 
 #[derive(Debug, Deserialize)]
 pub struct StartWorkflow {
+    /// Reviewer user ids in order. Ignored when `template_id` is given.
+    #[serde(default)]
     pub reviewer_ids: Vec<String>,
     pub note:         Option<String>,
+    /// "sequential" | "parallel" (default parallel, matching prior behaviour).
+    pub order_mode:   Option<String>,
+    /// Start from a reusable template instead of `reviewer_ids`.
+    pub template_id:  Option<String>,
 }
+
+/// One resolved step to create: (reviewer_id, step name).
+type ResolvedStep = (String, Option<String>);
 
 #[derive(Debug, Deserialize)]
 pub struct DecideStep {
     pub decision: String,            // approved | rejected
     pub note:     Option<String>,
+}
+
+/// Notify a reviewer that a document awaits their review (in-app + email).
+pub(crate) async fn notify_reviewer(db: &sqlx::PgPool, reviewer_id: &str, note: &Option<String>, file_id: Uuid) {
+    let _ = sqlx::query(
+        r#"INSERT INTO notifications (id, user_id, kind, title, body, link)
+           VALUES ($1, $2, 'review_requested', $3, $4, $5)"#,
+    )
+    .bind(Uuid::now_v7()).bind(reviewer_id)
+    .bind("Review requested")
+    .bind(note.clone().unwrap_or_default())
+    .bind(format!("/f/{file_id}"))
+    .execute(db).await;
+
+    if crate::mailer::enabled() {
+        if let Ok(Some((email,))) = sqlx::query_as::<_, (String,)>("SELECT email FROM users WHERE id = $1")
+            .bind(reviewer_id).fetch_optional(db).await
+        {
+            let body = format!("A document needs your review.\n\nOpen: {}/f/{file_id}", crate::mailer::base_url());
+            tokio::spawn(async move { let _ = crate::mailer::send(&email, "Review requested", &body).await; });
+        }
+    }
 }
 
 pub async fn start_workflow(
@@ -307,40 +342,58 @@ pub async fn start_workflow(
     Json(c): Json<StartWorkflow>,
 ) -> ApiResult<Json<Workflow>> {
     crate::auth::require_role(&user.0, &["admin", "editor"])?;
-    if c.reviewer_ids.is_empty() {
-        return Err(ApiError::BadRequest("at least one reviewer is required".into()));
-    }
     // Ensure the file exists & isn't trashed.
     let exists: Option<(String,)> = sqlx::query_as("SELECT system_id FROM files WHERE id = $1 AND deleted_at IS NULL")
         .bind(file_id).fetch_optional(&s.db).await?;
     let (system_id,) = exists.ok_or(ApiError::NotFound)?;
     crate::auth::ensure_system_access(&s.db, &user.0, &system_id).await?;
 
+    // Resolve the steps + routing mode, either from a template or the request.
+    let (order_mode, steps): (String, Vec<ResolvedStep>) = if let Some(ref tid) = c.template_id {
+        let tpl: Option<(String, serde_json::Value)> =
+            sqlx::query_as("SELECT order_mode, steps FROM workflow_templates WHERE id = $1")
+                .bind(tid).fetch_optional(&s.db).await?;
+        let (mode, steps_json) = tpl.ok_or_else(|| ApiError::BadRequest("unknown template".into()))?;
+        let steps: Vec<ResolvedStep> = steps_json.as_array().map(|arr| {
+            arr.iter().filter_map(|st| {
+                let rid = st.get("reviewer_id").and_then(|v| v.as_str())?.to_string();
+                let name = st.get("name").and_then(|v| v.as_str()).map(|s| s.to_string());
+                Some((rid, name))
+            }).collect()
+        }).unwrap_or_default();
+        (mode, steps)
+    } else {
+        let mode = match c.order_mode.as_deref() {
+            Some("sequential") => "sequential".to_string(),
+            _ => "parallel".to_string(),
+        };
+        (mode, c.reviewer_ids.iter().cloned().map(|r| (r, None)).collect())
+    };
+    if steps.is_empty() {
+        return Err(ApiError::BadRequest("at least one reviewer is required".into()));
+    }
+
     let wf_id = Uuid::now_v7();
     sqlx::query(
-        r#"INSERT INTO file_workflows (id, file_id, state, note, created_by)
-           VALUES ($1, $2, 'Review', $3, $4)"#,
+        r#"INSERT INTO file_workflows (id, file_id, state, note, created_by, order_mode, template_id)
+           VALUES ($1, $2, 'Review', $3, $4, $5, $6)"#,
     )
-    .bind(wf_id).bind(file_id).bind(&c.note).bind(user.0.id)
+    .bind(wf_id).bind(file_id).bind(&c.note).bind(&user.0.id).bind(&order_mode).bind(&c.template_id)
     .execute(&s.db).await?;
 
-    for (i, rid) in c.reviewer_ids.iter().enumerate() {
+    for (i, (rid, name)) in steps.iter().enumerate() {
         sqlx::query(
-            r#"INSERT INTO workflow_steps (id, workflow_id, reviewer_id, decision, sequence)
-               VALUES ($1, $2, $3, 'pending', $4)"#,
+            r#"INSERT INTO workflow_steps (id, workflow_id, reviewer_id, decision, sequence, name)
+               VALUES ($1, $2, $3, 'pending', $4, $5)"#,
         )
-        .bind(Uuid::now_v7()).bind(wf_id).bind(rid).bind((i + 1) as i32)
+        .bind(Uuid::now_v7()).bind(wf_id).bind(rid).bind((i + 1) as i32).bind(name)
         .execute(&s.db).await?;
 
-        let _ = sqlx::query(
-            r#"INSERT INTO notifications (id, user_id, kind, title, body, link)
-               VALUES ($1, $2, 'review_requested', $3, $4, $5)"#,
-        )
-        .bind(Uuid::now_v7()).bind(rid)
-        .bind("Review requested")
-        .bind(c.note.clone().unwrap_or_default())
-        .bind(format!("/files/{file_id}"))
-        .execute(&s.db).await;
+        // Sequential: only the first step is notified now; the next is pinged as
+        // each step is approved. Parallel: everyone is notified up front.
+        if order_mode == "parallel" || i == 0 {
+            notify_reviewer(&s.db, rid, &c.note, file_id).await;
+        }
     }
 
     // File status follows the workflow state.
@@ -404,8 +457,35 @@ pub async fn decide_step(
     if step.reviewer_id.as_ref() != Some(&user.0.id) {
         return Err(ApiError::Forbidden);
     }
+
+    // Sequential turn-guard: can't decide while an earlier step is still pending.
+    let (order_mode, wf_file_id): (String, Uuid) = sqlx::query_as(
+        "SELECT order_mode, file_id FROM file_workflows WHERE id = $1",
+    )
+    .bind(step.workflow_id).fetch_one(&s.db).await?;
+    if order_mode == "sequential" {
+        let earlier_pending: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM workflow_steps WHERE workflow_id = $1 AND decision = 'pending' AND sequence < $2)",
+        )
+        .bind(step.workflow_id).bind(step.sequence).fetch_one(&s.db).await?;
+        if earlier_pending {
+            return Err(ApiError::Conflict("an earlier reviewer hasn't decided yet".into()));
+        }
+    }
+
     sqlx::query("UPDATE workflow_steps SET decision = $1, note = $2, decided_at = now() WHERE id = $3")
         .bind(&d.decision).bind(&d.note).bind(step_id).execute(&s.db).await?;
+
+    // Sequential + approved + more to go → ping the next pending reviewer.
+    if order_mode == "sequential" && d.decision == "approved" {
+        let next: Option<(Option<String>,)> = sqlx::query_as(
+            "SELECT reviewer_id FROM workflow_steps WHERE workflow_id = $1 AND decision = 'pending' ORDER BY sequence LIMIT 1",
+        )
+        .bind(step.workflow_id).fetch_optional(&s.db).await?;
+        if let Some((Some(next_id),)) = next {
+            notify_reviewer(&s.db, &next_id, &d.note, wf_file_id).await;
+        }
+    }
 
     // Roll-up: any reject → Rejected; all approved → Approved.
     let wf_id = step.workflow_id;
@@ -430,8 +510,9 @@ pub async fn decide_step(
              WHERE files.id = file_workflows.file_id AND file_workflows.id = $2"
         ).bind(state).bind(wf_id).execute(&s.db).await?;
 
-        // Notify the workflow creator of the outcome.
-        let creator: Option<(Option<Uuid>, Uuid)> = sqlx::query_as(
+        // Notify the workflow creator of the outcome. created_by is TEXT
+        // (users.id), not a UUID.
+        let creator: Option<(Option<String>, Uuid)> = sqlx::query_as(
             "SELECT created_by, file_id FROM file_workflows WHERE id = $1"
         ).bind(wf_id).fetch_optional(&s.db).await?;
         if let Some((Some(uid), file_id)) = creator {

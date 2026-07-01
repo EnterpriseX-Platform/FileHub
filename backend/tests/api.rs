@@ -1097,6 +1097,100 @@ async fn restore_version_roundtrip() {
     let _ = auth_client().await.delete(format!("{}/api/files/{id}", base())).send().await;
 }
 
+// ---- 24. Workflow engine (templates / sequential / send-back) --------------
+
+fn wf_steps(list: &[Value]) -> Vec<Value> {
+    list.first().and_then(|w| w.get(1)).and_then(|s| s.as_array()).cloned().unwrap_or_default()
+}
+
+#[tokio::test]
+async fn workflow_sequential_turn_guard() {
+    require_backend().await;
+    let row = upload_text("wf-seq.txt", "x", SYS_HR).await;
+    let id = row["id"].as_str().unwrap().to_string();
+    let anong = auth_client().await;
+
+    let wf: Value = anong.post(format!("{}/api/files/{id}/workflow", base()))
+        .json(&serde_json::json!({"order_mode":"sequential","reviewer_ids":["usr_admin","usr_anong"]}))
+        .send().await.unwrap().json().await.unwrap();
+    assert_eq!(wf["order_mode"], "sequential");
+
+    let list: Vec<Value> = anong.get(format!("{}/api/files/{id}/workflow", base())).send().await.unwrap().json().await.unwrap();
+    let steps = wf_steps(&list);
+    let admin_step = steps.iter().find(|s| s["reviewer_id"] == "usr_admin").unwrap()["id"].as_str().unwrap().to_string();
+    let anong_step = steps.iter().find(|s| s["reviewer_id"] == "usr_anong").unwrap()["id"].as_str().unwrap().to_string();
+
+    // anong (seq 2) can't decide before admin (seq 1) → 409.
+    let early = anong.post(format!("{}/api/workflow-steps/{anong_step}/decision", base()))
+        .json(&serde_json::json!({"decision":"approved"})).send().await.unwrap();
+    assert_eq!(early.status(), StatusCode::CONFLICT);
+
+    // admin approves first, then anong → workflow completes.
+    let admin = auth_client_as("admin@acme.go.th", "admin123").await;
+    assert_eq!(admin.post(format!("{}/api/workflow-steps/{admin_step}/decision", base()))
+        .json(&serde_json::json!({"decision":"approved"})).send().await.unwrap().status(), StatusCode::OK);
+    assert_eq!(anong.post(format!("{}/api/workflow-steps/{anong_step}/decision", base()))
+        .json(&serde_json::json!({"decision":"approved"})).send().await.unwrap().status(), StatusCode::OK);
+
+    let _ = anong.delete(format!("{}/api/files/{id}", base())).send().await;
+}
+
+#[tokio::test]
+async fn workflow_template_crud_and_start() {
+    require_backend().await;
+    let c = auth_client().await;
+    let tpl: Value = c.post(format!("{}/api/workflow-templates", base()))
+        .json(&serde_json::json!({"name":"Approval flow","order_mode":"sequential",
+            "steps":[{"name":"Manager","reviewer_id":"usr_admin"},{"name":"Owner","reviewer_id":"usr_anong"}]}))
+        .send().await.unwrap().json().await.unwrap();
+    let tid = tpl["id"].as_str().unwrap().to_string();
+
+    let list: Vec<Value> = c.get(format!("{}/api/workflow-templates", base())).send().await.unwrap().json().await.unwrap();
+    assert!(list.iter().any(|t| t["id"] == tid));
+
+    // Start a workflow from the template → two steps expanded.
+    let row = upload_text("wf-tpl.txt", "x", SYS_HR).await;
+    let fid = row["id"].as_str().unwrap().to_string();
+    let wf: Value = c.post(format!("{}/api/files/{fid}/workflow", base()))
+        .json(&serde_json::json!({"template_id": tid})).send().await.unwrap().json().await.unwrap();
+    assert_eq!(wf["order_mode"], "sequential");
+    let wl: Vec<Value> = c.get(format!("{}/api/files/{fid}/workflow", base())).send().await.unwrap().json().await.unwrap();
+    let steps = wf_steps(&wl);
+    assert_eq!(steps.len(), 2);
+
+    assert_eq!(c.delete(format!("{}/api/workflow-templates/{tid}", base())).send().await.unwrap().status(), StatusCode::NO_CONTENT);
+    let _ = c.delete(format!("{}/api/files/{fid}", base())).send().await;
+}
+
+#[tokio::test]
+async fn workflow_send_back_reopens() {
+    require_backend().await;
+    let row = upload_text("wf-sb.txt", "x", SYS_HR).await;
+    let id = row["id"].as_str().unwrap().to_string();
+    let anong = auth_client().await;
+
+    anong.post(format!("{}/api/files/{id}/workflow", base()))
+        .json(&serde_json::json!({"order_mode":"sequential","reviewer_ids":["usr_anong","usr_admin"]}))
+        .send().await.unwrap();
+    let wl: Vec<Value> = anong.get(format!("{}/api/files/{id}/workflow", base())).send().await.unwrap().json().await.unwrap();
+    let steps = wf_steps(&wl);
+    let first = steps.iter().find(|s| s["sequence"] == 1).unwrap()["id"].as_str().unwrap().to_string();
+
+    // anong (seq 1) approves, then sends the workflow back to step 1.
+    anong.post(format!("{}/api/workflow-steps/{first}/decision", base()))
+        .json(&serde_json::json!({"decision":"approved"})).send().await.unwrap();
+    let sb: Value = anong.post(format!("{}/api/workflow-steps/{first}/send-back", base()))
+        .send().await.unwrap().json().await.unwrap();
+    assert_eq!(sb["state"], "Review");
+
+    let wl2: Vec<Value> = anong.get(format!("{}/api/files/{id}/workflow", base())).send().await.unwrap().json().await.unwrap();
+    let steps2 = wf_steps(&wl2);
+    let s1 = steps2.iter().find(|s| s["sequence"] == 1).unwrap();
+    assert_eq!(s1["decision"], "pending", "step 1 should be reopened");
+
+    let _ = anong.delete(format!("{}/api/files/{id}", base())).send().await;
+}
+
 #[tokio::test]
 async fn esign_create_requires_editor() {
     require_backend().await;

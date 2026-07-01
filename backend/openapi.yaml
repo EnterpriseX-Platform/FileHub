@@ -629,7 +629,23 @@ paths:
   /api/files/{id}/workflow:
     parameters: [{ $ref: "#/components/parameters/FileId" }]
     get: { tags: [Workflow], summary: List review workflows + steps, responses: { "200": { description: Workflows } } }
-    post: { tags: [Workflow], summary: Start a review workflow (editor+), responses: { "200": { description: Started }, "403": { $ref: "#/components/responses/Forbidden" } } }
+    post:
+      tags: [Workflow]
+      summary: Start a review workflow (editor+) — sequential or parallel, or from a template
+      description: "Body: { reviewer_ids?: [uid], order_mode?: sequential|parallel, template_id?, note? }. With template_id the steps come from the template; sequential notifies one reviewer at a time (with a turn-guard), parallel notifies all."
+      responses: { "200": { description: Started }, "400": { description: no reviewers/unknown template }, "403": { $ref: "#/components/responses/Forbidden" } }
+  /api/workflow-templates:
+    get:  { tags: [Workflow], summary: Reusable no-code flow templates, responses: { "200": { description: Templates } } }
+    post: { tags: [Workflow], summary: "Create a template (editor+): { name, order_mode, steps:[{name?,reviewer_id}] }", responses: { "200": { description: Created }, "403": { $ref: "#/components/responses/Forbidden" } } }
+  /api/workflow-templates/{id}:
+    delete: { tags: [Workflow], summary: Delete a template (editor+), parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "204": { description: Deleted } } }
+  /api/workflow-steps/{id}/send-back:
+    post:
+      tags: [Workflow]
+      summary: Send the workflow back to this step for rework (editor+)
+      description: Reopens this step and every step after it (→ pending), returns the workflow + file to Review, and re-notifies the step's reviewer.
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: Reopened }, "403": { $ref: "#/components/responses/Forbidden" }, "404": { $ref: "#/components/responses/NotFound" } }
   /api/workflow-steps/{id}/decision:
     parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
     post:
