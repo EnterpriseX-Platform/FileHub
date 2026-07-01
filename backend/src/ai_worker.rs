@@ -112,6 +112,16 @@ async fn process_next(state: &AppState) -> anyhow::Result<bool> {
     Ok(true)
 }
 
+/// Text already indexed for this file (e.g. OCR output written to file_content).
+async fn load_indexed_content(state: &AppState, file_id: Uuid) -> Option<String> {
+    sqlx::query_scalar::<_, String>("SELECT content FROM file_content WHERE file_id = $1")
+        .bind(file_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+}
+
 /// The enrichment pipeline for one file: load → extract → chunk → embed →
 /// summarise. Each step is guarded so a partial failure leaves a coherent state.
 async fn enrich_file(state: &AppState, file_id: Uuid) -> anyhow::Result<()> {
@@ -135,11 +145,17 @@ async fn enrich_file(state: &AppState, file_id: Uuid) -> anyhow::Result<()> {
     let text = match crate::p1::extract_text_from(&file_type, &bytes) {
         Some(t) if !t.trim().is_empty() => t,
         _ => {
-            // No extractable text (image/binary without OCR yet). Still record a
-            // minimal file_ai row so the UI shows "analyzed, no text" rather than
-            // a perpetual spinner. OCR for images/scans is spec §8 D-OCR (P3).
-            upsert_file_ai(state, file_id, None, &[], None, "none").await?;
-            return Ok(());
+            // No directly-extractable text (scanned image / image-only PDF).
+            // Fall back to any OCR'd text already indexed for this file
+            // (ocr.rs writes it to file_content). Only if that's empty too do we
+            // record a minimal "analyzed, no text" row.
+            match load_indexed_content(state, file_id).await {
+                Some(t) if !t.trim().is_empty() => t,
+                _ => {
+                    upsert_file_ai(state, file_id, None, &[], None, "none").await?;
+                    return Ok(());
+                }
+            }
         }
     };
 

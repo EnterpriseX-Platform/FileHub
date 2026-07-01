@@ -10,6 +10,7 @@ pub mod checkout;
 pub mod error;
 pub mod handlers;
 pub mod models;
+pub mod ocr;
 pub mod p1;
 pub mod reports;
 pub mod rotation;

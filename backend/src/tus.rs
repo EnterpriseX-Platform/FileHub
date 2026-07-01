@@ -318,14 +318,33 @@ async fn finalise(s: &AppState, tus_id: Uuid, temp_key: &str, user_id: &str) -> 
         .execute(&s.db).await?;
 
     // Downstream P1 pipelines.
-    if let Some(text) = crate::p1::extract_text_from(&file_type, &body_bytes) {
-        crate::p1::index_file_content(&s.db, new_file_id, &text).await;
+    let extracted = crate::p1::extract_text_from(&file_type, &body_bytes);
+    if let Some(text) = &extracted {
+        crate::p1::index_file_content(&s.db, new_file_id, text).await;
     }
     crate::p1::index_thumbnail(&s.db, new_file_id, &file_type, &body_bytes).await;
     crate::p1::index_office_preview(&s.db, new_file_id, &file_type, &name, &body_bytes).await;
 
+    // OCR fallback for scanned uploads (background — keeps finalise fast).
+    let mut ocr_scheduled = false;
+    if extracted.is_none() && crate::ocr::enabled() && crate::ocr::is_ocrable(&file_type) {
+        ocr_scheduled = true;
+        let db = s.db.clone();
+        let ft = file_type.clone();
+        let ai_on = s.ai.enabled();
+        let bytes = body_bytes.clone();
+        tokio::spawn(async move {
+            if let Some(text) = crate::ocr::ocr_extract(&ft, &bytes).await {
+                crate::p1::index_file_content(&db, new_file_id, &text).await;
+                if ai_on {
+                    crate::ai_worker::enqueue(&db, new_file_id).await;
+                }
+            }
+        });
+    }
+
     // AI-native: enqueue understanding for the resumable-upload path too.
-    if s.ai.enabled() {
+    if s.ai.enabled() && !ocr_scheduled {
         crate::ai_worker::enqueue(&s.db, new_file_id).await;
     }
 
