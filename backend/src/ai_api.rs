@@ -225,7 +225,11 @@ pub struct AskResponse {
     pub citations: Vec<Citation>,
 }
 
-const ASK_CHUNK_CHARS: usize = 700;
+// Per-chunk cap on context handed to the model. Must comfortably exceed the
+// chunker's typical chunk size (~1.2–2k chars) or answers living in the back
+// half of a chunk are silently truncated away; 700 did exactly that.
+// Worst case context: k(≤10) files × MAX_CHUNKS_PER_FILE(2) × 1600 chars.
+const ASK_CHUNK_CHARS: usize = 1600;
 
 /// POST /fh/api/ask — retrieve permission-scoped chunks, ground the model on
 /// them, return a cited answer. The security invariant: retrieval is filtered
@@ -296,12 +300,21 @@ pub async fn ask(
     query = query.bind(overfetch);
     let rows = query.fetch_all(&s.db).await?;
 
-    // Best chunk per file, score-ordered (rows arrive sorted by distance asc).
-    let mut seen = std::collections::HashSet::new();
-    let mut cand: Vec<(Uuid, String, String, String, f64)> = Vec::new();
+    // Group chunks per file (up to MAX_CHUNKS_PER_FILE each), file order by
+    // best-chunk distance (rows arrive sorted by distance asc). One numbered
+    // source per FILE — a doc's additional relevant chunks are concatenated
+    // into the same source instead of being discarded, so an answer living in
+    // a later section isn't lost to the doc's own header chunk.
+    const MAX_CHUNKS_PER_FILE: usize = 2;
+    let mut cand: Vec<(Uuid, String, String, Vec<String>, f64)> = Vec::new();
     for (file_id, name, system_id, content, dist) in rows {
-        if seen.insert(file_id) {
-            cand.push((file_id, name, system_id, content, 1.0 - dist));
+        match cand.iter_mut().find(|c| c.0 == file_id) {
+            Some(c) => {
+                if c.3.len() < MAX_CHUNKS_PER_FILE {
+                    c.3.push(content);
+                }
+            }
+            None => cand.push((file_id, name, system_id, vec![content], 1.0 - dist)),
         }
     }
     // Relevance gate — drop weak matches that would only mislead the model
@@ -324,11 +337,15 @@ pub async fn ask(
 
     let mut citations: Vec<Citation> = Vec::new();
     let mut contexts: Vec<String> = Vec::new();
-    for (file_id, name, system_id, content, score) in kept {
+    for (file_id, name, system_id, chunks, score) in kept {
         let num = citations.len() + 1;
-        let trimmed: String = content.trim().chars().take(ASK_CHUNK_CHARS).collect();
-        contexts.push(format!("[{num}] {name}\n{trimmed}"));
-        citations.push(Citation { n: num, file_id, name, system_id, snippet: snippet(&content), score });
+        let body: String = chunks
+            .iter()
+            .map(|c| c.trim().chars().take(ASK_CHUNK_CHARS).collect::<String>())
+            .collect::<Vec<_>>()
+            .join("\n…\n");
+        contexts.push(format!("[{num}] {name}\n{body}"));
+        citations.push(Citation { n: num, file_id, name, system_id, snippet: snippet(&chunks[0]), score });
     }
 
     // 3) ground the model on the numbered sources.
