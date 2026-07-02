@@ -37,15 +37,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        {/* IBM Plex Sans Thai is the official Thai companion family — Latin
-            resolves from Plex Sans first, Thai glyphs fall through to it
-            (system fallback would mismatch baseline/weight). */}
+        {/* Inter carries Latin; IBM Plex Sans Thai carries Thai glyphs (Inter
+            has no Thai) — Plex Thai's weight/baseline pair well with Inter. */}
         {/* eslint-disable-next-line @next/next/no-page-custom-font -- the rule
             targets Pages Router _document.js; this App Router root layout IS
             the app-wide document, so the font loads on every page. */}
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
         />
       </head>
       <body>

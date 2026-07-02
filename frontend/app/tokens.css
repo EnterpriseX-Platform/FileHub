@@ -1,28 +1,33 @@
-/* File Hub design tokens — Linear/Notion-inspired */
+/* File Hub design tokens — modern product-grade language (Inter, cool zinc
+   neutrals, electric iris accent, layered depth, glass surfaces). */
 :root {
   --bg: #ffffff;
-  --bg-subtle: #fafaf9;
-  --bg-muted: #f5f5f4;
-  --bg-strong: #e7e5e4;
-  --border: #e7e5e4;
-  --border-strong: #d6d3d1;
-  --border-subtle: #f0eeed;
+  --bg-subtle: #fafafa;
+  --bg-muted: #f4f4f5;
+  --bg-strong: #e4e4e7;
+  --border: #e7e7ea;
+  --border-strong: #d6d6db;
+  --border-subtle: #f1f1f3;
   /* Drawer/modal backdrop scrim — dark wash over light content. */
-  --scrim: rgba(12, 10, 9, 0.4);
+  --scrim: rgba(9, 9, 11, 0.45);
+  /* Translucent surface for glass (sticky bars, command palette). */
+  --glass: rgba(255, 255, 255, 0.78);
 
-  --text: #1c1917;
-  --text-muted: #57534e;
-  --text-subtle: #a8a29e;
-  --text-faint: #d6d3d1;
+  --text: #09090b;
+  --text-muted: #52525b;
+  --text-subtle: #9d9da8;
+  --text-faint: #d4d4d8;
 
-  --accent: #6d5cf6;
-  --accent-hover: #5a47f0;
-  --accent-soft: #f0edff;
-  --accent-border: #d6cffb;
-  --accent-text: #4b3fcf;
+  --accent: #6455f7;
+  --accent-hover: #5140ee;
+  --accent-soft: #efedff;
+  --accent-border: #d5cffc;
+  --accent-text: #4b3ce0;
   --on-accent: #ffffff;
   /* Signature AI gradient — used on primary actions, active nav, the logo. */
-  --grad: linear-gradient(135deg, #7d6dff 0%, #5a47f0 100%);
+  --grad: linear-gradient(135deg, #8a7bff 0%, #6455f7 55%, #5340ef 100%);
+  /* Unified focus/active ring (inputs, keyboard focus). */
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
 
   --success: #16a34a;
   --success-soft: #f0fdf4;
@@ -46,55 +51,62 @@
   --c-fuchsia: #c026d3;
   --c-slate: #475569;
 
-  --font-sans: 'IBM Plex Sans', 'IBM Plex Sans Thai', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: 'Inter', 'IBM Plex Sans Thai', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  --r-1: 4px;
-  --r-2: 6px;
-  --r-3: 8px;
-  --r-4: 10px;
-  --r-5: 12px;
+  --r-1: 6px;
+  --r-2: 8px;
+  --r-3: 10px;
+  --r-4: 12px;
+  --r-5: 16px;
   --r-pill: 999px;
 
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
   --sp-5: 20px; --sp-6: 24px; --sp-8: 32px;
 
-  --sh-1: 0 1px 2px rgba(28, 25, 23, 0.04);
-  --sh-2: 0 2px 6px rgba(28, 25, 23, 0.06), 0 1px 2px rgba(28, 25, 23, 0.04);
-  --sh-3: 0 8px 24px rgba(28, 25, 23, 0.08), 0 2px 6px rgba(28, 25, 23, 0.04);
-  --sh-popover: 0 16px 40px rgba(28, 25, 23, 0.12), 0 4px 12px rgba(28, 25, 23, 0.06), 0 0 0 1px rgba(28, 25, 23, 0.06);
+  --sh-1: 0 1px 2px rgba(9, 9, 11, 0.04), 0 0 0 1px rgba(9, 9, 11, 0.015);
+  --sh-2: 0 2px 8px rgba(9, 9, 11, 0.06), 0 1px 2px rgba(9, 9, 11, 0.04);
+  --sh-3: 0 12px 32px rgba(9, 9, 11, 0.10), 0 2px 8px rgba(9, 9, 11, 0.05);
+  --sh-popover: 0 24px 56px rgba(9, 9, 11, 0.14), 0 6px 16px rgba(9, 9, 11, 0.07), 0 0 0 1px rgba(9, 9, 11, 0.05);
+  /* Accent-tinted glow for primary actions. */
+  --sh-accent: 0 4px 14px color-mix(in srgb, var(--accent) 36%, transparent), 0 1px 3px color-mix(in srgb, var(--accent) 26%, transparent);
 
   --t-xs: 12px; --t-sm: 13px; --t-base: 14px; --t-md: 15px;
-  --t-lg: 16px; --t-xl: 18px; --t-2xl: 22px; --t-3xl: 28px; --t-4xl: 34px;
+  --t-lg: 16px; --t-xl: 18px; --t-2xl: 22px; --t-3xl: 29px; --t-4xl: 36px;
+
+  /* Motion */
+  --ease: cubic-bezier(0.25, 0.8, 0.35, 1);
 }
 
 .dark {
   /* Native form controls (selects, scrollbars) follow suit. */
   color-scheme: dark;
 
-  --bg: #0c0a09;
-  --bg-subtle: #1c1917;
-  --bg-muted: #262320;
-  --bg-strong: #2e2a26;
-  --border: #2e2a26;
-  --border-strong: #3a3530;
-  --border-subtle: #242120;
+  --bg: #0a0a0b;
+  --bg-subtle: #131316;
+  --bg-muted: #1b1b1f;
+  --bg-strong: #26262c;
+  --border: #232329;
+  --border-strong: #303039;
+  --border-subtle: #1b1b20;
   /* A near-black wash on a near-black page is invisible — go darker + stronger
      so the lighter drawer panel reads as lifted above the dimmed content. */
-  --scrim: rgba(0, 0, 0, 0.65);
+  --scrim: rgba(0, 0, 0, 0.68);
+  --glass: rgba(10, 10, 11, 0.72);
 
-  --text: #fafaf9;
-  --text-muted: #a8a29e;
-  --text-subtle: #78716c;
-  --text-faint: #44403c;
+  --text: #f4f4f5;
+  --text-muted: #a1a1aa;
+  --text-subtle: #6e6e78;
+  --text-faint: #3f3f46;
 
-  --accent: #8b7bff;
-  --accent-hover: #a99cff;
-  --accent-soft: #221c46;
-  --accent-border: #3a3173;
-  --accent-text: #c5bcff;
-  --on-accent: #0c0a09;
-  --grad: linear-gradient(135deg, #8b7bff 0%, #6a58f5 100%);
+  --accent: #8d7eff;
+  --accent-hover: #a89dff;
+  --accent-soft: #211c4a;
+  --accent-border: #3c3380;
+  --accent-text: #c4bbff;
+  --on-accent: #0a0a0b;
+  --grad: linear-gradient(135deg, #9587ff 0%, #7d6cfa 55%, #6a58f5 100%);
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
 
   --success: #4ade80;
   --success-soft: #052e16;
@@ -119,10 +131,11 @@
   --c-fuchsia: #e879f9;
   --c-slate: #94a3b8;
 
-  --sh-1: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --sh-2: 0 2px 6px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.2);
-  --sh-3: 0 8px 24px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.2);
-  --sh-popover: 0 16px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06);
+  --sh-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --sh-2: 0 2px 8px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.25);
+  --sh-3: 0 12px 32px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --sh-popover: 0 24px 56px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.07);
+  --sh-accent: 0 4px 16px color-mix(in srgb, var(--accent) 32%, transparent);
 }
 
 * { box-sizing: border-box; }
@@ -138,8 +151,15 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* Inter: cv11 = single-storey a alternates off, ss01 + tnum-ready digits. */
   font-feature-settings: 'ss01' on, 'cv11' on;
 }
+
+::selection { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+
+/* Display sizes get product-grade tight tracking. */
+.t-2xl, .t-3xl { letter-spacing: -0.022em; }
 
 a { color: inherit; text-decoration: none; }
 
@@ -181,18 +201,29 @@ a { color: inherit; text-decoration: none; }
   cursor: pointer;
   display: inline-flex; align-items: center; gap: 6px;
   white-space: nowrap;
-  transition: background .12s, border-color .12s;
+  box-shadow: 0 1px 2px rgba(9, 9, 11, 0.04);
+  transition: background .15s var(--ease), border-color .15s var(--ease),
+              box-shadow .15s var(--ease), transform .12s var(--ease);
   text-decoration: none;
 }
-.btn:hover { background: var(--bg-muted); }
+.btn:hover { background: var(--bg-subtle); border-color: var(--border-strong); box-shadow: var(--sh-2); }
+.btn:active { transform: scale(0.985); box-shadow: none; }
 .btn:disabled, .btn[disabled] { opacity: .55; cursor: not-allowed; pointer-events: none; }
 .btn:focus-visible, .seg-item:focus-visible, .side-row:focus-visible, .crumb-item:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px;
 }
-.btn.primary { background: var(--grad); border-color: transparent; color: #fff; box-shadow: 0 3px 10px rgba(109,92,246,.32); }
-.btn.primary:hover { filter: brightness(1.06); }
-.btn.ghost { border-color: transparent; background: transparent; color: var(--text-muted); }
-.btn.ghost:hover { background: var(--bg-muted); color: var(--text); }
+.btn.primary {
+  background: var(--grad); border-color: transparent; color: #fff;
+  box-shadow: var(--sh-accent), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+.btn.primary:hover {
+  filter: brightness(1.07);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 42%, transparent), inset 0 1px 0 rgba(255,255,255,0.18);
+}
+.btn.primary:active { transform: translateY(0) scale(0.985); filter: brightness(0.98); }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--text-muted); box-shadow: none; }
+.btn.ghost:hover { background: var(--bg-muted); color: var(--text); box-shadow: none; }
 .btn.danger { color: var(--danger); border-color: var(--danger-border); background: var(--danger-soft); }
 .btn.sm { height: 30px; padding: 0 10px; font-size: var(--t-sm); }
 .btn.xs { height: 26px; padding: 0 8px; font-size: var(--t-xs); border-radius: var(--r-1); }
@@ -212,7 +243,7 @@ a { color: inherit; text-decoration: none; }
   transition: border-color .12s, box-shadow .12s;
   min-width: 0;
 }
-.field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.field:focus-within { border-color: var(--accent); box-shadow: var(--ring); }
 .field input {
   border: 0; outline: 0; background: transparent;
   font: inherit; color: inherit;
@@ -267,10 +298,12 @@ a { color: inherit; text-decoration: none; }
 /* Cards */
 .card {
   background: var(--bg); border: 1px solid var(--border);
-  border-radius: var(--r-3); box-shadow: var(--sh-1);
+  border-radius: var(--r-4); box-shadow: var(--sh-1);
+  transition: box-shadow .18s var(--ease), border-color .18s var(--ease), transform .18s var(--ease);
 }
 .card.flat { box-shadow: none; }
 .card.muted { background: var(--bg-subtle); }
+a.card:hover { box-shadow: var(--sh-2); border-color: var(--border-strong); transform: translateY(-1px); }
 a.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* Sidebar */
@@ -314,7 +347,7 @@ a.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .topbar {
   grid-column: 2; grid-row: 1;
   border-bottom: 1px solid var(--border);
-  background: var(--bg);
+  background: color-mix(in srgb, var(--bg) 92%, var(--bg-subtle));
   display: flex; align-items: center;
   padding: 0 16px; gap: 12px;
 }
@@ -408,9 +441,9 @@ a.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 .tbl thead th {
   position: sticky; top: 0; background: var(--bg);
-  font-weight: 500; font-size: var(--t-xs);
-  color: var(--text-muted);
-  letter-spacing: 0.02em; text-transform: uppercase;
+  font-weight: 600; font-size: 11px;
+  color: var(--text-subtle);
+  letter-spacing: 0.05em; text-transform: uppercase;
   z-index: 1; user-select: none; height: 36px;
 }
 .tbl tbody tr { transition: background .08s; }
@@ -525,7 +558,7 @@ a.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .disclosure > summary:hover { color: var(--text); }
 
 .prog { height: 4px; background: var(--bg-muted); border-radius: 2px; overflow: hidden; }
-.prog > .bar { height: 100%; background: var(--accent); border-radius: 2px; }
+.prog > .bar { height: 100%; background: var(--grad); border-radius: 2px; }
 .prog.success > .bar { background: var(--success); }
 
 .dropzone {
@@ -651,7 +684,11 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-mu
   display: flex; align-items: center; gap: 12px;
   height: 56px; padding: 0 20px; flex-shrink: 0;
   border-bottom: 1px solid var(--border);
-  position: sticky; top: 0; background: var(--bg); z-index: 30;
+  position: sticky; top: 0; z-index: 30;
+  /* Glass: content scrolling beneath shows through with a frosted blur. */
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(14px) saturate(1.6);
+  backdrop-filter: blur(14px) saturate(1.6);
 }
 .eday-brand { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: var(--text); font-weight: 700; }
 .eday-brand-name { font-size: var(--t-md); }
@@ -669,16 +706,17 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-mu
 .eday-main { flex: 1; width: 100%; max-width: 1040px; margin: 0 auto; padding: 28px 24px 64px; }
 
 /* Everyday content primitives */
-.eday-h1 { font-size: var(--t-3xl); font-weight: 700; letter-spacing: -0.01em; }
+.eday-h1 { font-size: var(--t-3xl); font-weight: 700; letter-spacing: -0.028em; }
 .eday-section-hd { display: flex; align-items: center; margin: 26px 0 12px; }
 .eday-section-hd h2 { font-size: var(--t-lg); font-weight: 600; }
 .eday-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
 .eday-filecard {
   display: flex; flex-direction: column; gap: 10px; padding: 14px;
   border: 1px solid var(--border); border-radius: var(--r-4); background: var(--bg);
-  text-decoration: none; color: inherit; transition: box-shadow .12s, border-color .12s;
+  text-decoration: none; color: inherit;
+  transition: box-shadow .18s var(--ease), border-color .18s var(--ease), transform .18s var(--ease);
 }
-.eday-filecard:hover { box-shadow: var(--sh-2); border-color: var(--border-strong); }
+.eday-filecard:hover { box-shadow: var(--sh-3); border-color: var(--border-strong); transform: translateY(-2px); }
 .eday-filerow {
   display: flex; align-items: center; gap: 12px; padding: 10px 12px;
   border-radius: 10px; text-decoration: none; color: inherit;
@@ -688,8 +726,9 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-mu
   display: flex; align-items: center; gap: 10px; padding: 14px;
   border: 1px solid var(--border); border-radius: var(--r-4);
   text-decoration: none; color: inherit; background: var(--bg);
+  transition: box-shadow .18s var(--ease), transform .18s var(--ease), border-color .18s var(--ease);
 }
-.eday-areacard:hover { box-shadow: var(--sh-2); }
+.eday-areacard:hover { box-shadow: var(--sh-2); transform: translateY(-1px); border-color: var(--border-strong); }
 .eday-viewtoggle { display: inline-flex; gap: 2px; border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
 .eday-viewtoggle .btn.active { background: var(--accent-soft); color: var(--accent-text); }
 
@@ -749,10 +788,13 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-mu
   padding: 12vh 16px 16px;
 }
 .cmd-panel {
-  width: 100%; max-width: 560px;
-  background: var(--bg); color: var(--text);
-  border: 1px solid var(--border); border-radius: var(--r-4);
-  box-shadow: var(--sh-3); overflow: hidden;
+  width: 100%; max-width: 580px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  backdrop-filter: blur(20px) saturate(1.6);
+  color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--r-5);
+  box-shadow: var(--sh-popover); overflow: hidden;
   max-height: 70vh; display: flex; flex-direction: column;
 }
 .cmd-input { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
