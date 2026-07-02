@@ -137,9 +137,9 @@ export default async function DashboardPage() {
         <div className="stat-cards" style={{ marginBottom: 24 }}>
           {cards.map(([label, value, hint, tone, Icon], i) => (
             <div key={i} className="card" style={{ padding: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                 <div className="t-sm t-muted">{label}</div>
-                <Pill tone={tone}><Icon /></Pill>
+                <span className={"stat-ic " + tone}><Icon className="icon" /></span>
               </div>
               <div className="t-3xl t-semibold t-tabular" style={{ lineHeight: 1 }}>{value}</div>
               <div className="t-xs t-muted" style={{ marginTop: "var(--sp-2)" }}>{hint}</div>

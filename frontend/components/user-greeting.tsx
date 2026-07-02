@@ -22,11 +22,11 @@ export function UserGreeting() {
   const name = user?.display_name?.split(/\s+/)[0] ?? "";
 
   if (loading) {
-    return <h1 className="t-3xl t-semibold">{part}</h1>;
+    return <h1 className="t-3xl t-semibold" style={{ margin: 0 }}><span className="grad-text">{part}</span></h1>;
   }
   return (
-    <h1 className="t-3xl t-semibold">
-      {part}{name ? `, ${name}` : ""}
+    <h1 className="t-3xl t-semibold" style={{ margin: 0 }}>
+      <span className="grad-text">{part}</span>{name ? `, ${name}` : ""}
     </h1>
   );
 }
