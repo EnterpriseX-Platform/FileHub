@@ -16,26 +16,28 @@ type Citation = {
   score: number;
 };
 type AskResponse = { answer: string; citations: Citation[] };
+type Turn = { id: number; q: string; res: AskResponse | null; err: string | null };
 
-/// The "Ask" experience — a grounded, cited answer over your accessible
-/// content. Posts to /fh/api/ask (permission-aware RAG) and renders the answer
-/// with inline citation chips that deep-link to the source file, plus the
-/// ranked sources beneath.
+/// The "Ask" experience — a conversation thread over your accessible content.
+/// Each question posts to /fh/api/ask (permission-aware RAG); the newest
+/// answer types itself in with a pulsing caret, with inline citation chips
+/// that deep-link to the source file and ranked sources beneath. The input
+/// stays pinned at the bottom for follow-ups.
 export function AskClient() {
   const { t } = useI18n();
   const EXAMPLES = [t("ask.ex1"), t("ask.ex2")];
   const [q, setQ] = React.useState("");
-  const [res, setRes] = React.useState<AskResponse | null>(null);
-  const [loading, setLoading] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const [turns, setTurns] = React.useState<Turn[]>([]);
+  const nextId = React.useRef(1);
+  const busy = turns.some((tr) => tr.res === null && tr.err === null);
+  const endRef = React.useRef<HTMLDivElement>(null);
 
   const run = React.useCallback(async (term: string) => {
     const question = term.trim();
     if (!question) return;
-    setQ(question);
-    setLoading(true);
-    setErr(null);
-    setRes(null);
+    const id = nextId.current++;
+    setQ("");
+    setTurns((s) => [...s, { id, q: question, res: null, err: null }]);
     try {
       const r = await fetch(`/filehub/api/ask`, {
         method: "POST",
@@ -47,81 +49,137 @@ export function AskClient() {
         const body = await r.json().catch(() => ({}));
         throw new Error(body.error || `ask failed (${r.status})`);
       }
-      setRes(await r.json());
+      const res: AskResponse = await r.json();
+      setTurns((s) => s.map((tr) => (tr.id === id ? { ...tr, res } : tr)));
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "ask failed");
-    } finally {
-      setLoading(false);
+      const err = e instanceof Error ? e.message : "ask failed";
+      setTurns((s) => s.map((tr) => (tr.id === id ? { ...tr, err } : tr)));
     }
   }, []);
 
-  // Auto-run when arriving with ?q= (handoff from the ⌘K command palette).
+  // Auto-run when arriving with ?q= (handoff from ⌘K / the home ask bar).
   React.useEffect(() => {
     const q0 = new URLSearchParams(window.location.search).get("q");
-    if (q0 && q0.trim()) { setQ(q0); run(q0); }
+    if (q0 && q0.trim()) run(q0);
   }, [run]);
 
+  React.useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [turns]);
+
   return (
-    <div className="page">
+    <div className="page" style={{ display: "flex", flexDirection: "column", minHeight: "100%" }}>
       <div className="t-3xl t-semibold" style={{ marginBottom: 4 }}>{t("ask.title")}</div>
       <div className="t-sm t-muted" style={{ marginBottom: "var(--sp-4)" }}>{t("ask.sub")}</div>
 
-      <form
-        onSubmit={(e) => { e.preventDefault(); run(q); }}
-        className="card"
-        style={{ display: "flex", alignItems: "center", gap: 10, padding: "13px 15px" }}
-      >
-        <span style={{ color: "var(--c-violet)", display: "inline-flex" }}><Ico.sparkle /></span>
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={t("ask.placeholder")}
-          autoFocus
-          style={{ flex: 1, border: 0, outline: "none", background: "transparent", font: "inherit", fontSize: 16, color: "var(--text)" }}
-        />
-        <button type="submit" className="btn sm primary" disabled={loading || !q.trim()}>
-          {loading ? t("ask.thinking") : t("ask.button")}
-        </button>
-      </form>
-
-      {!res && !loading && !err && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
+      {turns.length === 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
           {EXAMPLES.map((ex) => (
-            <button key={ex} type="button" className="btn xs ghost" onClick={() => run(ex)}>{ex}</button>
+            <button key={ex} type="button" className="ask-sug" onClick={() => run(ex)}>{ex}</button>
           ))}
         </div>
       )}
 
-      {loading && <AnswerSkeleton />}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 20 }}>
+        {turns.map((turn, i) => (
+          <TurnBlock key={turn.id} turn={turn} latest={i === turns.length - 1} t={t} />
+        ))}
+        <div ref={endRef} />
+      </div>
 
-      {!loading && err && <div className="t-sm" style={{ color: "var(--c-rose)", marginTop: 16 }}>{err}</div>}
+      <form
+        onSubmit={(e) => { e.preventDefault(); run(q); }}
+        className="ask-hero"
+        style={{ position: "sticky", bottom: 16, marginTop: 20, maxWidth: "none" }}
+      >
+        <div className="ask-hero-inner">
+          <span style={{ color: "var(--c-violet)", display: "inline-flex" }}><Ico.sparkle /></span>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={turns.length ? t("ask.followUp") : t("ask.placeholder")}
+            autoFocus
+          />
+          <button type="submit" className="btn sm primary" style={{ borderRadius: 10 }} disabled={busy || !q.trim()}>
+            {busy ? t("ask.thinking") : t("ask.button")}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
 
-      {!loading && res && (
-        <div style={{ marginTop: 18 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10 }}>
+function TurnBlock({ turn, latest, t }: { turn: Turn; latest: boolean; t: (k: string) => string }) {
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+        <div style={{
+          maxWidth: "78%", padding: "9px 14px", borderRadius: "14px 14px 4px 14px",
+          background: "var(--accent-soft)", color: "var(--accent-text)",
+          fontSize: "var(--t-md)", lineHeight: 1.55,
+        }}>
+          {turn.q}
+        </div>
+      </div>
+
+      {turn.err ? (
+        <div className="t-sm" style={{ color: "var(--c-rose)" }}>{turn.err}</div>
+      ) : turn.res === null ? (
+        <AnswerSkeleton />
+      ) : (
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
             <span className="t-xs t-subtle t-medium" style={{ letterSpacing: "0.04em", textTransform: "uppercase" }}>{t("ask.answer")}</span>
             <Pill tone="emerald" sm><span className="dot" />{t("ask.grounded")}</Pill>
             <span className="t-xs t-subtle" style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4 }}>
               <Ico.lock className="icon sm" /> {t("ask.scoped")}
             </span>
           </div>
-
-          <div className="t-md" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
-            {renderAnswer(res.answer, res.citations)}
-          </div>
-
-          {res.citations.length > 0 && (
+          <TypedAnswer answer={turn.res.answer} citations={turn.res.citations} animate={latest} />
+          {turn.res.citations.length > 0 && (
             <>
-              <div className="t-xs t-subtle t-medium" style={{ letterSpacing: "0.04em", textTransform: "uppercase", margin: "20px 0 9px" }}>
+              <div className="t-xs t-subtle t-medium" style={{ letterSpacing: "0.04em", textTransform: "uppercase", margin: "16px 0 8px" }}>
                 {t("ask.sources")}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {res.citations.map((c) => <SourceCard key={c.file_id} c={c} />)}
+                {turn.res.citations.map((c) => <SourceCard key={c.file_id} c={c} />)}
               </div>
             </>
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/// Streaming-feel reveal: the answer types in at ~180 chars/s with a pulsing
+/// caret. The API call itself is one-shot — this is presentation only, so the
+/// text is complete (and copy-able) the moment the animation finishes. Only
+/// the latest turn animates; older turns render instantly, as does anyone
+/// with prefers-reduced-motion.
+function TypedAnswer({ answer, citations, animate }: { answer: string; citations: Citation[]; animate: boolean }) {
+  const instant =
+    !animate ||
+    (typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const [len, setLen] = React.useState(instant ? answer.length : 0);
+
+  React.useEffect(() => {
+    if (instant) { setLen(answer.length); return; }
+    setLen(0);
+    let i = 0;
+    const timer = setInterval(() => {
+      i = Math.min(answer.length, i + 3);
+      setLen(i);
+      if (i >= answer.length) clearInterval(timer);
+    }, 16);
+    return () => clearInterval(timer);
+  }, [answer, instant]);
+
+  const done = len >= answer.length;
+  return (
+    <div className="t-md" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
+      {renderAnswer(answer.slice(0, len), citations)}
+      {!done && <span className="ai-caret" aria-hidden />}
     </div>
   );
 }
@@ -176,11 +234,10 @@ function SourceCard({ c }: { c: Citation }) {
 
 function AnswerSkeleton() {
   return (
-    <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 9 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
       <div className="ai-sk" style={{ height: 14, width: "30%", marginBottom: 4 }} />
       <div className="ai-sk" style={{ height: 13, width: "100%" }} />
       <div className="ai-sk" style={{ height: 13, width: "96%" }} />
-      <div className="ai-sk" style={{ height: 13, width: "88%" }} />
       <div className="ai-sk" style={{ height: 13, width: "55%" }} />
     </div>
   );

@@ -5,6 +5,7 @@ import * as React from "react";
 
 import { FileListRow, FileTile } from "@/components/everyday/pieces";
 import { Ico } from "@/components/icons";
+import { Empty } from "@/components/primitives";
 import type { FileRow } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 
@@ -53,7 +54,14 @@ export function MyFilesClient({
       </div>
 
       {shown.length === 0 ? (
-        <div className="t-sm t-subtle" style={{ padding: "28px 0", textAlign: "center" }}>{t(emptyKey)}</div>
+        <Empty
+          icon={term ? <Ico.search className="icon" /> : <Ico.files className="icon" />}
+          title={term ? t("cmd.noMatch") : t(emptyKey)}
+          hint={!term && canUpload ? t("eday.subFirst") : undefined}
+          action={!term && canUpload ? (
+            <Link href="/upload" className="btn primary sm"><Ico.upload className="icon sm" /> {t("nav.upload")}</Link>
+          ) : undefined}
+        />
       ) : view === "grid" ? (
         <div className="eday-cards" style={{ marginTop: 16 }}>
           {shown.map((f) => <FileTile key={f.id} file={f} />)}

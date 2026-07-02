@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { Ico } from "@/components/icons";
 import { Av, Pill } from "@/components/primitives";
+import { useToast } from "@/components/toast";
 import { useAuth } from "@/lib/auth-context";
 import type { Member, WorkflowTemplate } from "@/lib/api";
 import { fmtAgo } from "@/lib/format";
@@ -42,6 +43,7 @@ type WorkflowEntry = [Workflow, WorkflowStep[]];
 export function WorkflowPanel({ fileId }: { fileId: string }) {
   const { user } = useAuth();
   const { t } = useI18n();
+  const { toast } = useToast();
   const mutate = canMutate(user?.role ?? null);
 
   const [entries, setEntries] = React.useState<WorkflowEntry[] | null>(null);
@@ -101,10 +103,16 @@ export function WorkflowPanel({ fileId }: { fileId: string }) {
               userId={user?.id ?? null}
               mutate={mutate}
               busy={busy}
-              onDecide={(stepId, decision, note) =>
-                post(`/filehub/api/workflow-steps/${stepId}/decision`, { decision, note: note || null })}
-              onSendBack={(stepId) =>
-                post(`/filehub/api/workflow-steps/${stepId}/send-back`)}
+              onDecide={async (stepId, decision, note) => {
+                if (await post(`/filehub/api/workflow-steps/${stepId}/decision`, { decision, note: note || null })) {
+                  toast(t(decision === "approved" ? "toast.approved" : "toast.rejected"));
+                }
+              }}
+              onSendBack={async (stepId) => {
+                if (await post(`/filehub/api/workflow-steps/${stepId}/send-back`)) {
+                  toast(t("toast.sentBack"), "info");
+                }
+              }}
             />
           ))}
         </div>
@@ -122,7 +130,10 @@ export function WorkflowPanel({ fileId }: { fileId: string }) {
           busy={busy}
           onCancel={() => setStarting(false)}
           onStart={async (body) => {
-            if (await post(base, body)) setStarting(false);
+            if (await post(base, body)) {
+              setStarting(false);
+              toast(t("toast.started"));
+            }
           }}
         />
       )}

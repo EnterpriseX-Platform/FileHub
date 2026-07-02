@@ -41,13 +41,20 @@ export function DashboardActivity({ activity }: { activity: Activity[] }) {
             No activity yet — uploads, reviews, and shares appear here as your team works.
           </div>
         ) : items.map((a, i) => (
+          <React.Fragment key={a.id ?? i}>
+            {(i === 0 || dayLabel(a.created_at) !== dayLabel(items[i - 1].created_at)) && (
+              <div className="t-xs t-subtle t-medium" style={{
+                padding: "8px 16px 2px", letterSpacing: "0.05em", textTransform: "uppercase",
+                borderTop: i ? "1px solid var(--border)" : "none",
+              }}>
+                {dayLabel(a.created_at)}
+              </div>
+            )}
           <div
-            key={a.id ?? i}
             style={{
               display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
               padding: "10px 16px",
-              borderTop: "1px solid var(--border)",
-              background: i === 0 ? "var(--bg-subtle)" : "transparent",
+              borderTop: "1px solid var(--border-subtle)",
             }}
           >
             <Av name={a.actor} tone={a.actor_tone} />
@@ -64,8 +71,20 @@ export function DashboardActivity({ activity }: { activity: Activity[] }) {
             {a.target_type && <Ft type={a.target_type} />}
             <div className="t-sm t-subtle t-tabular" style={{ width: 80, textAlign: "right" }}>{fmtAgo(a.created_at)}</div>
           </div>
+          </React.Fragment>
         ))}
       </div>
     </>
   );
+}
+
+/// "Today" / "Yesterday" / a short date — feed group headers.
+function dayLabel(iso: string): string {
+  const d = new Date(iso);
+  const today = new Date();
+  const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const days = Math.round((startOf(today) - startOf(d)) / 86_400_000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }

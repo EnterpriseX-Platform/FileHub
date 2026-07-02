@@ -5,6 +5,7 @@ import * as React from "react";
 
 import { Ico } from "@/components/icons";
 import { Av, Pill } from "@/components/primitives";
+import { useToast } from "@/components/toast";
 import { WorkflowPanel } from "@/components/workflow-panel";
 import { useAuth } from "@/lib/auth-context";
 import { fmtAgo, fmtBytes } from "@/lib/format";
@@ -58,6 +59,7 @@ export function FileSidecar({ fileId }: { fileId: string }) {
 function VersionsBlock({ fileId }: { fileId: string }) {
   const router = useRouter();
   const { user } = useAuth();
+  const { toast } = useToast();
   const [versions, setVersions] = React.useState<Version[] | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
@@ -86,6 +88,7 @@ function VersionsBlock({ fileId }: { fileId: string }) {
         return;
       }
       await reload();
+      toast(`Version ${v} restored as the current version`);
       router.refresh(); // header + inspector show the new current version
     } finally { setBusy(false); }
   };
@@ -247,5 +250,10 @@ function Counter({ n }: { n: number }) {
 }
 
 function Loading() {
-  return <div className="t-xs t-subtle">Loading…</div>;
+  return (
+    <div aria-hidden>
+      <div className="sk-row"><span className="sk av" /><span className="sk" style={{ height: 12, width: "72%" }} /></div>
+      <div className="sk-row"><span className="sk av" /><span className="sk" style={{ height: 12, width: "54%" }} /></div>
+    </div>
+  );
 }

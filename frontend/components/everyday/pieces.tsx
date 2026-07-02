@@ -43,10 +43,31 @@ export function EdaySection({
   );
 }
 
+// Image types get a real server thumbnail (GET /api/files/:id/thumb); anything
+// else shows a large type badge on the tinted tile. onError falls back to the
+// badge, so a missing/failed thumbnail never leaves a broken image.
+const THUMB_TYPES = new Set(["img", "jpg", "jpeg", "png", "gif", "webp"]);
+
 export function FileTile({ file }: { file: FileRow }) {
+  const [imgOk, setImgOk] = React.useState(true);
+  const showImg = THUMB_TYPES.has(file.file_type.toLowerCase()) && imgOk;
   return (
     <Link href={fileHref(file.id)} className="eday-filecard">
-      <Ft type={file.file_type} size="lg" />
+      <div className="thumb">
+        {showImg ? (
+          /* API-served thumbnail behind session auth — next/image can't
+             optimize it, so the plain element is intentional. */
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={`/filehub/api/files/${encodeURIComponent(file.id)}/thumb`}
+            alt=""
+            loading="lazy"
+            onError={() => setImgOk(false)}
+          />
+        ) : (
+          <Ft type={file.file_type} size="xl" />
+        )}
+      </div>
       <div>
         <div className="t-sm t-semibold t-trunc" title={file.name}>{file.name}</div>
         <div className="t-xs t-subtle" style={{ marginTop: 3 }}>
