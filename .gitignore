@@ -32,3 +32,7 @@ backend/filehub.db*
 
 # Playwright failure artifacts
 test-results/
+
+# Design prototypes — served locally for review, not part of the product
+frontend/public/*prototype*.html
+frontend/public/facelift-concept.html
