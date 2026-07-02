@@ -36,6 +36,12 @@ pub struct AiConfig {
     pub enabled: bool,
     pub base_url: String,
     pub api_key: Option<String>,
+    /// Optional separate endpoint/key for embeddings, falling back to
+    /// `base_url`/`api_key`. Lets chat go to a cloud provider that has no
+    /// embeddings API (e.g. Kimi/Moonshot) while embeddings stay on local
+    /// Ollama — mixed-provider is pure config, still no code change.
+    pub embed_base_url: Option<String>,
+    pub embed_api_key: Option<String>,
     pub embed_model: String,
     pub embed_dim: usize,
     pub chat_model: String,
@@ -61,6 +67,8 @@ impl AiConfig {
             // Ollama's OpenAI-compatible endpoint.
             base_url: var("AI_BASE_URL").unwrap_or_else(|| "http://localhost:11434/v1".into()),
             api_key: var("AI_API_KEY"),
+            embed_base_url: var("AI_EMBED_BASE_URL"),
+            embed_api_key: var("AI_EMBED_API_KEY"),
             embed_model: var("AI_EMBED_MODEL").unwrap_or_else(|| "nomic-embed-text".into()),
             embed_dim: var("AI_EMBED_DIM").and_then(|v| v.parse().ok()).unwrap_or(EMBED_DIM),
             chat_model: var("AI_CHAT_MODEL").unwrap_or_else(|| "qwen2.5".into()),
@@ -139,15 +147,38 @@ impl AiClient {
         }
     }
 
+    /// Embeddings endpoint/key — separate provider when `AI_EMBED_BASE_URL`
+    /// is set, otherwise the shared `AI_BASE_URL` one.
+    fn embed_endpoint(&self) -> String {
+        let base = self.cfg.embed_base_url.as_deref().unwrap_or(&self.cfg.base_url);
+        format!("{}/embeddings", base.trim_end_matches('/'))
+    }
+
+    fn embed_auth(&self, rb: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        // When a separate embed endpoint is configured, never fall back to the
+        // chat key — that would send the cloud provider's credential to a
+        // different host. No AI_EMBED_API_KEY on a separate host means no auth
+        // header (the local-Ollama case).
+        let key = if self.cfg.embed_base_url.is_some() {
+            self.cfg.embed_api_key.as_ref()
+        } else {
+            self.cfg.embed_api_key.as_ref().or(self.cfg.api_key.as_ref())
+        };
+        match key {
+            Some(k) => rb.bearer_auth(k),
+            None => rb,
+        }
+    }
+
     /// Embed a batch of texts. Returns one vector per input (in input order)
     /// plus the token usage reported by the provider (for `ai_usage` metering).
     pub async fn embed(&self, inputs: &[String]) -> Result<(Vec<Vec<f32>>, Usage)> {
         if inputs.is_empty() {
             return Ok((vec![], Usage::default()));
         }
-        let url = self.endpoint("embeddings");
+        let url = self.embed_endpoint();
         let resp = self
-            .auth(self.http.post(&url))
+            .embed_auth(self.http.post(&url))
             .json(&json!({ "model": self.cfg.embed_model, "input": inputs }))
             .send()
             .await

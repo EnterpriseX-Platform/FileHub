@@ -134,6 +134,7 @@ Backend (`backend/.env`):
 - `CHECKOUT_TTL_HOURS` — auto-release a check-out lock held longer than this (reaped by the rotation worker). Default `8`.
 - `AI_ENABLED` — master switch for the AI-native layer (default `true`). `false` skips the enrichment worker and makes `/api/search/semantic` + `/api/ask` return 400 — FileHub behaves exactly as before AI.
 - `AI_BASE_URL` / `AI_API_KEY` — OpenAI-compatible endpoint + optional key. Default `http://localhost:11434/v1` (Ollama, no key). Point at vLLM / LiteLLM / OpenAI / Azure to switch providers with no code change.
+- `AI_EMBED_BASE_URL` / `AI_EMBED_API_KEY` — optional separate endpoint for **embeddings only**, falling back to `AI_BASE_URL`. Use when the chat provider has no embeddings API (e.g. Kimi/Moonshot): chat → cloud, embeddings → local Ollama. Safety rule: when `AI_EMBED_BASE_URL` is set, `AI_API_KEY` is never sent to it — set `AI_EMBED_API_KEY` explicitly if that host needs auth.
 - `AI_EMBED_MODEL` / `AI_EMBED_DIM` — default `nomic-embed-text` / `768`. **`AI_EMBED_DIM` must match the `vector(768)` column in `migrations/0016`** (the backend warns at boot on mismatch); a different dim needs a migration + re-embed.
 - `AI_CHAT_MODEL` / `AI_MAX_CONTEXT_TOKENS` / `AI_TIMEOUT_SECS` — chat model (default `qwen2.5`) and limits.
 - `AI_WORKER_INTERVAL_SECS` — enrichment queue poll cadence. Default `15`.
