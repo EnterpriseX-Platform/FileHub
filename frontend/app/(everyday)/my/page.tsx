@@ -32,6 +32,9 @@ export default async function MyFilesPage({
     title = sp.status === "Review" ? undefined : sp.status;
   }
   files = [...files].sort((a, b) => (b.modified_at || "").localeCompare(a.modified_at || ""));
+  const areas = systems
+    .filter((s) => s.system_type !== "personal")
+    .map((s) => ({ id: s.id, name: s.name, tone: s.tone }));
 
-  return <MyFilesClient files={files} titleKey={titleKey} title={title} canUpload={canMutate(role)} />;
+  return <MyFilesClient files={files} titleKey={titleKey} title={title} canUpload={canMutate(role)} areas={areas} />;
 }

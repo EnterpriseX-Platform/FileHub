@@ -775,39 +775,46 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-mu
 /* Numbers in data tables read aligned. */
 .tbl { font-variant-numeric: tabular-nums; }
 
-/* ===== Everyday (consumer) shell (components/everyday/shell.tsx) ===== */
+/* ===== Everyday (consumer) shell (components/everyday/shell.tsx) =====
+   Chrome metrics are VERBATIM from the approved prototype (proto/p1.html). */
 .eday { min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
 .eday-top {
-  display: flex; align-items: center; gap: 12px;
-  height: 56px; padding: 0 20px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 14px;
+  height: 62px; padding: 0 24px; flex-shrink: 0;
   border-bottom: 1px solid var(--border);
   position: sticky; top: 0; z-index: 30;
   /* Glass: content scrolling beneath shows through with a frosted blur. */
   background: var(--glass);
-  -webkit-backdrop-filter: blur(14px) saturate(1.6);
-  backdrop-filter: blur(14px) saturate(1.6);
+  -webkit-backdrop-filter: blur(16px) saturate(1.6);
+  backdrop-filter: blur(16px) saturate(1.6);
 }
 .eday-brand { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: var(--text); font-weight: 700; }
-.eday-brand-name { font-size: var(--t-md); }
-.eday-nav { display: flex; gap: 2px; margin-left: 8px; }
+.eday-brand-name { font-size: var(--t-lg); letter-spacing: -0.01em; }
+.eday-nav { display: flex; gap: 4px; margin-left: 8px; }
 .eday-navlink {
-  padding: 6px 12px; border-radius: 8px; text-decoration: none;
-  color: var(--text-muted); font-size: var(--t-sm); font-weight: 500;
+  padding: 7px 13px; border-radius: 999px; text-decoration: none;
+  color: var(--text-muted); font-size: 13.5px; font-weight: 500;
+  transition: all .15s var(--ease);
+  display: inline-flex; align-items: center; gap: 6px;
 }
 .eday-navlink:hover { background: var(--bg-muted); color: var(--text); }
 .eday-navlink.active { background: var(--bg-muted); color: var(--text); font-weight: 600; }
-.eday-search { width: 240px; }
+.eday-search .field { border-radius: 999px; height: 38px; }
 .eday-avatarbtn { background: none; border: 0; cursor: pointer; padding: 0; display: inline-flex; }
 .eday-menu { position: absolute; top: calc(100% + 8px); right: 0; width: 220px; padding: 6px; box-shadow: var(--sh-popover); z-index: 200; }
 .eday-menu-item { width: 100%; justify-content: flex-start; padding: 6px 8px; }
-.eday-main { flex: 1; width: 100%; max-width: 1040px; margin: 0 auto; padding: 28px 24px 64px; }
+.eday-main { flex: 1; width: 100%; max-width: 920px; margin: 0 auto; padding: 38px 26px 100px; }
 
-/* Everyday content primitives */
-.eday-h1 { font-size: var(--t-3xl); font-weight: 700; letter-spacing: -0.028em; }
-/* Second display line of the Home hero ("What do you want to know?"). */
-.eday-hi2 { font-size: var(--t-3xl); font-weight: 700; letter-spacing: -0.028em; line-height: 1.16; }
-.eday-section-hd { display: flex; align-items: center; margin: 34px 0 14px; }
-.eday-section-hd h2 { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
+/* Everyday content primitives — VERBATIM prototype metrics. */
+/* Both hero lines share one display style (prototype .hi). */
+.eday-h1 { font-size: 23px; font-weight: 700; letter-spacing: -0.02em; }
+.eday-hero h1, .eday-hi2 {
+  font-size: clamp(26px, 3.4vw, 36px); font-weight: 800;
+  letter-spacing: -0.03em; line-height: 1.16; margin: 0;
+}
+.eday-hisub { color: var(--text-muted); margin: 6px 0 0; font-size: 15.5px; }
+.eday-section-hd { display: flex; align-items: baseline; gap: 12px; margin: 46px 0 14px; }
+.eday-section-hd h2 { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
 
 /* Round ink send button inside the ask bar (prototype Option 2). */
 .ask-send {
@@ -822,10 +829,10 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-mu
 /* Daily brief strip — quiet paper tint, gray sparkle. */
 .eday-brief {
   display: flex; gap: 10px; align-items: flex-start;
-  margin-top: 14px; max-width: 660px;
-  padding: 12px 16px; border-radius: 14px;
+  margin-top: 18px;
+  padding: 13px 16px; border-radius: 14px;
   background: var(--bg-subtle); border: 1px solid var(--border);
-  font-size: var(--t-sm); line-height: 1.6; color: var(--text-muted);
+  font-size: 14px; line-height: 1.6; color: var(--text-muted);
 }
 
 /* Area tile icon dot + text-link row action. */
@@ -834,7 +841,40 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-mu
   display: inline-flex; align-items: center; justify-content: center;
   color: #fff; font-weight: 700; font-size: 15px; flex-shrink: 0;
 }
-.eday-act { color: var(--accent-text); font-size: var(--t-sm); font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+.eday-act { color: var(--accent-text); font-size: 13.5px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+
+/* Steppers — signatures + approval workflow (prototype .step). */
+.step { display: flex; gap: 11px; padding: 7px 0; align-items: flex-start; }
+.step .ic {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; flex-shrink: 0; margin-top: 1px;
+}
+.step.done .ic { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); }
+.step.now .ic { background: var(--accent-soft); color: var(--accent-text); animation: stepPulse 2s infinite; }
+.step.wait .ic { background: var(--bg-muted); color: var(--text-subtle); }
+.step.no .ic { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }
+@keyframes stepPulse { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 12%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .step.now .ic { animation: none; } }
+.step .tx { flex: 1; min-width: 0; }
+.step b { font-size: 13.5px; font-weight: 600; display: block; }
+.step .sub { font-size: 12px; color: var(--text-subtle); display: block; }
+
+/* AI intelligence card (prototype .ai-card, Calm-neutral). */
+.eday-aicard {
+  border-radius: 14px; padding: 14px;
+  background: var(--bg-subtle); border: 1px solid var(--border);
+  font-size: 13.5px; line-height: 1.65;
+}
+.eday-aicard .attr { font-size: 11px; color: var(--text-subtle); margin-top: 8px; font-family: var(--font-mono); }
+
+/* My-files filter chips (prototype .fchip, Calm active = gray). */
+.eday-fchip {
+  font-size: 13px; font-weight: 500; padding: 6px 14px; border-radius: 999px;
+  background: var(--bg-subtle); border: 1px solid var(--border); color: var(--text-muted);
+  cursor: pointer; transition: all .15s var(--ease);
+}
+.eday-fchip.on { background: var(--bg-muted); color: var(--text); font-weight: 600; border-color: var(--border-strong); }
 
 /* Generic text-link action (file view Download/Ask, list actions). */
 .lnk {
@@ -843,26 +883,32 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-mu
   display: inline-flex; align-items: center; gap: 5px;
 }
 .lnk:hover { text-decoration: underline; }
-.eday-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.eday-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
 .eday-filecard {
-  display: flex; flex-direction: column; gap: 10px; padding: 14px;
-  border: 1px solid var(--border); border-radius: var(--r-4); background: var(--bg);
+  display: flex; flex-direction: column;
+  border: 1px solid var(--border); border-radius: 16px; background: var(--bg);
+  overflow: hidden; box-shadow: var(--sh-1);
   text-decoration: none; color: inherit;
-  transition: box-shadow .18s var(--ease), border-color .18s var(--ease), transform .18s var(--ease);
+  transition: box-shadow .2s var(--ease), border-color .2s var(--ease), transform .2s var(--ease);
 }
-.eday-filecard:hover { box-shadow: var(--sh-3); border-color: var(--border-strong); transform: translateY(-2px); }
+.eday-filecard:hover { box-shadow: var(--sh-3); border-color: var(--border-strong); transform: translateY(-3px); }
+.eday-filecard .thumb { border-radius: 0; }
+.eday-tilemeta { padding: 10px 13px; }
 .eday-filerow {
-  display: flex; align-items: center; gap: 12px; padding: 10px 12px;
-  border-radius: 10px; text-decoration: none; color: inherit;
+  display: flex; align-items: center; gap: 14px; padding: 12px 14px;
+  border-radius: 14px; text-decoration: none; color: inherit;
+  transition: background .15s var(--ease);
 }
-.eday-filerow:hover { background: var(--bg-muted); }
+.eday-filerow:hover { background: var(--bg-subtle); }
+/* Prototype task-row doc badge: 46px, radius 11. */
+.eday-filerow .ft.lg { width: 46px; height: 46px; border-radius: 11px; font-size: 10.5px; }
 .eday-areacard {
-  display: flex; align-items: center; gap: 10px; padding: 14px;
-  border: 1px solid var(--border); border-radius: var(--r-4);
-  text-decoration: none; color: inherit; background: var(--bg);
-  transition: box-shadow .18s var(--ease), transform .18s var(--ease), border-color .18s var(--ease);
+  display: flex; align-items: center; gap: 12px; padding: 16px;
+  border: 1px solid var(--border); border-radius: 16px;
+  text-decoration: none; color: inherit; background: var(--bg-subtle);
+  transition: box-shadow .2s var(--ease), transform .2s var(--ease), border-color .2s var(--ease);
 }
-.eday-areacard:hover { box-shadow: var(--sh-2); transform: translateY(-1px); border-color: var(--border-strong); }
+.eday-areacard:hover { box-shadow: var(--sh-2); transform: translateY(-2px); border-color: var(--border-strong); }
 .eday-viewtoggle { display: inline-flex; gap: 2px; border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
 .eday-viewtoggle .btn.active { background: var(--bg-muted); color: var(--text); }
 
@@ -1095,25 +1141,25 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-mu
 
 /* ===== AI ask hero (everyday /home) — calm hairline ring input ===== */
 .ask-hero {
-  margin-top: 20px; max-width: 660px;
-  border-radius: 16px; padding: 1.5px;
+  margin-top: 24px; max-width: none;
+  border-radius: 18px; padding: 1.5px;
   background: var(--border-strong);
   box-shadow: var(--sh-2);
 }
 .ask-hero-inner {
-  display: flex; align-items: center; gap: 10px;
-  background: var(--bg); border-radius: 14.5px;
-  padding: 6px 6px 6px 14px;
+  display: flex; align-items: center; gap: 11px;
+  background: var(--bg); border-radius: 16.5px;
+  padding: 7px 7px 7px 17px;
 }
 .ask-hero-inner input {
   flex: 1; min-width: 0; border: 0; outline: 0; background: transparent;
-  font: inherit; font-size: var(--t-md); color: var(--text); height: 40px;
+  font: inherit; font-size: 16px; color: var(--text); height: 40px;
 }
 .ask-hero-inner input::placeholder { color: var(--text-subtle); }
 .ask-sugs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .ask-sug {
-  font-size: var(--t-xs); font-weight: 500; cursor: pointer;
-  padding: 4px 11px; border-radius: 999px;
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  padding: 7px 14px; border-radius: 999px;
   background: var(--bg-subtle); border: 1px solid var(--border);
   color: var(--text-muted); text-decoration: none;
   transition: all .15s var(--ease);

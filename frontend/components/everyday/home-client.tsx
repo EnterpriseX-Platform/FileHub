@@ -26,6 +26,10 @@ export function HomeClient({
   const { t } = useI18n();
   const router = useRouter();
   const [q, setQ] = React.useState("");
+  const areaName = React.useMemo(() => {
+    const m = new Map(areas.map((a) => [a.id, a.name]));
+    return (systemId: string) => m.get(systemId);
+  }, [areas]);
   const ask = (question: string) => {
     const trimmed = question.trim();
     router.push(trimmed ? `/ask?q=${encodeURIComponent(trimmed)}` : "/ask");
@@ -33,9 +37,11 @@ export function HomeClient({
   return (
     <div>
       {/* Two-line conversational hero (matches the approved prototype). */}
-      <UserGreeting />
-      <div className="eday-hi2">{t("eday.hiQ")}</div>
-      <div className="t-md t-muted" style={{ marginTop: 6 }}>{t("eday.hiSub2")}</div>
+      <div className="eday-hero">
+        <UserGreeting />
+        <div className="eday-hi2">{t("eday.hiQ")}</div>
+        <div className="eday-hisub">{t("eday.hiSub2")}</div>
+      </div>
 
       {/* AI-first hero: ask bar hands off to /ask?q= (auto-runs there). */}
       <form className="ask-hero" onSubmit={(e) => { e.preventDefault(); ask(q); }}>
@@ -95,7 +101,7 @@ export function HomeClient({
           <div className="t-sm t-subtle" style={{ padding: "6px 0" }}>{t("eday.noFiles")}</div>
         ) : (
           <div className="eday-cards">
-            {recent.map((f) => <FileTile key={f.id} file={f} />)}
+            {recent.map((f) => <FileTile key={f.id} file={f} area={areaName(f.system_id)} />)}
           </div>
         )}
       </EdaySection>
