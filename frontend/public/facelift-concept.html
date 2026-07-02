@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FileHub — Everyday Facelift Concept</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+:root{
+  --bg:#ffffff; --bg-soft:#fafafa; --bg-mute:#f4f4f5;
+  --line:rgba(9,9,11,.07); --line-strong:rgba(9,9,11,.13);
+  --ink:#09090b; --ink-2:#52525b; --ink-3:#9d9da8;
+  --iris:#6455f7; --iris-soft:#efedff; --iris-ink:#4b3ce0;
+  --grad:linear-gradient(135deg,#8a7bff 0%,#6455f7 55%,#5340ef 100%);
+  --violet:#7c3aed; --emerald:#059669; --amber:#d97706; --rose:#e11d48; --cyan:#0891b2;
+  --sh-soft:0 2px 12px rgba(9,9,11,.05);
+  --sh-float:0 12px 40px rgba(9,9,11,.10),0 2px 8px rgba(9,9,11,.04);
+  --sh-glow:0 8px 30px rgba(100,85,247,.28);
+  --ease:cubic-bezier(.25,.8,.35,1);
+}
+.dark{
+  --bg:#0a0a0b; --bg-soft:#131316; --bg-mute:#1b1b1f;
+  --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.14);
+  --ink:#f4f4f5; --ink-2:#a1a1aa; --ink-3:#6e6e78;
+  --iris:#8d7eff; --iris-soft:#211c4a; --iris-ink:#c4bbff;
+  --grad:linear-gradient(135deg,#9587ff 0%,#7d6cfa 55%,#6a58f5 100%);
+  --violet:#a78bfa; --emerald:#34d399; --amber:#fbbf24; --rose:#fb7185; --cyan:#22d3ee;
+  --sh-soft:0 2px 12px rgba(0,0,0,.4);
+  --sh-float:0 12px 40px rgba(0,0,0,.5);
+  --sh-glow:0 8px 30px rgba(141,126,255,.25);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  font-family:'Inter','IBM Plex Sans Thai',system-ui,sans-serif;
+  background:var(--bg); color:var(--ink);
+  font-size:16px; line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  transition:background .25s,color .25s;
+}
+/* Subtle brand wash at the very top of the page — personality without noise. */
+.wash{position:fixed;inset:0 0 auto 0;height:420px;pointer-events:none;z-index:0;
+  background:radial-gradient(720px 340px at 22% -10%, color-mix(in srgb,var(--iris) 9%,transparent), transparent 70%),
+             radial-gradient(560px 300px at 85% -14%, color-mix(in srgb,var(--cyan) 6%,transparent), transparent 70%);}
+.concept-note{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:50;
+  display:flex;gap:10px;align-items:center;padding:9px 16px;border-radius:999px;
+  background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(14px);
+  border:1px solid var(--line-strong);box-shadow:var(--sh-float);font-size:13px;color:var(--ink-2)}
+.concept-note b{color:var(--ink)}
+.concept-note button{font:inherit;border:0;background:var(--bg-mute);color:var(--ink);
+  border-radius:999px;padding:5px 12px;cursor:pointer}
+
+/* ── Top bar: minimal, glass, nav as soft pills ─────────────────────── */
+.top{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:18px;
+  height:64px;padding:0 28px;
+  background:color-mix(in srgb,var(--bg) 78%,transparent);
+  backdrop-filter:blur(16px) saturate(1.6);
+  border-bottom:1px solid var(--line)}
+.logo{width:34px;height:34px;border-radius:10px;background:var(--grad);
+  display:grid;place-items:center;color:#fff;font-weight:800;font-size:16px;
+  box-shadow:var(--sh-glow)}
+.brand{font-weight:700;font-size:17px;letter-spacing:-.01em}
+.nav{display:flex;gap:4px;margin-left:10px}
+.nav a{padding:7px 14px;border-radius:999px;text-decoration:none;color:var(--ink-2);
+  font-size:14px;font-weight:500;transition:all .15s var(--ease)}
+.nav a:hover{background:var(--bg-mute);color:var(--ink)}
+.nav a.on{background:var(--iris-soft);color:var(--iris-ink);font-weight:600}
+.top .grow{flex:1}
+.searchpill{display:flex;align-items:center;gap:8px;height:38px;padding:0 8px 0 14px;
+  border-radius:999px;border:1px solid var(--line-strong);color:var(--ink-3);
+  font-size:13.5px;min-width:220px;cursor:text;background:var(--bg)}
+.searchpill kbd{font-family:'JetBrains Mono',monospace;font-size:10px;background:var(--bg-mute);
+  border-radius:6px;padding:2px 6px;margin-left:auto;color:var(--ink-3)}
+.avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#fda4af,#e11d48);
+  color:#fff;display:grid;place-items:center;font-size:13px;font-weight:700}
+
+/* ── Content shell: single relaxed column ───────────────────────────── */
+.main{position:relative;z-index:1;max-width:960px;margin:0 auto;padding:44px 28px 120px}
+
+/* Hero */
+.hi{font-size:38px;font-weight:800;letter-spacing:-.032em;line-height:1.15;margin:0}
+.hi .grad{background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hi-sub{color:var(--ink-2);margin:6px 0 0;font-size:16px}
+
+/* Ask bar — THE hero element, floating */
+.ask{margin-top:26px;border-radius:20px;padding:2px;background:var(--grad);box-shadow:var(--sh-glow)}
+.ask-in{display:flex;align-items:center;gap:12px;background:var(--bg);border-radius:18px;padding:8px 8px 8px 18px}
+.ask-in .spark{color:var(--violet);font-size:18px}
+.ask-in input{flex:1;border:0;outline:0;background:transparent;font:inherit;font-size:16.5px;color:var(--ink);height:44px}
+.ask-in input::placeholder{color:var(--ink-3)}
+.ask-btn{border:0;cursor:pointer;font:inherit;font-weight:600;font-size:15px;color:#fff;
+  background:var(--grad);border-radius:13px;padding:11px 22px;box-shadow:inset 0 1px 0 rgba(255,255,255,.2)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.chip{font-size:13.5px;font-weight:500;padding:7px 15px;border-radius:999px;cursor:pointer;
+  background:var(--bg-soft);border:1px solid var(--line);color:var(--ink-2);
+  transition:all .15s var(--ease);text-decoration:none}
+.chip:hover{border-color:color-mix(in srgb,var(--iris) 40%,transparent);color:var(--iris-ink);background:var(--iris-soft)}
+
+/* Sections: NO card borders — whitespace + big friendly headers */
+.sec{margin-top:52px}
+.sec-hd{display:flex;align-items:baseline;gap:12px;margin-bottom:18px}
+.sec-hd h2{font-size:21px;font-weight:700;letter-spacing:-.02em;margin:0}
+.sec-hd .all{margin-left:auto;font-size:14px;color:var(--iris-ink);text-decoration:none;font-weight:500}
+
+/* Review: friendly task rows, thumbnail + one action */
+.task{display:flex;align-items:center;gap:16px;padding:14px 16px;border-radius:16px;
+  transition:background .15s var(--ease);cursor:pointer}
+.task:hover{background:var(--bg-soft)}
+.task .doc{width:52px;height:52px;border-radius:12px;display:grid;place-items:center;
+  font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
+.task .who{color:var(--ink-3);font-size:13.5px;margin-top:1px}
+.task .name{font-weight:600;font-size:15.5px}
+.task .go{border:0;cursor:pointer;font:inherit;font-size:14px;font-weight:600;color:#fff;
+  background:var(--grad);border-radius:11px;padding:9px 18px;margin-left:auto;flex-shrink:0;
+  box-shadow:0 3px 12px color-mix(in srgb,var(--iris) 30%,transparent)}
+.task + .task{margin-top:2px}
+
+/* Recent: big thumbnail tiles */
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px}
+.tile{border-radius:18px;overflow:hidden;background:var(--bg);border:1px solid var(--line);
+  text-decoration:none;color:inherit;transition:all .2s var(--ease);box-shadow:var(--sh-soft)}
+.tile:hover{transform:translateY(-3px);box-shadow:var(--sh-float);border-color:var(--line-strong)}
+.tile .prev{aspect-ratio:16/10;display:grid;place-items:center;font-family:'JetBrains Mono',monospace;
+  font-weight:700;color:#fff;font-size:13px}
+.tile .meta{padding:12px 14px}
+.tile .meta b{font-size:14.5px;font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .meta span{font-size:12.5px;color:var(--ink-3)}
+
+/* Areas: colorful tinted tiles with real personality */
+.areas{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.area{display:flex;align-items:center;gap:12px;padding:18px;border-radius:18px;text-decoration:none;color:inherit;
+  transition:all .2s var(--ease)}
+.area:hover{transform:translateY(-2px)}
+.area .dot{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;color:#fff;font-size:16px}
+.area b{font-size:15px}
+.area span{display:block;font-size:12.5px;color:var(--ink-2)}
+.a-em{background:color-mix(in srgb,var(--emerald) 9%,var(--bg))} .a-em .dot{background:var(--emerald)}
+.a-am{background:color-mix(in srgb,var(--amber) 10%,var(--bg))} .a-am .dot{background:var(--amber)}
+.a-cy{background:color-mix(in srgb,var(--cyan) 9%,var(--bg))} .a-cy .dot{background:var(--cyan)}
+.a-ir{background:color-mix(in srgb,var(--iris) 9%,var(--bg))} .a-ir .dot{background:var(--iris)}
+
+@media (max-width:760px){
+  .nav,.searchpill{display:none}
+  .hi{font-size:30px}
+  .main{padding:32px 18px 120px}
+}
+</style>
+</head>
+<body>
+<div class="wash"></div>
+
+<div class="top">
+  <span class="logo">F</span><span class="brand">File Hub</span>
+  <nav class="nav">
+    <a class="on" href="#">Home</a><a href="#">My files</a><a href="#">Shared</a><a href="#">Starred</a>
+  </nav>
+  <span class="grow"></span>
+  <div class="searchpill">⌕ Search anything… <kbd>⌘K</kbd></div>
+  <span class="avatar">AK</span>
+</div>
+
+<div class="main">
+  <h1 class="hi">สวัสดีตอนเย็น, Anong<br><span class="grad">What do you want to know?</span></h1>
+  <p class="hi-sub">Your documents can answer — just ask.</p>
+
+  <div class="ask">
+    <div class="ask-in">
+      <span class="spark">✦</span>
+      <input placeholder="Ask anything about your documents… ถามอะไรก็ได้">
+      <button class="ask-btn">Ask</button>
+    </div>
+  </div>
+  <div class="chips">
+    <a class="chip" href="#">งบประมาณโครงการ DMS เท่าไหร่</a>
+    <a class="chip" href="#">Who won the CCTV evaluation?</a>
+    <a class="chip" href="#">พนักงานลาพักร้อนได้กี่วัน</a>
+    <a class="chip" href="#">⇪ Upload files</a>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hd"><h2>Waiting on you</h2><a class="all" href="#">See all 4 →</a></div>
+    <div class="task">
+      <span class="doc" style="background:#dc2626">PDF</span>
+      <div><div class="name">contract-A12.pdf</div><div class="who">Anong sent this for your review · 2 hr ago</div></div>
+      <button class="go">Review</button>
+    </div>
+    <div class="task">
+      <span class="doc" style="background:#16a34a">XLS</span>
+      <div><div class="name">vendor-list-2026.xlsx</div><div class="who">Pat needs a decision · yesterday</div></div>
+      <button class="go">Review</button>
+    </div>
+    <div class="task">
+      <span class="doc" style="background:#2563eb">DOC</span>
+      <div><div class="name">NDA-template-v3.docx</div><div class="who">Wisanu asked you to sign · yesterday</div></div>
+      <button class="go">Sign</button>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hd"><h2>Pick up where you left off</h2><a class="all" href="#">Recent →</a></div>
+    <div class="tiles">
+      <a class="tile" href="#"><div class="prev" style="background:linear-gradient(135deg,#3b82f6,#1d4ed8)">TXT</div>
+        <div class="meta"><b>TOR-summary-DMS-2026.txt</b><span>32 min ago · Document Mgmt</span></div></a>
+      <a class="tile" href="#"><div class="prev" style="background:linear-gradient(135deg,#f97316,#c2410c)">IMG</div>
+        <div class="meta"><b>team-photo.jpg</b><span>1 hr ago · HR</span></div></a>
+      <a class="tile" href="#"><div class="prev" style="background:linear-gradient(135deg,#dc2626,#991b1b)">PDF</div>
+        <div class="meta"><b>policy-handbook-v4.pdf</b><span>2 days ago · HR</span></div></a>
+      <a class="tile" href="#"><div class="prev" style="background:linear-gradient(135deg,#059669,#047857)">XLS</div>
+        <div class="meta"><b>budget-q1-2026.xlsx</b><span>3 days ago · Finance</span></div></a>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hd"><h2>Your areas</h2></div>
+    <div class="areas">
+      <a class="area a-em" href="#"><span class="dot">⚖</span><div><b>Legal</b><span>128 documents</span></div></a>
+      <a class="area a-am" href="#"><span class="dot">₿</span><div><b>Finance</b><span>96 documents</span></div></a>
+      <a class="area a-cy" href="#"><span class="dot">☰</span><div><b>Document Mgmt</b><span>2,048 documents</span></div></a>
+      <a class="area a-ir" href="#"><span class="dot">♥</span><div><b>HR</b><span>310 documents</span></div></a>
+    </div>
+  </div>
+</div>
+
+<div class="concept-note">
+  <b>Facelift concept</b> · not the live app
+  <button onclick="document.documentElement.classList.toggle('dark')">◐ dark</button>
+</div>
+</body>
+</html>

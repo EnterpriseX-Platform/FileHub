@@ -804,8 +804,45 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-mu
 
 /* Everyday content primitives */
 .eday-h1 { font-size: var(--t-3xl); font-weight: 700; letter-spacing: -0.028em; }
-.eday-section-hd { display: flex; align-items: center; margin: 26px 0 12px; }
-.eday-section-hd h2 { font-size: var(--t-lg); font-weight: 600; }
+/* Second display line of the Home hero ("What do you want to know?"). */
+.eday-hi2 { font-size: var(--t-3xl); font-weight: 700; letter-spacing: -0.028em; line-height: 1.16; }
+.eday-section-hd { display: flex; align-items: center; margin: 34px 0 14px; }
+.eday-section-hd h2 { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
+
+/* Round ink send button inside the ask bar (prototype Option 2). */
+.ask-send {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: var(--grad); color: var(--on-accent);
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; cursor: pointer; flex-shrink: 0;
+  transition: transform .12s var(--ease);
+}
+.ask-send:active { transform: scale(0.94); }
+
+/* Daily brief strip — quiet paper tint, gray sparkle. */
+.eday-brief {
+  display: flex; gap: 10px; align-items: flex-start;
+  margin-top: 14px; max-width: 660px;
+  padding: 12px 16px; border-radius: 14px;
+  background: var(--bg-subtle); border: 1px solid var(--border);
+  font-size: var(--t-sm); line-height: 1.6; color: var(--text-muted);
+}
+
+/* Area tile icon dot + text-link row action. */
+.eday-areadot {
+  width: 36px; height: 36px; border-radius: 11px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 700; font-size: 15px; flex-shrink: 0;
+}
+.eday-act { color: var(--accent-text); font-size: var(--t-sm); font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+
+/* Generic text-link action (file view Download/Ask, list actions). */
+.lnk {
+  color: var(--accent-text); font-size: var(--t-sm); font-weight: 600;
+  background: none; border: 0; cursor: pointer; text-decoration: none;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.lnk:hover { text-decoration: underline; }
 .eday-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
 .eday-filecard {
   display: flex; flex-direction: column; gap: 10px; padding: 14px;

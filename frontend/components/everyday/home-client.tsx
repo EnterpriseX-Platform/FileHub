@@ -10,7 +10,7 @@ import { UserGreeting } from "@/components/user-greeting";
 import type { FileRow } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 
-type Area = { id: string; name: string; tone: string };
+type Area = { id: string; name: string; tone: string; count: number };
 
 export function HomeClient({
   recent,
@@ -32,10 +32,10 @@ export function HomeClient({
   };
   return (
     <div>
+      {/* Two-line conversational hero (matches the approved prototype). */}
       <UserGreeting />
-      <div className="t-sm t-muted" style={{ marginTop: 4 }}>
-        {recent.length > 0 ? t("eday.subLeftOff") : t("eday.subFirst")}
-      </div>
+      <div className="eday-hi2">{t("eday.hiQ")}</div>
+      <div className="t-md t-muted" style={{ marginTop: 6 }}>{t("eday.hiSub2")}</div>
 
       {/* AI-first hero: ask bar hands off to /ask?q= (auto-runs there). */}
       <form className="ask-hero" onSubmit={(e) => { e.preventDefault(); ask(q); }}>
@@ -47,8 +47,8 @@ export function HomeClient({
             placeholder={t("eday.askPlaceholder")}
             aria-label={t("eday.askPlaceholder")}
           />
-          <button type="submit" className="btn primary sm" style={{ borderRadius: 10 }}>
-            {t("eday.ask")}
+          <button type="submit" className="ask-send" aria-label={t("eday.ask")}>
+            <Ico.up className="icon" />
           </button>
         </div>
       </form>
@@ -63,8 +63,23 @@ export function HomeClient({
         )}
       </div>
 
+      {/* Proactive daily brief — honest numbers only, hidden when empty. */}
+      {(review.length > 0 || recent.length > 0) && (
+        <div className="eday-brief">
+          <span style={{ color: "var(--text-subtle)", display: "inline-flex", marginTop: 2 }}>
+            <Ico.sparkle className="icon sm" />
+          </span>
+          <span>
+            {t("eday.briefPre")}
+            {review.length > 0 && t("eday.briefWait", { n: review.length })}
+            {review.length > 0 && recent.length > 0 && " · "}
+            {recent.length > 0 && t("eday.briefNew", { m: recent.length })}
+          </span>
+        </div>
+      )}
+
       {canUpload && (
-        <EdaySection titleKey="eday.needsReview" href="/my?status=Review" viewAll={review.length > 0}>
+        <EdaySection titleKey="eday.waiting" href="/my?status=Review" viewAll={review.length > 0}>
           {review.length === 0 ? (
             <div className="t-sm t-subtle" style={{ padding: "6px 0" }}>{t("eday.allCaughtUp")}</div>
           ) : (
@@ -75,7 +90,7 @@ export function HomeClient({
         </EdaySection>
       )}
 
-      <EdaySection titleKey="eday.recent" href="/recent" viewAll={recent.length > 0}>
+      <EdaySection titleKey="eday.pickup" href="/recent" viewAll={recent.length > 0}>
         {recent.length === 0 ? (
           <div className="t-sm t-subtle" style={{ padding: "6px 0" }}>{t("eday.noFiles")}</div>
         ) : (
@@ -90,10 +105,13 @@ export function HomeClient({
           <div className="eday-cards">
             {areas.map((a) => (
               <Link key={a.id} href={`/my?area=${encodeURIComponent(a.id)}`} className="eday-areacard">
-                <span className={"pill " + a.tone + " sm"} style={{ height: 22, width: 22, padding: 0, justifyContent: "center" }}>
-                  <span className="dot" />
+                <span className="eday-areadot" style={{ background: `var(--c-${a.tone})` }}>
+                  {a.name.charAt(0).toUpperCase()}
                 </span>
-                <span className="t-sm t-medium t-trunc" style={{ flex: 1, minWidth: 0 }}>{a.name}</span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span className="t-sm t-semibold t-trunc" style={{ display: "block" }}>{a.name}</span>
+                  <span className="t-xs t-subtle">{t("eday.docsN", { n: a.count })}</span>
+                </span>
                 <Ico.chevron className="icon sm" style={{ color: "var(--text-subtle)" }} />
               </Link>
             ))}

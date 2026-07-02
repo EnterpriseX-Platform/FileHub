@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FileHub — Everyday Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+:root{
+  --bg:#ffffff; --bg-soft:#fafafa; --bg-mute:#f4f4f5;
+  --line:rgba(9,9,11,.07); --line-strong:rgba(9,9,11,.13);
+  --ink:#09090b; --ink-2:#52525b; --ink-3:#9d9da8;
+  --iris:#6455f7; --iris-soft:#efedff; --iris-ink:#4b3ce0;
+  --grad:linear-gradient(135deg,#8a7bff 0%,#6455f7 55%,#5340ef 100%);
+  --violet:#7c3aed; --emerald:#059669; --amber:#d97706; --rose:#e11d48; --cyan:#0891b2;
+  --sh-soft:0 2px 12px rgba(9,9,11,.05);
+  --sh-float:0 12px 40px rgba(9,9,11,.10),0 2px 8px rgba(9,9,11,.04);
+  --sh-glow:0 8px 30px rgba(100,85,247,.28);
+  --ease:cubic-bezier(.25,.8,.35,1);
+}
+.dark{
+  --bg:#0a0a0b; --bg-soft:#131316; --bg-mute:#1b1b1f;
+  --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.14);
+  --ink:#f4f4f5; --ink-2:#a1a1aa; --ink-3:#6e6e78;
+  --iris:#8d7eff; --iris-soft:#211c4a; --iris-ink:#c4bbff;
+  --grad:linear-gradient(135deg,#9587ff 0%,#7d6cfa 55%,#6a58f5 100%);
+  --violet:#a78bfa; --emerald:#34d399; --amber:#fbbf24; --rose:#fb7185; --cyan:#22d3ee;
+  --sh-soft:0 2px 12px rgba(0,0,0,.4); --sh-float:0 12px 40px rgba(0,0,0,.5);
+  --sh-glow:0 8px 30px rgba(141,126,255,.25);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+html{background:var(--bg)}
+body{font-family:'Inter','IBM Plex Sans Thai',system-ui,sans-serif;background:var(--bg);color:var(--ink);
+  font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;transition:background .25s,color .25s;overflow:hidden}
+button{font:inherit;border:0;background:none;cursor:pointer;color:inherit}
+input{font:inherit}
+
+/* splash */
+#splash{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
+  background:radial-gradient(800px 500px at 30% 20%, rgba(100,85,247,.16), transparent 60%),
+             radial-gradient(600px 420px at 80% 85%, rgba(8,145,178,.10), transparent 60%), var(--bg);
+  transition:opacity .5s,visibility .5s}
+#splash.gone{opacity:0;visibility:hidden}
+.sp-logo{width:64px;height:64px;border-radius:19px;background:var(--grad);display:grid;place-items:center;
+  color:#fff;font-weight:800;font-size:28px;box-shadow:var(--sh-glow)}
+.sp-h{font-size:clamp(26px,4vw,40px);font-weight:800;letter-spacing:-.03em;text-align:center;line-height:1.15;margin:0}
+.sp-h .g{background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.sp-chips{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.sp-chip{padding:8px 16px;border-radius:12px;background:var(--bg-soft);border:1px solid var(--line);text-align:center}
+.sp-chip b{display:block;font-size:17px}
+.sp-chip span{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);letter-spacing:.04em}
+.sp-enter{margin-top:6px;background:var(--grad);color:#fff;font-weight:600;font-size:16px;border-radius:14px;
+  padding:13px 34px;box-shadow:var(--sh-glow)}
+.sp-note{font-size:12px;color:var(--ink-3)}
+
+/* top bar */
+.top{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:14px;height:62px;padding:0 24px;
+  background:color-mix(in srgb,var(--bg) 80%,transparent);backdrop-filter:blur(16px) saturate(1.6);
+  border-bottom:1px solid var(--line)}
+.logo{width:32px;height:32px;border-radius:10px;background:var(--grad);display:grid;place-items:center;
+  color:#fff;font-weight:800;font-size:15px;box-shadow:var(--sh-glow);flex-shrink:0}
+.brand{font-weight:700;font-size:16px;letter-spacing:-.01em}
+.tabs{display:flex;gap:4px;margin-left:8px}
+.tab{padding:7px 13px;border-radius:999px;color:var(--ink-2);font-size:13.5px;font-weight:500;
+  display:inline-flex;align-items:center;gap:7px;transition:all .15s var(--ease)}
+.tab:hover{background:var(--bg-mute);color:var(--ink)}
+.tab.on{background:var(--iris-soft);color:var(--iris-ink);font-weight:600}
+.tab .kn{font-family:'JetBrains Mono',monospace;font-size:9.5px;background:var(--bg-mute);border-radius:5px;
+  padding:1px 5px;color:var(--ink-3)}
+.tab.on .kn{background:color-mix(in srgb,var(--iris) 16%,transparent);color:var(--iris-ink)}
+.grow{flex:1}
+.pill-demo{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.06em;color:var(--amber);
+  border:1px solid color-mix(in srgb,var(--amber) 40%,transparent);border-radius:999px;padding:4px 10px}
+.lang{display:flex;border:1px solid var(--line-strong);border-radius:999px;padding:2px;gap:2px}
+.lang button{font-size:12px;font-weight:600;padding:4px 11px;border-radius:999px;color:var(--ink-3)}
+.lang button.on{background:var(--iris-soft);color:var(--iris-ink)}
+.mode{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:var(--ink-2);border:1px solid var(--line-strong)}
+.avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#fda4af,#e11d48);
+  color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700}
+
+/* views */
+main{position:fixed;inset:62px 0 0 0}
+.view{position:absolute;inset:0;overflow:auto;opacity:0;visibility:hidden;transition:opacity .3s}
+.view.on{opacity:1;visibility:visible}
+.wrap{max-width:920px;margin:0 auto;padding:38px 26px 100px}
+.wash{background:radial-gradient(680px 300px at 20% -12%, color-mix(in srgb,var(--iris) 8%,transparent), transparent 70%)}
+
+/* hero + ask bar (Option 2: round icon send) */
+.hi{font-size:clamp(26px,3.4vw,36px);font-weight:800;letter-spacing:-.03em;line-height:1.16;margin:0}
+.hi .g{background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hi-sub{color:var(--ink-2);margin:6px 0 0;font-size:15.5px}
+.ask{margin-top:24px;border-radius:18px;padding:1.5px;background:var(--grad);box-shadow:var(--sh-glow)}
+.ask-in{display:flex;align-items:center;gap:11px;background:var(--bg);border-radius:16.5px;padding:7px 7px 7px 17px}
+.ask-in .sp{color:var(--violet);font-size:17px;flex-shrink:0}
+.ask-in input{flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:16px;color:var(--ink);height:40px}
+.ask-in input::placeholder{color:var(--ink-3)}
+.send{width:38px;height:38px;border-radius:50%;background:var(--grad);color:#fff;display:grid;place-items:center;
+  flex-shrink:0;box-shadow:inset 0 1px 0 rgba(255,255,255,.2);transition:transform .12s var(--ease)}
+.send:active{transform:scale(.94)}
+.send svg{width:17px;height:17px;stroke:currentColor;stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
+.chip{font-size:13px;font-weight:500;padding:7px 14px;border-radius:999px;background:var(--bg-soft);
+  border:1px solid var(--line);color:var(--ink-2);transition:all .15s var(--ease)}
+.chip:hover{border-color:color-mix(in srgb,var(--iris) 40%,transparent);color:var(--iris-ink);background:var(--iris-soft)}
+
+/* sections */
+.sec{margin-top:46px}
+.sec-hd{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
+.sec-hd h2{font-size:19px;font-weight:700;letter-spacing:-.02em;margin:0}
+.lnk{color:var(--iris-ink);font-size:13.5px;font-weight:500;text-decoration:none;background:none}
+.lnk:hover{text-decoration:underline}
+.sec-hd .lnk{margin-left:auto}
+
+/* task rows (Option 2: text-link actions) */
+.task{display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:14px;width:100%;text-align:left;
+  transition:background .15s var(--ease)}
+.task:hover{background:var(--bg-soft)}
+.doc{border-radius:11px;display:grid;place-items:center;font-family:'JetBrains Mono',monospace;font-weight:700;
+  color:#fff;flex-shrink:0;width:46px;height:46px;font-size:10.5px}
+.task .tx{flex:1;min-width:0}
+.task .nm{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.task .who{color:var(--ink-3);font-size:13px;margin-top:1px}
+.task .act{color:var(--iris-ink);font-size:13.5px;font-weight:600;flex-shrink:0;white-space:nowrap}
+
+/* tiles */
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}
+.tile{border-radius:16px;overflow:hidden;background:var(--bg);border:1px solid var(--line);text-align:left;
+  transition:all .2s var(--ease);box-shadow:var(--sh-soft);padding:0;display:block;width:100%}
+.tile:hover{transform:translateY(-3px);box-shadow:var(--sh-float);border-color:var(--line-strong)}
+.tile .prev{aspect-ratio:16/10;display:grid;place-items:center;font-family:'JetBrains Mono',monospace;
+  font-weight:700;color:#fff;font-size:12px}
+.tile .meta{padding:10px 13px}
+.tile .meta b{font-size:13.5px;font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .meta span{font-size:12px;color:var(--ink-3)}
+
+/* areas */
+.areas{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:13px}
+.area{display:flex;align-items:center;gap:12px;padding:16px;border-radius:16px;transition:transform .2s var(--ease);
+  text-align:left;width:100%}
+.area:hover{transform:translateY(-2px)}
+.area .dot{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;color:#fff;font-size:15px;flex-shrink:0}
+.area b{font-size:14.5px;display:block}
+.area span{display:block;font-size:12px;color:var(--ink-2)}
+
+/* my files */
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 20px;align-items:center}
+.fchip{font-size:13px;font-weight:500;padding:6px 14px;border-radius:999px;background:var(--bg-soft);
+  border:1px solid var(--line);color:var(--ink-2)}
+.fchip.on{background:var(--iris-soft);border-color:color-mix(in srgb,var(--iris) 35%,transparent);color:var(--iris-ink);font-weight:600}
+.fsearch{display:flex;align-items:center;gap:8px;border:1px solid var(--line-strong);border-radius:999px;
+  padding:0 14px;height:36px;margin-left:auto;color:var(--ink-3)}
+.fsearch input{border:0;outline:0;background:transparent;font-size:13.5px;color:var(--ink);width:150px}
+
+/* file view */
+.back{color:var(--ink-3);font-size:13.5px;font-weight:500;display:inline-flex;align-items:center;gap:5px;margin-bottom:14px}
+.back:hover{color:var(--ink)}
+.fhead{display:flex;align-items:center;gap:14px;margin-bottom:20px;flex-wrap:wrap}
+.fhead .tx{flex:1;min-width:200px}
+.fhead h1{font-size:23px;font-weight:700;letter-spacing:-.02em;margin:0}
+.fhead .mt{color:var(--ink-3);font-size:13.5px}
+.fgrid{display:grid;grid-template-columns:1.5fr 1fr;gap:26px;align-items:start}
+@media(max-width:820px){.fgrid{grid-template-columns:1fr}}
+.paper{border-radius:16px;border:1px solid var(--line);background:var(--bg-soft);padding:28px;display:grid;place-items:center;min-height:380px}
+.page-mock{background:#fff;color:#1a1a1a;width:min(100%,360px);aspect-ratio:210/260;border-radius:6px;
+  box-shadow:0 10px 30px rgba(9,9,11,.15);padding:30px 26px;font-size:9px;line-height:1.7;overflow:hidden}
+.page-mock h4{font-size:12px;margin:0 0 10px;letter-spacing:.02em}
+.pl{height:5px;border-radius:3px;background:#e8e8e8;margin:5px 0}
+.side-sec{margin-bottom:22px}
+.side-hd{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:600;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--ink-3);margin-bottom:9px}
+.ai-card{border-radius:14px;padding:14px;background:color-mix(in srgb,var(--violet) 6%,var(--bg));
+  border:1px solid color-mix(in srgb,var(--violet) 18%,transparent);font-size:13.5px;line-height:1.65}
+.ai-attr{font-size:11px;color:var(--ink-3);margin-top:8px;font-family:'JetBrains Mono',monospace}
+.tagrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.tg{font-size:11px;padding:2px 9px;border-radius:999px;background:var(--bg-mute);color:var(--ink-2)}
+.step{display:flex;gap:11px;padding:7px 0;align-items:flex-start}
+.step .ic{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;flex-shrink:0;margin-top:1px}
+.step.done .ic{background:color-mix(in srgb,var(--emerald) 15%,transparent);color:var(--emerald)}
+.step.now .ic{background:var(--iris-soft);color:var(--iris-ink);animation:pulse 2s infinite}
+.step.wait .ic{background:var(--bg-mute);color:var(--ink-3)}
+@keyframes pulse{50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--iris) 12%,transparent)}}
+.step b{font-size:13.5px;font-weight:600;display:block}
+.step span{font-size:12px;color:var(--ink-3)}
+.metarow{display:flex;gap:10px;padding:6px 0;font-size:13.5px}
+.metarow .k{width:86px;color:var(--ink-3);flex-shrink:0}
+
+/* ask view */
+.thread{display:flex;flex-direction:column;gap:18px;min-height:200px}
+.qb{align-self:flex-end;max-width:78%;background:var(--iris-soft);color:var(--iris-ink);
+  padding:10px 16px;border-radius:16px 16px 5px 16px;font-size:15px}
+.ab{align-self:stretch}
+.ab .badges{display:flex;gap:7px;align-items:center;margin-bottom:7px;font-size:11px;color:var(--ink-3)}
+.gr{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--emerald);
+  background:color-mix(in srgb,var(--emerald) 10%,transparent);border-radius:999px;padding:2px 10px}
+.think{color:var(--ink-3);font-size:13px;font-style:italic}
+.atx{font-size:15.5px;line-height:1.75;white-space:pre-wrap}
+.atx b{font-weight:700}
+.caret{display:inline-block;width:7px;height:16px;background:var(--violet);border-radius:2px;
+  vertical-align:-2px;margin-left:2px;animation:blink .9s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+.cite{display:inline-flex;font-size:10.5px;font-weight:700;color:var(--iris-ink);background:var(--iris-soft);
+  border-radius:5px;padding:0 6px;margin:0 2px;vertical-align:2px;cursor:pointer}
+.srcs{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.src{display:flex;gap:11px;align-items:center;border:1px solid var(--line);border-radius:13px;padding:10px 13px;
+  width:100%;text-align:left;transition:border-color .15s}
+.src:hover{border-color:var(--line-strong)}
+.src .doc{width:34px;height:34px;font-size:9px;border-radius:9px}
+.src .tx{flex:1;min-width:0}
+.src b{font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.src .bar{height:4px;border-radius:4px;background:var(--bg-mute);margin-top:5px;overflow:hidden}
+.src .bar i{display:block;height:100%;background:var(--violet);border-radius:4px}
+.src .sc{font-size:11px;font-weight:600;color:var(--violet);font-family:'JetBrains Mono',monospace}
+.askdock{position:sticky;bottom:18px;margin-top:26px}
+
+/* ── Calm variant (◎ toggle): gradients → ink, glows → flat, tints → neutral,
+   and the whole neutral ramp warms to Notion-style paper (ivory canvas, warm
+   stone grays, warm ink) — a document product deserves paper. */
+.calm,.warm{
+  --bg:#fdfdfb; --bg-soft:#f7f6f3; --bg-mute:#f0efeb;
+  --line:rgba(41,37,36,.09); --line-strong:rgba(41,37,36,.16);
+  --ink:#1c1917; --ink-2:#57534e; --ink-3:#a8a29e;
+}
+.dark.calm,.dark.warm{
+  --bg:#191817; --bg-soft:#201f1e; --bg-mute:#292725;
+  --line:rgba(255,251,245,.08); --line-strong:rgba(255,251,245,.15);
+  --ink:#f5f4f1; --ink-2:#a8a29e; --ink-3:#78716c;
+}
+.calm .hi .g,.calm .sp-h .g{background:none;-webkit-text-fill-color:currentColor;color:var(--ink)}
+.calm .logo,.calm .sp-logo{background:var(--ink);color:var(--bg);box-shadow:none}
+.calm .ask{background:var(--line-strong);box-shadow:var(--sh-soft)}
+.calm .send,.calm .sp-enter{background:var(--ink);color:var(--bg);box-shadow:none}
+.calm .wash{background:none}
+.calm .brief{background:var(--bg-soft);border-color:var(--line)}
+.calm .brief .sp{color:var(--ink-3)}
+.calm .area{background:var(--bg-soft);border:1px solid var(--line)}
+.calm .act-chip{background:var(--bg-soft);border-color:var(--line);color:var(--ink-2)}
+.calm .act-chip:hover{box-shadow:none;border-color:var(--line-strong);color:var(--ink)}
+.calm .qb{background:var(--bg-mute);color:var(--ink)}
+.calm .tile .prev,.calm .doc{filter:saturate(.55)}
+.calm .ai-card{background:var(--bg-soft);border-color:var(--line)}
+.calm .tab.on{background:var(--bg-mute);color:var(--ink)}
+.calm .chip:hover{background:var(--bg-mute);border-color:var(--line-strong);color:var(--ink)}
+
+/* ── Hybrid variant: calm surfaces, but the AI identity keeps its gradient
+   (logo, ask bar, send, sparkles, AI cards). The recommended landing spot. */
+.hybrid .hi .g,.hybrid .sp-h .g{background:none;-webkit-text-fill-color:currentColor;color:var(--ink)}
+.hybrid .wash{background:none}
+.hybrid .area{background:var(--bg-soft);border:1px solid var(--line)}
+.hybrid .tile .prev,.hybrid .doc{filter:saturate(.55)}
+.hybrid .tab.on{background:var(--bg-mute);color:var(--ink)}
+.hybrid .chip:hover{background:var(--bg-mute);border-color:var(--line-strong);color:var(--ink)}
+.hybrid .ask{box-shadow:0 5px 20px color-mix(in srgb,var(--iris) 18%,transparent)}
+
+/* 2026 motion layer — staggered entrances + view slide */
+.view.on .wrap{animation:viewIn .32s var(--ease)}
+@keyframes viewIn{from{opacity:0;transform:translateY(10px)}}
+.stagger>*{animation:rise .45s var(--ease) backwards}
+.stagger>*:nth-child(1){animation-delay:.02s}.stagger>*:nth-child(2){animation-delay:.06s}
+.stagger>*:nth-child(3){animation-delay:.10s}.stagger>*:nth-child(4){animation-delay:.14s}
+.stagger>*:nth-child(5){animation-delay:.18s}.stagger>*:nth-child(6){animation-delay:.22s}
+.stagger>*:nth-child(7){animation-delay:.26s}.stagger>*:nth-child(8){animation-delay:.30s}
+@keyframes rise{from{opacity:0;transform:translateY(9px)}}
+@media (prefers-reduced-motion:reduce){.view.on .wrap,.stagger>*{animation:none}}
+
+/* daily brief — proactive AI insight on Home */
+.brief{display:flex;gap:10px;align-items:flex-start;margin-top:18px;padding:13px 16px;border-radius:14px;
+  background:color-mix(in srgb,var(--violet) 6%,var(--bg));border:1px solid color-mix(in srgb,var(--violet) 16%,transparent);
+  font-size:14px;line-height:1.6;color:var(--ink-2)}
+.brief .sp{color:var(--violet);flex-shrink:0;margin-top:1px}
+.brief b{color:var(--ink);font-weight:600}
+
+/* agentic follow-up chips under AI answers */
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.act-chip{font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:999px;color:var(--iris-ink);
+  background:var(--iris-soft);border:1px solid color-mix(in srgb,var(--iris) 22%,transparent);
+  transition:all .15s var(--ease)}
+.act-chip:hover{transform:translateY(-1px);box-shadow:0 4px 14px color-mix(in srgb,var(--iris) 20%,transparent)}
+
+/* presence */
+.presence{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--emerald);font-weight:500}
+.presence i{width:7px;height:7px;border-radius:50%;background:var(--emerald);font-style:normal;animation:pulse 2s infinite}
+
+/* command palette */
+#cmdk{position:fixed;inset:0;z-index:95;background:rgba(9,9,11,.4);display:none;
+  align-items:flex-start;justify-content:center;padding:12vh 18px}
+#cmdk.open{display:flex}
+.ck{width:100%;max-width:540px;border-radius:18px;overflow:hidden;
+  background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:blur(22px) saturate(1.6);
+  border:1px solid var(--line-strong);box-shadow:var(--sh-float);animation:ckIn .16s var(--ease)}
+@keyframes ckIn{from{opacity:0;transform:translateY(-8px) scale(.98)}}
+.ck-in{display:flex;align-items:center;gap:10px;padding:14px 17px;border-bottom:1px solid var(--line)}
+.ck-in input{flex:1;border:0;outline:0;background:transparent;font-size:15.5px;color:var(--ink)}
+.ck-in input::placeholder{color:var(--ink-3)}
+.ck-list{max-height:330px;overflow:auto;padding:6px}
+.ck-lab{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);padding:8px 12px 3px}
+.ck-row{display:flex;align-items:center;gap:11px;width:100%;text-align:left;padding:9px 12px;border-radius:10px;font-size:14px}
+.ck-row:hover,.ck-row.sel{background:var(--bg-mute)}
+.ck-row .doc{width:26px;height:26px;font-size:8px;border-radius:8px}
+.ck-row .mut{color:var(--ink-3);font-size:12px;margin-left:auto}
+.ck-foot{display:flex;gap:14px;padding:9px 16px;border-top:1px solid var(--line);font-size:11px;color:var(--ink-3)}
+.ck-foot .ai{margin-left:auto;color:var(--violet);font-weight:600}
+.kbd{font-family:'JetBrains Mono',monospace;font-size:9.5px;background:var(--bg-mute);border-radius:5px;padding:2px 6px;color:var(--ink-3)}
+
+/* toast */
+#toast{position:fixed;right:22px;bottom:22px;z-index:90;display:flex;align-items:center;gap:9px;
+  padding:11px 16px;border-radius:13px;background:color-mix(in srgb,var(--bg) 88%,transparent);
+  backdrop-filter:blur(14px);border:1px solid var(--line-strong);box-shadow:var(--sh-float);
+  font-size:13.5px;opacity:0;transform:translateY(10px);transition:all .22s var(--ease);pointer-events:none}
+#toast.show{opacity:1;transform:none}
+#toast .tk{color:var(--emerald)}
+
+@media(max-width:700px){
+  .tabs .lb{display:none}
+  .fsearch{display:none}
+  .wrap{padding:26px 16px 90px}
+}
+</style>
+</head>
+<body>
+
+<div id="splash">
+  <div class="sp-logo">F</div>
+  <h1 class="sp-h">Every document,<br><span class="g">one question away.</span></h1>
+  <div class="sp-chips">
+    <div class="sp-chip"><b>20,000+</b><span>DOCS / YEAR</span></div>
+    <div class="sp-chip"><b>ไทย + EN</b><span>OCR &amp; SEARCH</span></div>
+    <div class="sp-chip"><b>100%</b><span>GROUNDED · CITED</span></div>
+  </div>
+  <button class="sp-enter" onclick="enterDemo()">Enter demo →</button>
+  <div class="sp-note">Everyday shell prototype · simulated data · best on desktop · keys 1–4 switch pages</div>
+</div>
+
+<header class="top">
+  <span class="logo">F</span><span class="brand">File Hub</span>
+  <nav class="tabs">
+    <button class="tab on" data-view="home" onclick="switchView('home')"><span class="lb" data-i18n="tabHome"></span><span class="kn">1</span></button>
+    <button class="tab" data-view="files" onclick="switchView('files')"><span class="lb" data-i18n="tabFiles"></span><span class="kn">2</span></button>
+    <button class="tab" data-view="file" onclick="switchView('file')"><span class="lb" data-i18n="tabFile"></span><span class="kn">3</span></button>
+    <button class="tab" data-view="ask" onclick="switchView('ask')"><span class="lb" data-i18n="tabAsk"></span><span class="kn">4</span></button>
+  </nav>
+  <span class="grow"></span>
+  <span class="pill-demo">DEMO · SIMULATED</span>
+  <div class="lang">
+    <button data-setlang="en" class="on" onclick="setLang('en')">EN</button>
+    <button data-setlang="th" onclick="setLang('th')">ไทย</button>
+  </div>
+  <button class="tab" onclick="openCmdk()" aria-label="Search"><span>⌕</span><span class="kn">⌘K</span></button>
+  <button class="mode" onclick="cycleDesign()" title="Cycle design: vivid / hybrid / calm" aria-label="Cycle design variant">◎</button>
+  <button class="mode" onclick="document.documentElement.classList.toggle('dark')" aria-label="Toggle dark mode">◐</button>
+  <span class="avatar">AK</span>
+</header>
+
+<div id="cmdk" onclick="if(event.target===this)closeCmdk()">
+  <div class="ck">
+    <div class="ck-in"><span style="color:var(--ink-3)">⌕</span><input id="ckInput" data-i18n-ph="ckPh" oninput="renderCmdk()" onkeydown="ckKey(event)"></div>
+    <div class="ck-list" id="ckList"></div>
+    <div class="ck-foot"><span><span class="kbd">↵</span> open</span><span><span class="kbd">esc</span> close</span><span class="ai">✦ AI-powered</span></div>
+  </div>
+</div>
+
+<main>
+  <section class="view on wash" id="view-home">
+    <div class="wrap">
+      <h1 class="hi"><span data-i18n="hiGreet"></span><br><span class="g" data-i18n="hiQ"></span></h1>
+      <p class="hi-sub" data-i18n="hiSub"></p>
+      <div class="ask">
+        <div class="ask-in">
+          <span class="sp">✦</span>
+          <input id="homeAsk" data-i18n-ph="askPh" onkeydown="if(event.key==='Enter')homeGo()">
+          <button class="send" onclick="homeGo()" aria-label="Ask">
+            <svg viewBox="0 0 24 24"><path d="M12 19V6M6 12l6-6 6 6"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="chips" id="homeChips"></div>
+      <div class="brief"><span class="sp">✦</span><span id="briefTx"></span></div>
+      <div class="sec">
+        <div class="sec-hd"><h2 data-i18n="secWait"></h2><button class="lnk" onclick="switchView('files')" data-i18n="seeAll"></button></div>
+        <div id="homeTasks" class="stagger"></div>
+      </div>
+      <div class="sec">
+        <div class="sec-hd"><h2 data-i18n="secRecent"></h2><button class="lnk" onclick="switchView('files')" data-i18n="seeRecent"></button></div>
+        <div class="tiles stagger" id="homeTiles"></div>
+      </div>
+      <div class="sec">
+        <div class="sec-hd"><h2 data-i18n="secAreas"></h2></div>
+        <div class="areas stagger" id="homeAreas"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="view-files">
+    <div class="wrap">
+      <h1 class="hi" style="font-size:28px" data-i18n="filesTitle"></h1>
+      <div class="filters">
+        <span id="fileChips"></span>
+        <span class="fsearch">⌕ <input id="fileSearch" data-i18n-ph="searchPh" oninput="renderFiles()"></span>
+      </div>
+      <div class="tiles stagger" id="filesGrid"></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-file">
+    <div class="wrap">
+      <button class="back" onclick="switchView('files')">← <span data-i18n="backFiles"></span></button>
+      <div class="fhead">
+        <span class="doc" id="fvDoc" style="width:52px;height:52px;font-size:11px"></span>
+        <div class="tx">
+          <h1 id="fvName"></h1>
+          <div class="mt" id="fvMeta" style="display:inline">
+          </div> <span class="presence">· <i></i><span data-i18n="viewing"></span></span>
+        </div>
+        <button class="lnk" onclick="toast(I18N.tDownload[S.lang])" data-i18n="dl"></button>
+        <button class="lnk" id="fvStar" onclick="starFile()"></button>
+      </div>
+      <div class="fgrid">
+        <div class="paper"><div class="page-mock" id="fvPage"></div></div>
+        <div>
+          <div class="side-sec">
+            <div class="side-hd"><span style="color:var(--violet)">✦</span> <span data-i18n="secAi"></span></div>
+            <div class="ai-card">
+              <span id="fvSummary"></span>
+              <div class="tagrow" id="fvTags"></div>
+              <div class="ai-attr">kimi-k2.6 · <span data-i18n="aiWhen"></span></div>
+            </div>
+          </div>
+          <div class="side-sec">
+            <div class="side-hd"><span data-i18n="secSign"></span></div>
+            <div id="fvSign"></div>
+          </div>
+          <div class="side-sec">
+            <div class="side-hd"><span data-i18n="secFlow"></span></div>
+            <div id="fvFlow"></div>
+          </div>
+          <div class="side-sec">
+            <div class="side-hd"><span data-i18n="secDetails"></span></div>
+            <div id="fvDetails"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view wash" id="view-ask">
+    <div class="wrap" style="max-width:760px">
+      <h1 class="hi" style="font-size:28px" data-i18n="askTitle"></h1>
+      <p class="hi-sub" data-i18n="askSub"></p>
+      <div class="chips" id="askChips" style="margin:16px 0 26px"></div>
+      <div class="thread" id="thread"></div>
+      <div class="askdock ask">
+        <div class="ask-in">
+          <span class="sp">✦</span>
+          <input id="askInput" data-i18n-ph="followPh" onkeydown="if(event.key==='Enter')askFree()">
+          <button class="send" onclick="askFree()" aria-label="Ask">
+            <svg viewBox="0 0 24 24"><path d="M12 19V6M6 12l6-6 6 6"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="toast"><span class="tk">✓</span><span id="toastTx"></span></div>
+<script>
+var S = { lang:'en', view:'home', file:0, signed:false, starred:false, asked:{} };
+function $(id){ return document.getElementById(id); }
+
+var I18N = {
+  tabHome:{en:'Home',th:'หน้าหลัก'}, tabFiles:{en:'My files',th:'ไฟล์ของฉัน'},
+  tabFile:{en:'File',th:'ไฟล์'}, tabAsk:{en:'Ask',th:'ถาม AI'},
+  hiGreet:{en:'Good evening, Anong',th:'สวัสดีตอนเย็น, อนงค์'},
+  hiQ:{en:'What do you want to know?',th:'อยากรู้อะไร ถามได้เลย'},
+  hiSub:{en:'Your documents can answer — just ask.',th:'เอกสารของคุณตอบได้ — แค่พิมพ์คำถาม'},
+  askPh:{en:'Ask anything about your documents…',th:'ถามอะไรก็ได้เกี่ยวกับเอกสารของคุณ…'},
+  followPh:{en:'Ask a follow-up…',th:'ถามต่อได้เลย…'},
+  searchPh:{en:'Filter…',th:'ค้นหา…'},
+  secWait:{en:'Waiting on you',th:'รอคุณอยู่'}, seeAll:{en:'See all →',th:'ดูทั้งหมด →'},
+  secRecent:{en:'Pick up where you left off',th:'ทำต่อจากที่ค้างไว้'}, seeRecent:{en:'Recent →',th:'ล่าสุด →'},
+  secAreas:{en:'Your areas',th:'พื้นที่ของคุณ'},
+  filesTitle:{en:'My files',th:'ไฟล์ของฉัน'},
+  backFiles:{en:'My files',th:'ไฟล์ของฉัน'},
+  dl:{en:'Download',th:'ดาวน์โหลด'},
+  star:{en:'☆ Star',th:'☆ รายการโปรด'}, starred:{en:'★ Starred',th:'★ ในรายการโปรด'},
+  secAi:{en:'Intelligence',th:'สรุปโดย AI'}, aiWhen:{en:'analyzed 1 hr ago',th:'วิเคราะห์เมื่อ 1 ชม.ที่แล้ว'},
+  secSign:{en:'Signatures',th:'ลายมือชื่อ'}, secFlow:{en:'Approval workflow',th:'สายงานอนุมัติ'},
+  secDetails:{en:'Details',th:'รายละเอียด'},
+  kOwner:{en:'Owner',th:'เจ้าของ'}, kArea:{en:'Area',th:'พื้นที่'}, kModified:{en:'Modified',th:'แก้ไขล่าสุด'}, kSize:{en:'Size',th:'ขนาด'},
+  signBtn:{en:'Sign document →',th:'ลงนามเอกสาร →'},
+  signedOk:{en:'You signed',th:'คุณลงนามแล้ว'}, justNow:{en:'just now',th:'เมื่อสักครู่'},
+  noSign:{en:'No signature requests.',th:'ยังไม่มีคำขอลงนาม'},
+  noFlow:{en:'No active workflow.',th:'ยังไม่มีสายงานอนุมัติ'},
+  waitTurn:{en:'waiting for their turn',th:'รอถึงลำดับ'},
+  approvedLegal:{en:'Legal review passed',th:'ผ่านการตรวจฝ่ายกฎหมาย'},
+  pendingRev:{en:'pending review',th:'รอตรวจ'},
+  askTitle:{en:'Ask your content',th:'ถามเอกสารของคุณ'},
+  askSub:{en:'Answers with citations — not a folder you have to dig through.',th:'ได้คำตอบพร้อมอ้างอิง — ไม่ต้องคุ้ยแฟ้มเอง'},
+  grounded:{en:'grounded',th:'อ้างอิงจากเอกสารจริง'},
+  sources:{en:'Sources',th:'แหล่งอ้างอิง'},
+  uploadChip:{en:'⇪ Upload files',th:'⇪ อัปโหลดไฟล์'},
+  actReview:{en:'Review →',th:'ตรวจ →'}, actSign:{en:'Sign →',th:'ลงนาม →'},
+  tUpload:{en:'Upload is simulated in this prototype',th:'การอัปโหลดเป็นแบบจำลองในต้นแบบนี้'},
+  tDownload:{en:'Download started (simulated)',th:'เริ่มดาวน์โหลดแล้ว (จำลอง)'},
+  tSigned:{en:'Signed — Pat S. was notified',th:'ลงนามแล้ว — แจ้งคุณพัทแล้ว'},
+  tStar:{en:'Added to Starred',th:'เพิ่มในรายการโปรดแล้ว'},
+  tUnstar:{en:'Removed from Starred',th:'นำออกจากรายการโปรดแล้ว'},
+  tCite:{en:'Opens the cited file in the real product',th:'ในระบบจริงจะเปิดไฟล์ที่อ้างอิง'},
+  docsWord:{en:'documents',th:'เอกสาร'},
+  viewing:{en:'Pat S. is viewing',th:'คุณพัทกำลังดูอยู่'},
+  ckPh:{en:'Search files, pages, or ask anything…',th:'ค้นหาไฟล์ หน้า หรือถามอะไรก็ได้…'},
+  ckPages:{en:'Pages',th:'หน้า'}, ckFiles:{en:'Files',th:'ไฟล์'}, ckAsk:{en:'Ask AI',th:'ถาม AI'},
+  brief:{en:'Your brief — **3 files** wait on you, the DMS pilot starts in **30 days**, and contract-A12 should be reviewed before Friday.',
+         th:'สรุปเช้านี้ — มีไฟล์รอคุณ **3 รายการ** โครงการนำร่อง DMS เริ่มใน **30 วัน** และ contract-A12 ควรตรวจก่อนวันศุกร์'},
+  actOpen:{en:'Open TOR-summary →',th:'เปิด TOR-summary →'},
+  actOpenHr:{en:'Open leave policy →',th:'เปิดระเบียบการลา →'},
+  actDraft:{en:'✦ Draft a memo from this',th:'✦ ร่างบันทึกจากคำตอบนี้'},
+  tDraft:{en:'Drafting from answers ships with the agent update (simulated)',th:'การร่างเอกสารจากคำตอบจะมาพร้อมรุ่นถัดไป (จำลอง)'}
+};
+
+var AREAS = [
+  { key:'legal', n:{en:'Legal',th:'กฎหมาย'}, count:128, bg:'#e1f5ee', bgD:'#0a2e22', fg:'#0f6e56', ic:'⚖' },
+  { key:'fin',   n:{en:'Finance',th:'การเงิน'}, count:96, bg:'#faeeda', bgD:'#33230a', fg:'#854f0b', ic:'฿' },
+  { key:'dms',   n:{en:'Document Mgmt',th:'สารบรรณกลาง'}, count:2048, bg:'#e0f4f8', bgD:'#0a2a33', fg:'#0e7490', ic:'☰' },
+  { key:'hr',    n:{en:'HR',th:'ทรัพยากรบุคคล'}, count:310, bg:'#eeedfe', bgD:'#211c4a', fg:'#534ab7', ic:'♥' }
+];
+
+var TYPES = { pdf:'#dc2626', doc:'#2563eb', xls:'#16a34a', txt:'#475569', img:'#ea580c' };
+
+var FILES = [
+  { name:'contract-A12.pdf', type:'pdf', size:'2.4 MB', area:'legal',
+    when:{en:'2 hr ago',th:'2 ชม.ที่แล้ว'}, owner:'Anong K.',
+    wait:{ by:{en:'Anong sent this for your review',th:'คุณอนงค์ส่งมาให้คุณตรวจ'}, act:'actReview' },
+    sum:{en:'Three-year service agreement with SecureVision Co., Ltd. — net-30 payment terms, 24-month hardware warranty, liability cap confirmed by Legal in clause 4.2.',
+         th:'สัญญาจ้างบริการ 3 ปีกับบริษัท SecureVision — เงื่อนไขชำระเงิน 30 วัน รับประกันอุปกรณ์ 24 เดือน เพดานความรับผิดยืนยันแล้วในข้อ 4.2'},
+    tags:['contract','vendor','net-30'] },
+  { name:'NDA-template-v3.docx', type:'doc', size:'340 KB', area:'legal',
+    when:{en:'yesterday',th:'เมื่อวาน'}, owner:'Wisanu T.',
+    wait:{ by:{en:'Wisanu asked you to sign',th:'คุณวิษณุขอให้คุณลงนาม'}, act:'actSign' },
+    sum:{en:'Mutual non-disclosure template, version 3 — 2-year confidentiality term, Thai and English bilingual body, governing law: Thailand.',
+         th:'แม่แบบสัญญาไม่เปิดเผยข้อมูลแบบสองฝ่าย ฉบับที่ 3 — ระยะเวลารักษาความลับ 2 ปี เนื้อหาสองภาษาไทย-อังกฤษ ใช้กฎหมายไทย'},
+    tags:['nda','template','bilingual'] },
+  { name:'vendor-list-2026.xlsx', type:'xls', size:'620 KB', area:'fin',
+    when:{en:'yesterday',th:'เมื่อวาน'}, owner:'Pat S.',
+    wait:{ by:{en:'Pat needs a decision',th:'คุณพัทรอการตัดสินใจ'}, act:'actReview' },
+    sum:{en:'Approved vendor register for 2026 — 42 suppliers across 6 categories with ratings and contract expiry dates.',
+         th:'ทะเบียนผู้ขายที่อนุมัติแล้วปี 2569 — ผู้ขาย 42 ราย 6 หมวด พร้อมคะแนนและวันหมดอายุสัญญา'},
+    tags:['vendor','register'] },
+  { name:'TOR-summary-DMS-2026.txt', type:'txt', size:'3.6 KB', area:'dms',
+    when:{en:'32 min ago',th:'32 นาทีที่แล้ว'}, owner:'Anong K.',
+    sum:{en:'TOR for the EDMS project (JK 3-2569): ฿4.2M budget, 270-day delivery, technical 70 / price 30 scoring, Thai OCR and e-signature mandatory.',
+         th:'ขอบเขตงานโครงการ DMS (จก. 3-2569): งบ 4.2 ล้านบาท ส่งมอบ 270 วัน คะแนนเทคนิค 70 / ราคา 30 บังคับ OCR ไทยและลายมือชื่ออิเล็กทรอนิกส์'},
+    tags:['tor','dms','budget'] },
+  { name:'meeting-minutes-2026-06-15.txt', type:'txt', size:'3.1 KB', area:'dms',
+    when:{en:'1 hr ago',th:'1 ชม.ที่แล้ว'}, owner:'Sara L.',
+    sum:{en:'DMS working group 4/2026 — pilot in Legal from 1 Aug, ฿1.26M disbursed (30%), 15-minute session timeout adopted.',
+         th:'ประชุมคณะทำงาน DMS ครั้งที่ 4/2569 — นำร่องที่ฝ่ายกฎหมาย 1 ส.ค. เบิกจ่ายแล้ว 1.26 ล้านบาท (30%) และมติหมดเวลาเซสชัน 15 นาที'},
+    tags:['minutes','dms'] },
+  { name:'budget-memo-Q3-2026.txt', type:'txt', size:'2.7 KB', area:'fin',
+    when:{en:'1 hr ago',th:'1 ชม.ที่แล้ว'}, owner:'Pat S.',
+    sum:{en:'Q3/2026 allocations by department — IT ฿6.8M (incl. DMS milestone 2), CCTV negotiated to ฿2.75M, Q4 requests due 15 Aug.',
+         th:'งบไตรมาส 3/2569 รายฝ่าย — IT 6.8 ล้านบาท (รวม DMS งวด 2) CCTV ต่อรองเหลือ 2.75 ล้านบาท ส่งคำของบ Q4 ภายใน 15 ส.ค.'},
+    tags:['budget','memo'] },
+  { name:'HR-leave-policy-2026.txt', type:'txt', size:'2.8 KB', area:'hr',
+    when:{en:'1 hr ago',th:'1 ชม.ที่แล้ว'}, owner:'HR Admin',
+    sum:{en:'Employee leave policy 2026 — 10 annual leave days (15 after 5 years), 30 sick days, 98-day maternity leave, submission via DMS.',
+         th:'ระเบียบการลา พ.ศ. 2569 — พักร้อน 10 วัน (15 วันเมื่ออายุงานเกิน 5 ปี) ลาป่วย 30 วัน ลาคลอด 98 วัน ยื่นผ่านระบบ DMS'},
+    tags:['policy','leave','hr'] },
+  { name:'team-photo.jpg', type:'img', size:'4.2 MB', area:'hr',
+    when:{en:'2 hr ago',th:'2 ชม.ที่แล้ว'}, owner:'Krit M.',
+    sum:{en:'Company town-hall photo, Q2 2026 — 74 attendees, auditorium 5th floor.',
+         th:'ภาพถ่ายประชุมพนักงานไตรมาส 2/2569 — ผู้เข้าร่วม 74 คน หอประชุมชั้น 5'},
+    tags:['photo','event'] }
+];
+
+var ASKS = {
+  q1: {
+    q:{en:"What's the DMS project budget and how much is disbursed?", th:'งบประมาณโครงการ DMS เท่าไหร่ และเบิกจ่ายไปแล้วเท่าไร'},
+    think:{en:'Searching 2,048 documents by meaning · reading TOR-summary-DMS-2026 · meeting-minutes 4/2569…',
+           th:'ค้นหาเชิงความหมายใน 2,048 เอกสาร · อ่าน TOR-summary-DMS-2026 · รายงานประชุม 4/2569…'},
+    a:{en:'The total project budget is **฿4,200,000** including VAT [1]. As of June 2026, **฿1,260,000** has been disbursed — 30% at milestone 1 [2] — leaving ฿2,940,000 committed under contract.',
+       th:'งบประมาณรวมทั้งสิ้น **4,200,000 บาท** (รวมภาษีมูลค่าเพิ่ม) [1] เบิกจ่ายแล้ว **1,260,000 บาท** หรือร้อยละ 30 งวดที่ 1 [2] คงเหลือผูกพันตามสัญญา 2,940,000 บาท'},
+    srcs:[ {f:3, sc:0.74}, {f:4, sc:0.72} ]
+  },
+  q2: {
+    q:{en:'How many vacation days do employees get?', th:'พนักงานลาพักร้อนได้กี่วัน'},
+    think:{en:'Searching HR policies · reading HR-leave-policy-2026…',
+           th:'ค้นหาระเบียบฝ่ายบุคคล · อ่าน HR-leave-policy-2026…'},
+    a:{en:'Employees get **10 working days** of annual leave after one year of service, rising to **15 days** after five years [1]. Unused days carry over, up to 5 per year.',
+       th:'พนักงานที่ทำงานครบ 1 ปี ลาพักร้อนได้ **10 วันทำการ** ต่อปี และเพิ่มเป็น **15 วัน** เมื่ออายุงานเกิน 5 ปี [1] วันที่ไม่ได้ใช้สะสมข้ามปีได้ไม่เกิน 5 วัน'},
+    srcs:[ {f:6, sc:0.55} ]
+  },
+  free: {
+    a:{en:"In the real product I'd search your whole corpus for that. This prototype scripts two questions — try a suggestion chip below.",
+       th:'ในระบบจริง AI จะค้นหาจากเอกสารทั้งหมดของคุณ ต้นแบบนี้จำลองไว้ 2 คำถาม — ลองกดตัวอย่างคำถามด้านบน'}
+  }
+};
+
+function t(k){ return I18N[k][S.lang]; }
+function applyI18n(){
+  document.querySelectorAll('[data-i18n]').forEach(function(el){ el.textContent = I18N[el.dataset.i18n][S.lang]; });
+  document.querySelectorAll('[data-i18n-ph]').forEach(function(el){ el.placeholder = I18N[el.dataset.i18nPh][S.lang]; });
+}
+function toast(tx){
+  $('toastTx').textContent = tx;
+  var el = $('toast'); el.classList.add('show');
+  clearTimeout(el._h); el._h = setTimeout(function(){ el.classList.remove('show'); }, 3200);
+}
+function areaOf(key){ for (var i=0;i<AREAS.length;i++) if (AREAS[i].key===key) return AREAS[i]; return AREAS[0]; }
+function isDark(){ return document.documentElement.classList.contains('dark'); }
+
+/* renderers */
+function docBadge(f, cls){ return '<span class="doc ' + (cls||'') + '" style="background:' + TYPES[f.type] + '">' + f.type.toUpperCase() + '</span>'; }
+
+function renderHomeChips(){
+  var h = '';
+  h += '<button class="chip" onclick="goAsk(\'q1\')">' + ASKS.q1.q[S.lang] + '</button>';
+  h += '<button class="chip" onclick="goAsk(\'q2\')">' + ASKS.q2.q[S.lang] + '</button>';
+  h += '<button class="chip" onclick="toast(t(\'tUpload\'))">' + t('uploadChip') + '</button>';
+  $('homeChips').innerHTML = h;
+  $('askChips').innerHTML =
+    '<button class="chip" onclick="runAsk(\'q1\')">' + ASKS.q1.q[S.lang] + '</button>' +
+    '<button class="chip" onclick="runAsk(\'q2\')">' + ASKS.q2.q[S.lang] + '</button>';
+}
+function renderHomeTasks(){
+  var h = '';
+  FILES.forEach(function(f, i){
+    if (!f.wait) return;
+    h += '<button class="task" onclick="openFile(' + i + ')">' + docBadge(f) +
+      '<span class="tx"><span class="nm">' + f.name + '</span><span class="who" style="display:block">' +
+      f.wait.by[S.lang] + ' · ' + f.when[S.lang] + '</span></span>' +
+      '<span class="act">' + t(f.wait.act) + '</span></button>';
+  });
+  $('homeTasks').innerHTML = h;
+}
+function tileHtml(f, i){
+  // Text docs take their area's tone (a row of identical slate tiles reads
+  // dull); binary types keep their conventional type color.
+  var c = f.type === 'txt' ? areaOf(f.area).fg : TYPES[f.type];
+  return '<button class="tile" onclick="openFile(' + i + ')">' +
+    '<span class="prev" style="background:linear-gradient(135deg,' + c + 'cc,' + c + ')">' + f.type.toUpperCase() + '</span>' +
+    '<span class="meta" style="display:block"><b>' + f.name + '</b><span>' + f.when[S.lang] + ' · ' + areaOf(f.area).n[S.lang] + '</span></span></button>';
+}
+function renderHomeTiles(){
+  var h = '';
+  [3, 7, 5, 6].forEach(function(i){ h += tileHtml(FILES[i], i); });
+  $('homeTiles').innerHTML = h;
+}
+function renderAreas(){
+  var h = '';
+  AREAS.forEach(function(a){
+    var bg = isDark() ? a.bgD : a.bg;
+    h += '<button class="area" style="background:' + bg + '" onclick="filterArea(\'' + a.key + '\')">' +
+      '<span class="dot" style="background:' + a.fg + '">' + a.ic + '</span>' +
+      '<span><b>' + a.n[S.lang] + '</b><span>' + a.count.toLocaleString() + ' ' + t('docsWord') + '</span></span></button>';
+  });
+  $('homeAreas').innerHTML = h;
+}
+var fileFilter = 'all';
+function renderFileChips(){
+  var h = '<button class="fchip' + (fileFilter==='all' ? ' on' : '') + '" onclick="filterSet(\'all\')">' + (S.lang==='en'?'All':'ทั้งหมด') + '</button>';
+  AREAS.forEach(function(a){
+    h += '<button class="fchip' + (fileFilter===a.key ? ' on' : '') + '" onclick="filterSet(\'' + a.key + '\')">' + a.n[S.lang] + '</button>';
+  });
+  $('fileChips').innerHTML = h;
+}
+function renderFiles(){
+  var q = ($('fileSearch').value || '').toLowerCase();
+  var h = '';
+  FILES.forEach(function(f, i){
+    if (fileFilter !== 'all' && f.area !== fileFilter) return;
+    if (q && f.name.toLowerCase().indexOf(q) < 0) return;
+    h += tileHtml(f, i);
+  });
+  $('filesGrid').innerHTML = h;
+}
+function filterSet(k){ fileFilter = k; renderFileChips(); renderFiles(); }
+function filterArea(k){ filterSet(k); switchView('files'); }
+
+function renderFile(){
+  var f = FILES[S.file];
+  var badge = $('fvDoc');
+  badge.style.background = TYPES[f.type];
+  badge.textContent = f.type.toUpperCase();
+  $('fvName').textContent = f.name;
+  $('fvMeta').textContent = f.size + ' · ' + f.when[S.lang] + ' · ' + areaOf(f.area).n[S.lang];
+  $('fvStar').textContent = S.starred ? t('starred') : t('star');
+  var pg = '<h4>' + f.name.replace(/\.[a-z]+$/, '').toUpperCase() + '</h4>';
+  for (var r = 0; r < 14; r++) pg += '<div class="pl" style="width:' + (58 + ((r * 37) % 40)) + '%"></div>';
+  $('fvPage').innerHTML = pg;
+  $('fvSummary').textContent = f.sum[S.lang];
+  var tg = '';
+  f.tags.forEach(function(x){ tg += '<span class="tg">#' + x + '</span>'; });
+  $('fvTags').innerHTML = tg;
+  renderSign(); renderFlow();
+  var d = '';
+  d += '<div class="metarow"><span class="k">' + t('kOwner') + '</span><span>' + f.owner + '</span></div>';
+  d += '<div class="metarow"><span class="k">' + t('kArea') + '</span><span>' + areaOf(f.area).n[S.lang] + '</span></div>';
+  d += '<div class="metarow"><span class="k">' + t('kModified') + '</span><span>' + f.when[S.lang] + '</span></div>';
+  d += '<div class="metarow"><span class="k">' + t('kSize') + '</span><span>' + f.size + '</span></div>';
+  $('fvDetails').innerHTML = d;
+}
+function stepHtml(cls, ic, name, note){
+  return '<div class="step ' + cls + '"><span class="ic">' + ic + '</span><span><b>' + name + '</b><span>' + note + '</span></span></div>';
+}
+function renderSign(){
+  var el = $('fvSign');
+  if (S.file !== 1){ el.innerHTML = '<span style="font-size:13px;color:var(--ink-3)">' + t('noSign') + '</span>'; return; }
+  var h = stepHtml('done', '✓', 'Wisanu T.', (S.lang==='en'?'signed yesterday':'ลงนามเมื่อวาน'));
+  if (S.signed){
+    h += stepHtml('done', '✓', (S.lang==='en'?'You':'คุณ'), t('justNow'));
+    h += stepHtml('now', '2', 'Pat S.', (S.lang==='en'?'notified · their turn':'ได้รับแจ้งแล้ว · ถึงลำดับ'));
+  } else {
+    h += stepHtml('now', '1', (S.lang==='en'?'You':'คุณ'), (S.lang==='en'?'your turn':'ถึงลำดับของคุณ'));
+    h += stepHtml('wait', '2', 'Pat S.', t('waitTurn'));
+    h += '<button class="lnk" style="margin-top:6px;font-size:14px" onclick="signDoc()">' + t('signBtn') + '</button>';
+  }
+  el.innerHTML = h;
+}
+function renderFlow(){
+  var el = $('fvFlow');
+  if (S.file !== 0){ el.innerHTML = '<span style="font-size:13px;color:var(--ink-3)">' + t('noFlow') + '</span>'; return; }
+  el.innerHTML =
+    stepHtml('done', '✓', 'Wisanu T.', t('approvedLegal')) +
+    stepHtml('now', '2', 'Pat S.', t('pendingRev'));
+}
+
+/* set pieces */
+function signDoc(){ S.signed = true; renderSign(); toast(t('tSigned')); }
+function starFile(){ S.starred = !S.starred; $('fvStar').textContent = S.starred ? t('starred') : t('star'); toast(S.starred ? t('tStar') : t('tUnstar')); }
+function openFile(i){ S.file = i; renderFile(); switchView('file'); }
+function goAsk(key){ switchView('ask'); runAsk(key); }
+function homeGo(){
+  var v = $('homeAsk').value.trim();
+  $('homeAsk').value = '';
+  switchView('ask');
+  if (!v) { runAsk('q1'); return; }
+  freeReply(v);
+}
+function askFree(){
+  var v = $('askInput').value.trim();
+  if (!v) return;
+  $('askInput').value = '';
+  freeReply(v);
+}
+function esc(s){ var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function fmtAnswer(a, srcs){
+  var h = esc(a).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  h = h.replace(/\[(\d)\]/g, '<span class="cite" onclick="toast(t(\'tCite\'))">$1</span>');
+  return h;
+}
+function typeInto(el, text, speed, done){
+  var i = 0;
+  var timer = setInterval(function(){
+    i += 2;
+    el.textContent = text.slice(0, i);
+    el.scrollIntoView({ block: 'nearest' });
+    if (i >= text.length){ clearInterval(timer); if (done) done(); }
+  }, speed);
+}
+function srcCard(sr){
+  var f = FILES[sr.f];
+  return '<button class="src" onclick="openFile(' + sr.f + ')">' + docBadge(f) +
+    '<span class="tx"><b>' + f.name + '</b><span class="bar"><i style="width:' + Math.round(sr.sc * 100) + '%"></i></span></span>' +
+    '<span class="sc">' + sr.sc.toFixed(2) + '</span></button>';
+}
+function runAsk(key){
+  var a = ASKS[key];
+  var th = $('thread');
+  var qb = document.createElement('div'); qb.className = 'qb'; qb.textContent = a.q[S.lang]; th.appendChild(qb);
+  var ab = document.createElement('div'); ab.className = 'ab';
+  ab.innerHTML = '<div class="think"></div>';
+  th.appendChild(ab);
+  var thinkEl = ab.querySelector('.think');
+  typeInto(thinkEl, a.think[S.lang], 12, function(){
+    setTimeout(function(){
+      ab.innerHTML = '<div class="badges"><span class="gr">✦ ' + t('grounded') + '</span></div><div class="atx"><span class="cur"></span><span class="caret"></span></div>';
+      var cur = ab.querySelector('.cur');
+      var plain = a.a[S.lang].replace(/\*\*/g, '');
+      typeInto(cur, plain, 11, function(){
+        var caret = ab.querySelector('.caret'); if (caret) caret.remove();
+        cur.innerHTML = fmtAnswer(a.a[S.lang]);
+        var srcs = '<div class="badges" style="margin-top:14px">' + t('sources').toUpperCase() + '</div><div class="srcs">';
+        a.srcs.forEach(function(sr){ srcs += srcCard(sr); });
+        srcs += '</div>';
+        // Agentic follow-ups — the answer offers actions, not just text.
+        var openKey = key === 'q2' ? 'actOpenHr' : 'actOpen';
+        var openIdx = a.srcs[0].f;
+        srcs += '<div class="acts">' +
+          '<button class="act-chip" onclick="openFile(' + openIdx + ')">' + t(openKey) + '</button>' +
+          '<button class="act-chip" onclick="toast(t(\'tDraft\'))">' + t('actDraft') + '</button></div>';
+        var sd = document.createElement('div'); sd.innerHTML = srcs; ab.appendChild(sd);
+        sd.scrollIntoView({ block: 'nearest' });
+      });
+    }, 350);
+  });
+}
+function freeReply(q){
+  var th = $('thread');
+  var qb = document.createElement('div'); qb.className = 'qb'; qb.textContent = q; th.appendChild(qb);
+  var ab = document.createElement('div'); ab.className = 'ab';
+  ab.innerHTML = '<div class="atx"><span class="cur"></span><span class="caret"></span></div>';
+  th.appendChild(ab);
+  var cur = ab.querySelector('.cur');
+  typeInto(cur, ASKS.free.a[S.lang], 11, function(){
+    var caret = ab.querySelector('.caret'); if (caret) caret.remove();
+  });
+}
+
+/* daily brief — types once on load, re-renders instantly on lang switch */
+var briefed = false;
+function renderBrief(){
+  var el = $('briefTx');
+  var plain = I18N.brief[S.lang].replace(/\*\*/g, '');
+  if (briefed){ el.innerHTML = fmtAnswer(I18N.brief[S.lang]); return; }
+  briefed = true;
+  typeInto(el, plain, 9, function(){ el.innerHTML = fmtAnswer(I18N.brief[S.lang]); });
+}
+
+/* command palette */
+var ckSel = 0;
+function ckItems(){
+  var q = ($('ckInput').value || '').toLowerCase();
+  var items = [];
+  var pages = [ ['tabHome','home'], ['tabFiles','files'], ['tabAsk','ask'] ];
+  pages.forEach(function(p){
+    var label = I18N[p[0]][S.lang];
+    if (!q || label.toLowerCase().indexOf(q) >= 0) items.push({ kind:'page', label:label, view:p[1] });
+  });
+  FILES.forEach(function(f, i){
+    if (!q || f.name.toLowerCase().indexOf(q) >= 0) items.push({ kind:'file', label:f.name, f:f, i:i });
+  });
+  ['q1','q2'].forEach(function(k){
+    var label = ASKS[k].q[S.lang];
+    if (!q || label.toLowerCase().indexOf(q) >= 0) items.push({ kind:'ask', label:label, key:k });
+  });
+  return items.slice(0, 9);
+}
+function renderCmdk(){
+  var items = ckItems();
+  if (ckSel >= items.length) ckSel = Math.max(0, items.length - 1);
+  var h = '', lastKind = '';
+  items.forEach(function(it, idx){
+    if (it.kind !== lastKind){
+      lastKind = it.kind;
+      var lab = it.kind === 'page' ? 'ckPages' : it.kind === 'file' ? 'ckFiles' : 'ckAsk';
+      h += '<div class="ck-lab">' + t(lab) + '</div>';
+    }
+    var sel = idx === ckSel ? ' sel' : '';
+    if (it.kind === 'file'){
+      h += '<button class="ck-row' + sel + '" onclick="ckGo(' + idx + ')"><span class="doc" style="background:' + TYPES[it.f.type] + '">' + it.f.type.toUpperCase() + '</span>' + it.label +
+        '<span class="mut">' + areaOf(it.f.area).n[S.lang] + '</span></button>';
+    } else {
+      var ic = it.kind === 'ask' ? '<span style="color:var(--violet)">✦</span>' : '<span style="color:var(--ink-3)">→</span>';
+      h += '<button class="ck-row' + sel + '" onclick="ckGo(' + idx + ')">' + ic + it.label + '</button>';
+    }
+  });
+  $('ckList').innerHTML = h;
+}
+function ckGo(idx){
+  var it = ckItems()[idx];
+  if (!it) return;
+  closeCmdk();
+  if (it.kind === 'page') switchView(it.view);
+  else if (it.kind === 'file') openFile(it.i);
+  else goAsk(it.key);
+}
+function ckKey(e){
+  var items = ckItems();
+  if (e.key === 'ArrowDown'){ e.preventDefault(); ckSel = Math.min(items.length - 1, ckSel + 1); renderCmdk(); }
+  else if (e.key === 'ArrowUp'){ e.preventDefault(); ckSel = Math.max(0, ckSel - 1); renderCmdk(); }
+  else if (e.key === 'Enter'){ e.preventDefault(); ckGo(ckSel); }
+  else if (e.key === 'Escape'){ closeCmdk(); }
+}
+function openCmdk(){ ckSel = 0; $('ckInput').value = ''; $('cmdk').classList.add('open'); renderCmdk(); $('ckInput').focus(); }
+function closeCmdk(){ $('cmdk').classList.remove('open'); }
+
+/* nav */
+function switchView(v){
+  S.view = v;
+  document.querySelectorAll('.tab').forEach(function(b){ b.classList.toggle('on', b.dataset.view === v); });
+  document.querySelectorAll('.view').forEach(function(s){ s.classList.toggle('on', s.id === 'view-' + v); });
+}
+function setLang(l){
+  S.lang = l;
+  document.querySelectorAll('[data-setlang]').forEach(function(b){ b.classList.toggle('on', b.dataset.setlang === l); });
+  applyI18n(); renderAll();
+  $('thread').innerHTML = '';
+  closeCmdk();
+}
+function renderAll(){
+  renderHomeChips(); renderHomeTasks(); renderHomeTiles(); renderAreas();
+  renderFileChips(); renderFiles(); renderFile(); renderBrief();
+}
+function enterDemo(){ $('splash').classList.add('gone'); }
+var DESIGNS = [
+  { cls: [], name: 'Vivid' },
+  { cls: ['hybrid'], name: 'Hybrid — zinc + AI gradient' },
+  { cls: ['hybrid', 'warm'], name: 'Warm hybrid — paper + AI gradient' },
+  { cls: ['calm'], name: 'Calm — warm paper' }
+];
+var designIdx = 0;
+function cycleDesign(){
+  var root = document.documentElement;
+  root.classList.remove('hybrid', 'calm', 'warm');
+  designIdx = (designIdx + 1) % DESIGNS.length;
+  DESIGNS[designIdx].cls.forEach(function(c){ root.classList.add(c); });
+  toast(DESIGNS[designIdx].name);
+}
+document.addEventListener('keydown', function(e){
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k'){ e.preventDefault(); openCmdk(); return; }
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === 'Escape'){
+    if ($('cmdk').classList.contains('open')) closeCmdk(); else enterDemo();
+    return;
+  }
+  if (e.key === '/'){ e.preventDefault(); openCmdk(); return; }
+  var order = ['home', 'files', 'file', 'ask'];
+  var i = +e.key - 1;
+  if (order[i]) switchView(order[i]);
+});
+
+applyI18n(); renderAll();
+</script>
+</body>
+</html>
