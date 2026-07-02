@@ -82,12 +82,14 @@ export function ReviewRow({ file }: { file: FileRow }) {
   const { t } = useI18n();
   return (
     <Link href={fileHref(file.id)} className="eday-filerow">
-      <Ft type={file.file_type} />
+      <Ft type={file.file_type} size="lg" />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div className="t-sm t-medium t-trunc">{file.name}</div>
-        <div className="t-xs t-subtle t-trunc">{file.owner} · {fmtAgo(file.modified_at)}</div>
+        <div className="t-md t-semibold t-trunc">{file.name}</div>
+        <div className="t-xs t-subtle t-trunc">
+          {t("eday.sentBy", { name: file.owner })} · {fmtAgo(file.modified_at)}
+        </div>
       </div>
-      <span className="btn xs primary" style={{ pointerEvents: "none" }}>{t("eday.review")}</span>
+      <span className="eday-act">{t("eday.reviewGo")}</span>
     </Link>
   );
 }

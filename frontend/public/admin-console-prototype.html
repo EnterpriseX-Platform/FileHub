@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FileHub — Admin Console Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+:root{
+  --bg:#ffffff; --bg-soft:#fafafa; --bg-mute:#f4f4f5;
+  --line:rgba(9,9,11,.07); --line-strong:rgba(9,9,11,.13);
+  --ink:#09090b; --ink-2:#52525b; --ink-3:#9d9da8;
+  --iris:#6455f7; --iris-soft:#efedff; --iris-ink:#4b3ce0;
+  --grad:linear-gradient(135deg,#8a7bff 0%,#6455f7 55%,#5340ef 100%);
+  --violet:#7c3aed; --emerald:#059669; --amber:#d97706; --rose:#e11d48; --cyan:#0891b2; --slate:#64748b;
+  --sh-soft:0 2px 12px rgba(9,9,11,.05);
+  --sh-float:0 12px 40px rgba(9,9,11,.10),0 2px 8px rgba(9,9,11,.04);
+  --sh-glow:0 8px 30px rgba(100,85,247,.28);
+  --ease:cubic-bezier(.25,.8,.35,1);
+}
+.dark{
+  --bg:#0a0a0b; --bg-soft:#131316; --bg-mute:#1b1b1f;
+  --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.14);
+  --ink:#f4f4f5; --ink-2:#a1a1aa; --ink-3:#6e6e78;
+  --iris:#8d7eff; --iris-soft:#211c4a; --iris-ink:#c4bbff;
+  --grad:linear-gradient(135deg,#9587ff 0%,#7d6cfa 55%,#6a58f5 100%);
+  --violet:#a78bfa; --emerald:#34d399; --amber:#fbbf24; --rose:#fb7185; --cyan:#22d3ee; --slate:#94a3b8;
+  --sh-soft:0 2px 12px rgba(0,0,0,.4); --sh-float:0 12px 40px rgba(0,0,0,.5);
+  --sh-glow:0 8px 30px rgba(141,126,255,.25);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+html{background:var(--bg)}
+body{font-family:'Inter','IBM Plex Sans Thai',system-ui,sans-serif;background:var(--bg);color:var(--ink);
+  font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;transition:background .25s,color .25s;overflow:hidden}
+button{font:inherit;border:0;background:none;cursor:pointer;color:inherit}
+input,select{font:inherit}
+
+.top{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:14px;height:60px;padding:0 22px;
+  background:color-mix(in srgb,var(--bg) 80%,transparent);backdrop-filter:blur(16px) saturate(1.6);
+  border-bottom:1px solid var(--line)}
+.logo{width:30px;height:30px;border-radius:9px;background:var(--grad);display:grid;place-items:center;
+  color:#fff;font-weight:800;font-size:14px;box-shadow:var(--sh-glow);flex-shrink:0}
+.brand{font-weight:700;font-size:15px;letter-spacing:-.01em}
+.console-pill{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.08em;color:var(--iris-ink);
+  background:var(--iris-soft);border-radius:999px;padding:4px 10px}
+.tabs{display:flex;gap:3px;margin-left:6px}
+.tab{padding:6px 12px;border-radius:999px;color:var(--ink-2);font-size:13px;font-weight:500;
+  display:inline-flex;align-items:center;gap:6px;transition:all .15s var(--ease)}
+.tab:hover{background:var(--bg-mute);color:var(--ink)}
+.tab.on{background:var(--iris-soft);color:var(--iris-ink);font-weight:600}
+.tab .kn{font-family:'JetBrains Mono',monospace;font-size:9px;background:var(--bg-mute);border-radius:5px;padding:1px 5px;color:var(--ink-3)}
+.tab.on .kn{background:color-mix(in srgb,var(--iris) 16%,transparent);color:var(--iris-ink)}
+.grow{flex:1}
+.pill-demo{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.06em;color:var(--amber);
+  border:1px solid color-mix(in srgb,var(--amber) 40%,transparent);border-radius:999px;padding:4px 9px}
+.lang{display:flex;border:1px solid var(--line-strong);border-radius:999px;padding:2px;gap:2px}
+.lang button{font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:999px;color:var(--ink-3)}
+.lang button.on{background:var(--iris-soft);color:var(--iris-ink)}
+.mode{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:var(--ink-2);border:1px solid var(--line-strong)}
+.exit{font-size:12.5px;font-weight:500;color:var(--ink-2);text-decoration:none;border:1px solid var(--line-strong);
+  border-radius:999px;padding:5px 13px}
+.exit:hover{color:var(--ink);background:var(--bg-mute)}
+
+main{position:fixed;inset:60px 0 0 0}
+.view{position:absolute;inset:0;overflow:auto;opacity:0;visibility:hidden;transition:opacity .3s}
+.view.on{opacity:1;visibility:visible}
+.wrap{max-width:1020px;margin:0 auto;padding:32px 26px 90px}
+
+.hi{font-size:26px;font-weight:800;letter-spacing:-.028em;line-height:1.2;margin:0}
+.hi .g{background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hi-sub{color:var(--ink-2);margin:4px 0 0;font-size:14px}
+.strip{display:flex;gap:22px;flex-wrap:wrap;margin:16px 0 26px;font-size:13.5px;color:var(--ink-2)}
+.strip b{color:var(--ink);font-size:15px;font-variant-numeric:tabular-nums}
+
+.panel{border:1px solid var(--line);border-radius:16px;background:var(--bg);box-shadow:var(--sh-soft);padding:18px 20px;margin-bottom:16px}
+.panel-hd{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.panel-hd h2{font-size:15.5px;font-weight:700;letter-spacing:-.01em;margin:0}
+.panel-hd .lnk{margin-left:auto}
+.lnk{color:var(--iris-ink);font-size:12.5px;font-weight:600;background:none}
+.lnk:hover{text-decoration:underline}
+.grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;align-items:start}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}}
+
+/* ask-your-data */
+.aa{border-radius:14px;padding:1.5px;background:var(--grad);margin-bottom:16px;box-shadow:var(--sh-glow)}
+.aa-in{display:flex;align-items:center;gap:10px;background:var(--bg);border-radius:12.5px;padding:6px 6px 6px 14px}
+.aa-in .sp{color:var(--violet);font-size:15px}
+.aa-in input{flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:14px;color:var(--ink);height:34px}
+.aa-in input::placeholder{color:var(--ink-3)}
+.send{width:32px;height:32px;border-radius:50%;background:var(--grad);color:#fff;display:grid;place-items:center;flex-shrink:0}
+.send svg{width:14px;height:14px;stroke:currentColor;stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.aa-ans{font-size:14px;line-height:1.7;margin:10px 2px 4px;white-space:pre-wrap}
+.aa-ans b{font-weight:700}
+.caret{display:inline-block;width:6px;height:14px;background:var(--violet);border-radius:2px;vertical-align:-2px;margin-left:2px;animation:blink .9s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+.bars{margin-top:10px}
+.brow{display:flex;align-items:center;gap:10px;padding:4px 0;font-size:12.5px}
+.brow .bl{width:120px;color:var(--ink-2);flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brow .bt{flex:1;height:8px;border-radius:6px;background:var(--bg-mute);overflow:hidden}
+.brow .bt i{display:block;height:100%;border-radius:6px;width:0;transition:width .9s var(--ease)}
+.brow .bv{width:52px;text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-2);flex-shrink:0}
+
+/* queue rows */
+.qrow{display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:11px;transition:all .3s var(--ease)}
+.qrow:hover{background:var(--bg-soft)}
+.qrow.gone{opacity:0;transform:translateX(16px)}
+.doc{border-radius:9px;display:grid;place-items:center;font-family:'JetBrains Mono',monospace;font-weight:700;
+  color:#fff;flex-shrink:0;width:36px;height:36px;font-size:9px}
+.qrow .tx{flex:1;min-width:0}
+.qrow .nm{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qrow .who{color:var(--ink-3);font-size:12px}
+.qrow .act{color:var(--iris-ink);font-size:12.5px;font-weight:600;white-space:nowrap}
+
+/* donut + legend */
+.donut-wrap{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.dn{position:relative;width:118px;height:118px;flex-shrink:0}
+.dn .c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.dn .c b{font-size:14px;font-variant-numeric:tabular-nums}
+.dn .c span{font-size:10.5px;color:var(--ink-3)}
+.leg{flex:1;min-width:170px;display:flex;flex-direction:column;gap:5px}
+.lrow{display:flex;align-items:center;gap:8px;font-size:12.5px}
+.lrow .sw{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+.lrow b{flex:1;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lrow span{color:var(--ink-3);font-variant-numeric:tabular-nums}
+
+/* feed */
+.feed{display:flex;flex-direction:column}
+.fd-day{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);padding:8px 2px 4px}
+.fd{display:flex;align-items:center;gap:10px;padding:7px 2px;border-top:1px solid var(--line);font-size:13px}
+.fd:first-child{border-top:0}
+.fd .av{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}
+.fd .tx{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fd .tm{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--ink-3);flex-shrink:0}
+.fd.ai .tx{color:var(--iris-ink)}
+
+/* table */
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);
+  padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:hover td{background:var(--bg-soft)}
+.st{display:inline-flex;align-items:center;gap:7px;font-size:13px}
+.st i{width:7px;height:7px;border-radius:50%;font-style:normal}
+.num{font-variant-numeric:tabular-nums;text-align:right}
+.avc{width:26px;height:26px;border-radius:50%;display:inline-grid;place-items:center;font-size:10px;font-weight:700;color:#fff;vertical-align:middle;margin-right:8px}
+select.role{border:1px solid var(--line-strong);border-radius:9px;background:var(--bg);color:var(--ink);
+  font-size:12.5px;padding:5px 8px;outline:none}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.kpi{border:1px solid var(--line);border-radius:14px;padding:13px 15px;background:var(--bg)}
+.kpi span{font-size:11.5px;color:var(--ink-3);display:block}
+.kpi b{font-size:21px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.kpi .sub{font-size:11px;color:var(--ink-3)}
+
+/* Calm variant (◎ toggle) — warm paper neutrals (Notion-like) */
+.calm,.warm{
+  --bg:#fdfdfb; --bg-soft:#f7f6f3; --bg-mute:#f0efeb;
+  --line:rgba(41,37,36,.09); --line-strong:rgba(41,37,36,.16);
+  --ink:#1c1917; --ink-2:#57534e; --ink-3:#a8a29e;
+}
+.dark.calm,.dark.warm{
+  --bg:#191817; --bg-soft:#201f1e; --bg-mute:#292725;
+  --line:rgba(255,251,245,.08); --line-strong:rgba(255,251,245,.15);
+  --ink:#f5f4f1; --ink-2:#a8a29e; --ink-3:#78716c;
+}
+.calm .hi .g{background:none;-webkit-text-fill-color:currentColor;color:var(--ink)}
+.calm .logo{background:var(--ink);color:var(--bg);box-shadow:none}
+.calm .aa{background:var(--line-strong);box-shadow:var(--sh-soft)}
+.calm .send{background:var(--ink);color:var(--bg)}
+.calm .tab.on{background:var(--bg-mute);color:var(--ink)}
+.calm .console-pill{background:var(--bg-mute);color:var(--ink-2)}
+.calm .doc{filter:saturate(.55)}
+.calm .strip span[style]{color:var(--ink-2)!important}
+.calm .strip b[style]{color:var(--ink)!important}
+
+/* Hybrid variant: calm surfaces + AI gradient identity */
+.hybrid .hi .g{background:none;-webkit-text-fill-color:currentColor;color:var(--ink)}
+.hybrid .tab.on{background:var(--bg-mute);color:var(--ink)}
+.hybrid .doc{filter:saturate(.55)}
+.hybrid .aa{box-shadow:0 5px 20px color-mix(in srgb,var(--iris) 16%,transparent)}
+
+/* 2026 motion layer */
+.view.on .wrap{animation:viewIn .32s var(--ease)}
+@keyframes viewIn{from{opacity:0;transform:translateY(10px)}}
+.stagger>*{animation:rise .45s var(--ease) backwards}
+.stagger>*:nth-child(1){animation-delay:.02s}.stagger>*:nth-child(2){animation-delay:.06s}
+.stagger>*:nth-child(3){animation-delay:.10s}.stagger>*:nth-child(4){animation-delay:.14s}
+.stagger>*:nth-child(5){animation-delay:.18s}.stagger>*:nth-child(6){animation-delay:.22s}
+.stagger>*:nth-child(7){animation-delay:.26s}.stagger>*:nth-child(8){animation-delay:.30s}
+@keyframes rise{from{opacity:0;transform:translateY(9px)}}
+@media (prefers-reduced-motion:reduce){.view.on .wrap,.stagger>*{animation:none}}
+
+#toast{position:fixed;right:22px;bottom:22px;z-index:90;display:flex;align-items:center;gap:9px;
+  padding:11px 16px;border-radius:13px;background:color-mix(in srgb,var(--bg) 88%,transparent);
+  backdrop-filter:blur(14px);border:1px solid var(--line-strong);box-shadow:var(--sh-float);
+  font-size:13px;opacity:0;transform:translateY(10px);transition:all .22s var(--ease);pointer-events:none}
+#toast.show{opacity:1;transform:none}
+#toast .tk{color:var(--emerald)}
+@media(max-width:700px){.tabs .lb{display:none}.exit{display:none}.wrap{padding:22px 14px 80px}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <span class="logo">F</span><span class="brand">File Hub</span>
+  <span class="console-pill">ADMIN CONSOLE</span>
+  <nav class="tabs">
+    <button class="tab on" data-view="dash" onclick="switchView('dash')"><span class="lb" data-i18n="tabDash"></span><span class="kn">1</span></button>
+    <button class="tab" data-view="files" onclick="switchView('files')"><span class="lb" data-i18n="tabFiles"></span><span class="kn">2</span></button>
+    <button class="tab" data-view="reports" onclick="switchView('reports')"><span class="lb" data-i18n="tabReports"></span><span class="kn">3</span></button>
+    <button class="tab" data-view="members" onclick="switchView('members')"><span class="lb" data-i18n="tabMembers"></span><span class="kn">4</span></button>
+  </nav>
+  <span class="grow"></span>
+  <span class="pill-demo">DEMO · SIMULATED</span>
+  <div class="lang">
+    <button data-setlang="en" class="on" onclick="setLang('en')">EN</button>
+    <button data-setlang="th" onclick="setLang('th')">ไทย</button>
+  </div>
+  <button class="mode" onclick="cycleDesign()" title="Cycle design: vivid / hybrid / calm" aria-label="Cycle design variant">◎</button>
+  <button class="mode" onclick="document.documentElement.classList.toggle('dark')" aria-label="Toggle dark mode">◐</button>
+  <a class="exit" href="everyday-prototype.html" data-i18n="exit"></a>
+</header>
+
+<main>
+  <section class="view on" id="view-dash">
+    <div class="wrap">
+      <h1 class="hi"><span class="g" data-i18n="dashGreet"></span>, Admin</h1>
+      <p class="hi-sub" data-i18n="dashSub"></p>
+      <div class="strip" id="strip"></div>
+
+      <div class="aa">
+        <div class="aa-in">
+          <span class="sp">✦</span>
+          <input id="aaInput" data-i18n-ph="aaPh" onkeydown="if(event.key==='Enter')aaGo()">
+          <button class="send" onclick="aaGo()" aria-label="Ask">
+            <svg viewBox="0 0 24 24"><path d="M12 19V6M6 12l6-6 6 6"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="panel" id="aaPanel" style="display:none">
+        <div class="aa-ans" id="aaAns"></div>
+        <div class="bars" id="aaBars"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-hd"><h2 data-i18n="secQueue"></h2><span class="lnk" id="queueCount"></span></div>
+        <div id="queue" class="stagger"></div>
+      </div>
+
+      <div class="grid2">
+        <div class="panel" style="margin:0">
+          <div class="panel-hd"><h2 data-i18n="secActivity"></h2><button class="lnk" onclick="runRotation()" data-i18n="runRot"></button></div>
+          <div class="feed stagger" id="feed"></div>
+        </div>
+        <div class="panel" style="margin:0">
+          <div class="panel-hd"><h2 data-i18n="secStorage"></h2></div>
+          <div class="donut-wrap">
+            <div class="dn">
+              <svg viewBox="0 0 100 100" width="118" height="118" id="donut"></svg>
+              <div class="c"><b>48.2 GB</b><span data-i18n="used"></span></div>
+            </div>
+            <div class="leg" id="donutLeg"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="view-files">
+    <div class="wrap">
+      <h1 class="hi" data-i18n="filesTitle"></h1>
+      <p class="hi-sub" data-i18n="filesSub"></p>
+      <div class="panel" style="margin-top:18px;padding:6px 8px">
+        <table>
+          <thead id="filesHead"></thead>
+          <tbody id="filesBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="view-reports">
+    <div class="wrap">
+      <h1 class="hi" data-i18n="repTitle"></h1>
+      <p class="hi-sub" data-i18n="repSub"></p>
+      <div class="kpis stagger" id="repKpis" style="margin-top:18px"></div>
+      <div class="grid2">
+        <div class="panel" style="margin:0">
+          <div class="panel-hd"><h2 data-i18n="repStates"></h2><button class="lnk" onclick="toast(t('tCsv'))" data-i18n="csv"></button></div>
+          <div class="bars" id="repBars"></div>
+        </div>
+        <div class="panel" style="margin:0">
+          <div class="panel-hd"><h2 data-i18n="repAi"></h2><button class="lnk" onclick="toast(t('tCsv'))" data-i18n="csv"></button></div>
+          <table>
+            <thead id="aiHead"></thead>
+            <tbody id="aiBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="view-members">
+    <div class="wrap">
+      <h1 class="hi" data-i18n="memTitle"></h1>
+      <p class="hi-sub" data-i18n="memSub"></p>
+      <div class="panel" style="margin-top:18px;padding:6px 8px">
+        <table>
+          <thead id="memHead"></thead>
+          <tbody id="memBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="toast"><span class="tk">✓</span><span id="toastTx"></span></div>
+<script>
+var S = { lang:'en', view:'dash', queueGone:{}, rotated:false };
+function $(id){ return document.getElementById(id); }
+
+var I18N = {
+  tabDash:{en:'Dashboard',th:'แดชบอร์ด'}, tabFiles:{en:'All files',th:'ไฟล์ทั้งหมด'},
+  tabReports:{en:'Reports',th:'รายงาน'}, tabMembers:{en:'Members',th:'สมาชิก'},
+  exit:{en:'← Everyday',th:'← หน้าผู้ใช้'},
+  dashGreet:{en:'Good evening',th:'สวัสดีตอนเย็น'},
+  dashSub:{en:'4 files are waiting for review across 3 areas.',th:'มีไฟล์รอตรวจ 4 รายการใน 3 พื้นที่'},
+  aaPh:{en:'Ask about your workspace… e.g. which area grew fastest?',th:'ถามข้อมูลภาพรวม… เช่น พื้นที่ไหนโตเร็วที่สุด'},
+  secQueue:{en:'Needs review',th:'รอการตรวจ'},
+  secActivity:{en:'Recent activity',th:'กิจกรรมล่าสุด'},
+  runRot:{en:'Run rotation ↻',th:'รันการหมุนเวียน ↻'},
+  secStorage:{en:'Storage',th:'พื้นที่จัดเก็บ'},
+  used:{en:'of 200 GB',th:'จาก 200 GB'},
+  filesTitle:{en:'All files',th:'ไฟล์ทั้งหมด'},
+  filesSub:{en:'2,582 documents across 4 areas.',th:'เอกสาร 2,582 รายการใน 4 พื้นที่'},
+  repTitle:{en:'Reports',th:'รายงาน'},
+  repSub:{en:'Document lifecycle and AI usage for this quarter.',th:'สถานะเอกสารและการใช้ AI ประจำไตรมาส'},
+  repStates:{en:'Document status',th:'สถานะเอกสาร'},
+  repAi:{en:'AI usage (Q3)',th:'การใช้ AI (ไตรมาส 3)'},
+  csv:{en:'Export CSV →',th:'ส่งออก CSV →'},
+  memTitle:{en:'Members',th:'สมาชิก'},
+  memSub:{en:'7 accounts · roles are enforced by the server on every request.',th:'บัญชี 7 รายการ · สิทธิ์ถูกบังคับที่เซิร์ฟเวอร์ทุกคำขอ'},
+  thName:{en:'Name',th:'ชื่อไฟล์'}, thArea:{en:'Area',th:'พื้นที่'}, thStatus:{en:'Status',th:'สถานะ'},
+  thOwner:{en:'Owner',th:'เจ้าของ'}, thSize:{en:'Size',th:'ขนาด'}, thWhen:{en:'Modified',th:'แก้ไข'},
+  thMember:{en:'Member',th:'สมาชิก'}, thRole:{en:'Role',th:'บทบาท'}, thUsage:{en:'Storage used',th:'ใช้พื้นที่'},
+  thOp:{en:'Operation',th:'ประเภท'}, thCalls:{en:'Calls',th:'ครั้ง'}, thTokens:{en:'Tokens',th:'โทเคน'},
+  stReview:{en:'Review',th:'รอตรวจ'}, stActive:{en:'Active',th:'ใช้งาน'}, stArchived:{en:'Archived',th:'จัดเก็บถาวร'},
+  approve:{en:'Approve →',th:'อนุมัติ →'},
+  kDocs:{en:'Documents',th:'เอกสารทั้งหมด'}, kAsks:{en:'Questions answered',th:'คำถามที่ตอบ'},
+  kOcr:{en:'Pages OCR’d',th:'หน้าที่ OCR'}, kSign:{en:'Signatures collected',th:'ลายมือชื่อที่เก็บ'},
+  tApproved:{en:'Approved — the owner was notified',th:'อนุมัติแล้ว — แจ้งเจ้าของแล้ว'},
+  tRole:{en:'Role updated — takes effect on next request',th:'อัปเดตบทบาทแล้ว — มีผลคำขอถัดไป'},
+  tCsv:{en:'CSV export is simulated in this prototype',th:'การส่งออก CSV เป็นแบบจำลอง'},
+  tRot:{en:'Rotation finished — 3 versions pruned, 1 file archived',th:'หมุนเวียนเสร็จ — ตัดเวอร์ชัน 3 รายการ จัดเก็บถาวร 1 ไฟล์'},
+  today:{en:'Today',th:'วันนี้'}, yesterday:{en:'Yesterday',th:'เมื่อวาน'},
+  docsWord:{en:'documents',th:'เอกสาร'}
+};
+
+var TYPES = { pdf:'#dc2626', doc:'#2563eb', xls:'#16a34a', txt:'#475569', img:'#ea580c' };
+var TONES = { emerald:'#059669', amber:'#d97706', rose:'#e11d48', cyan:'#0891b2', iris:'#6455f7', slate:'#64748b' };
+
+var AREAS = [
+  { n:{en:'Document Mgmt',th:'สารบรรณกลาง'}, tone:'cyan', gb:31.4, docs:2048 },
+  { n:{en:'HR',th:'ทรัพยากรบุคคล'}, tone:'iris', gb:9.8, docs:310 },
+  { n:{en:'Legal',th:'กฎหมาย'}, tone:'emerald', gb:4.2, docs:128 },
+  { n:{en:'Finance',th:'การเงิน'}, tone:'amber', gb:2.8, docs:96 }
+];
+
+var QUEUE = [
+  { name:'contract-A12.pdf', type:'pdf', area:2, owner:'Anong K.', when:{en:'2 hr ago',th:'2 ชม.ที่แล้ว'} },
+  { name:'NDA-template-v3.docx', type:'doc', area:2, owner:'Wisanu T.', when:{en:'yesterday',th:'เมื่อวาน'} },
+  { name:'vendor-list-2026.xlsx', type:'xls', area:3, owner:'Pat S.', when:{en:'yesterday',th:'เมื่อวาน'} },
+  { name:'policy-handbook-v4.pdf', type:'pdf', area:1, owner:'HR Admin', when:{en:'2 days ago',th:'2 วันก่อน'} }
+];
+
+var FEED = [
+  { day:'today', who:'AK', tone:'rose', tx:{en:'Anong asked “งบประมาณโครงการ DMS” — answered with 2 citations',th:'อนงค์ถาม “งบประมาณโครงการ DMS” — ตอบพร้อมอ้างอิง 2 แหล่ง'}, tm:'18:42', ai:true },
+  { day:'today', who:'WT', tone:'cyan', tx:{en:'Wisanu signed NDA-template-v3.docx',th:'วิษณุลงนาม NDA-template-v3.docx'}, tm:'17:15' },
+  { day:'today', who:'PS', tone:'amber', tx:{en:'Pat uploaded budget-memo-Q3-2026.txt to Finance',th:'พัทอัปโหลด budget-memo-Q3-2026.txt ไปที่การเงิน'}, tm:'16:03' },
+  { day:'yesterday', who:'KM', tone:'emerald', tx:{en:'Krit shared team-photo.jpg with HR',th:'กฤษณ์แชร์ team-photo.jpg ให้ฝ่ายบุคคล'}, tm:'14:22' },
+  { day:'yesterday', who:'AI', tone:'iris', tx:{en:'AI summarized 6 new documents',th:'AI สรุปเอกสารใหม่ 6 ฉบับ'}, tm:'11:05', ai:true }
+];
+
+var FILES = [
+  { name:'contract-A12.pdf', type:'pdf', area:2, st:'stReview', tone:'amber', owner:'Anong K.', size:'2.4 MB', when:{en:'2 hr ago',th:'2 ชม.'} },
+  { name:'TOR-summary-DMS-2026.txt', type:'txt', area:0, st:'stActive', tone:'emerald', owner:'Anong K.', size:'3.6 KB', when:{en:'32 min ago',th:'32 นาที'} },
+  { name:'NDA-template-v3.docx', type:'doc', area:2, st:'stReview', tone:'amber', owner:'Wisanu T.', size:'340 KB', when:{en:'yesterday',th:'เมื่อวาน'} },
+  { name:'budget-memo-Q3-2026.txt', type:'txt', area:3, st:'stActive', tone:'emerald', owner:'Pat S.', size:'2.7 KB', when:{en:'1 hr ago',th:'1 ชม.'} },
+  { name:'vendor-list-2026.xlsx', type:'xls', area:3, st:'stReview', tone:'amber', owner:'Pat S.', size:'620 KB', when:{en:'yesterday',th:'เมื่อวาน'} },
+  { name:'HR-leave-policy-2026.txt', type:'txt', area:1, st:'stActive', tone:'emerald', owner:'HR Admin', size:'2.8 KB', when:{en:'1 hr ago',th:'1 ชม.'} },
+  { name:'archive-2025.zip', type:'txt', area:0, st:'stArchived', tone:'slate', owner:'System', size:'420 MB', when:{en:'21 days ago',th:'21 วัน'} },
+  { name:'team-photo.jpg', type:'img', area:1, st:'stActive', tone:'emerald', owner:'Krit M.', size:'4.2 MB', when:{en:'2 hr ago',th:'2 ชม.'} }
+];
+
+var MEMBERS = [
+  { n:'Admin', em:'admin@acme.go.th', role:'admin', tone:'iris', used:'1.2 GB' },
+  { n:'Anong K.', em:'anong@acme.go.th', role:'editor', tone:'rose', used:'12.6 GB' },
+  { n:'Wisanu T.', em:'wisanu@acme.go.th', role:'editor', tone:'cyan', used:'8.4 GB' },
+  { n:'Pat S.', em:'pat@acme.go.th', role:'editor', tone:'amber', used:'7.1 GB' },
+  { n:'Krit M.', em:'krit@acme.go.th', role:'editor', tone:'emerald', used:'5.9 GB' },
+  { n:'Sara L.', em:'sara@acme.go.th', role:'editor', tone:'slate', used:'4.8 GB' },
+  { n:'Viewer', em:'viewer@acme.go.th', role:'viewer', tone:'slate', used:'0 B' }
+];
+
+var AA = {
+  q:{en:'Which area grew fastest this quarter?',th:'ไตรมาสนี้พื้นที่ไหนโตเร็วที่สุด'},
+  a:{en:'**Document Mgmt** grew fastest this quarter — **+38%** (562 new documents), driven by the DMS migration. **HR** follows at **+21%**; Legal and Finance grew under 10%.',
+     th:'**สารบรรณกลาง** โตเร็วที่สุดในไตรมาสนี้ — **+38%** (เอกสารใหม่ 562 ฉบับ) จากการย้ายข้อมูลโครงการ DMS ตามด้วย **ฝ่ายบุคคล +21%** ส่วนกฎหมายและการเงินโตต่ำกว่า 10%'},
+  bars:[ { i:0, pct:38 }, { i:1, pct:21 }, { i:2, pct:9 }, { i:3, pct:6 } ]
+};
+
+var REP = {
+  kpis:[ { k:'kDocs', v:'2,582', sub:{en:'+612 this quarter',th:'+612 ไตรมาสนี้'} },
+         { k:'kAsks', v:'1,204', sub:{en:'96% grounded',th:'อ้างอิงเอกสารจริง 96%'} },
+         { k:'kOcr', v:'8,914', sub:{en:'ไทย + EN',th:'ไทย + อังกฤษ'} },
+         { k:'kSign', v:'173', sub:{en:'12 pending',th:'รอลงนาม 12'} } ],
+  states:[ { n:{en:'Active',th:'ใช้งาน'}, v:2318, tone:'emerald' },
+           { n:{en:'In review',th:'รอตรวจ'}, v:4, tone:'amber' },
+           { n:{en:'Archived',th:'จัดเก็บถาวร'}, v:236, tone:'slate' },
+           { n:{en:'Retention hold',th:'รอครบกำหนดเก็บ'}, v:18, tone:'cyan' },
+           { n:{en:'Deleted (trash)',th:'ถังขยะ'}, v:6, tone:'rose' } ],
+  ai:[ { op:{en:'Ask (RAG)',th:'ถาม-ตอบ (RAG)'}, calls:'1,204', tok:'9.6M' },
+       { op:{en:'Summaries',th:'สรุปเอกสาร'}, calls:'612', tok:'4.1M' },
+       { op:{en:'Embeddings',th:'เวกเตอร์ค้นหา'}, calls:'3,842', tok:'2.2M' } ]
+};
+
+function t(k){ return I18N[k][S.lang]; }
+function applyI18n(){
+  document.querySelectorAll('[data-i18n]').forEach(function(el){ el.textContent = I18N[el.dataset.i18n][S.lang]; });
+  document.querySelectorAll('[data-i18n-ph]').forEach(function(el){ el.placeholder = I18N[el.dataset.i18nPh][S.lang]; });
+}
+function toast(tx){
+  $('toastTx').textContent = tx;
+  var el = $('toast'); el.classList.add('show');
+  clearTimeout(el._h); el._h = setTimeout(function(){ el.classList.remove('show'); }, 3200);
+}
+function esc(s){ var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function fmtB(s){ return esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>'); }
+function typeInto(el, text, speed, done){
+  var i = 0;
+  var timer = setInterval(function(){
+    i += 2; el.textContent = text.slice(0, i);
+    if (i >= text.length){ clearInterval(timer); if (done) done(); }
+  }, speed);
+}
+
+/* dashboard */
+function renderStrip(){
+  var live = QUEUE.filter(function(q, i){ return !S.queueGone[i]; }).length;
+  var h = '';
+  h += '<span><b>2,582</b> ' + t('docsWord') + '</span>';
+  h += '<span><b>48.2 GB</b> ' + (S.lang==='en' ? 'of 200 GB (24%)' : 'จาก 200 GB (24%)') + '</span>';
+  h += '<span><b>7</b> ' + (S.lang==='en' ? 'members' : 'สมาชิก') + '</span>';
+  h += '<span style="color:var(--amber)"><b style="color:var(--amber)">' + live + '</b> ' + (S.lang==='en' ? 'awaiting review' : 'รอตรวจ') + '</span>';
+  $('strip').innerHTML = h;
+}
+function renderQueue(){
+  var h = '';
+  QUEUE.forEach(function(q, i){
+    if (S.queueGone[i]) return;
+    var a = AREAS[q.area];
+    h += '<div class="qrow" id="q' + i + '">' +
+      '<span class="doc" style="background:' + TYPES[q.type] + '">' + q.type.toUpperCase() + '</span>' +
+      '<span class="tx"><span class="nm">' + q.name + '</span><span class="who" style="display:block">' +
+      a.n[S.lang] + ' · ' + q.owner + ' · ' + q.when[S.lang] + '</span></span>' +
+      '<button class="act lnk" onclick="approveRow(' + i + ')">' + t('approve') + '</button></div>';
+  });
+  $('queue').innerHTML = h;
+  var live = QUEUE.filter(function(q, i){ return !S.queueGone[i]; }).length;
+  $('queueCount').textContent = live + (S.lang==='en' ? ' items' : ' รายการ');
+}
+function approveRow(i){
+  var row = $('q' + i);
+  row.classList.add('gone');
+  setTimeout(function(){ S.queueGone[i] = true; renderQueue(); renderStrip(); }, 320);
+  toast(t('tApproved'));
+}
+function feedRow(f){
+  return '<div class="fd' + (f.ai ? ' ai' : '') + '"><span class="av" style="background:' + TONES[f.tone] + '">' + f.who + '</span>' +
+    '<span class="tx">' + f.tx[S.lang] + '</span><span class="tm">' + f.tm + '</span></div>';
+}
+function renderFeed(){
+  var h = '', day = '';
+  FEED.forEach(function(f){
+    if (f.day !== day){ day = f.day; h += '<div class="fd-day">' + t(day) + '</div>'; }
+    h += feedRow(f);
+  });
+  $('feed').innerHTML = h;
+}
+function runRotation(){
+  if (!S.rotated){
+    S.rotated = true;
+    FEED.unshift(
+      { day:'today', who:'⟳', tone:'slate', tx:{en:'Rotation archived archive-2025.zip (idle 21 days)',th:'ระบบจัดเก็บถาวร archive-2025.zip (ไม่ใช้งาน 21 วัน)'}, tm:'now' },
+      { day:'today', who:'⟳', tone:'slate', tx:{en:'Rotation pruned 3 old versions of budget-q1-2026.xlsx',th:'ระบบตัดเวอร์ชันเก่า 3 รายการของ budget-q1-2026.xlsx'}, tm:'now' }
+    );
+    renderFeed();
+  }
+  toast(t('tRot'));
+}
+function renderDonut(){
+  var C = 2 * Math.PI * 40, total = 48.2, acc = 0, h = '';
+  h += '<circle cx="50" cy="50" r="40" fill="none" stroke="var(--bg-mute)" stroke-width="11"/>';
+  AREAS.forEach(function(a){
+    var frac = a.gb / total, dash = Math.max(0, frac * C - 1.5);
+    h += '<circle cx="50" cy="50" r="40" fill="none" stroke="' + TONES[a.tone] + '" stroke-width="11" ' +
+      'stroke-dasharray="' + dash + ' ' + (C - dash) + '" stroke-dashoffset="' + (-acc * C) + '" transform="rotate(-90 50 50)"/>';
+    acc += frac;
+  });
+  $('donut').innerHTML = h;
+  var lg = '';
+  AREAS.forEach(function(a){
+    lg += '<div class="lrow"><span class="sw" style="background:' + TONES[a.tone] + '"></span><b>' + a.n[S.lang] + '</b><span>' + a.gb.toFixed(1) + ' GB</span></div>';
+  });
+  $('donutLeg').innerHTML = lg;
+}
+function aaGo(){
+  $('aaInput').value = '';
+  $('aaPanel').style.display = 'block';
+  $('aaBars').innerHTML = '';
+  var ans = $('aaAns');
+  ans.innerHTML = '<span class="cur"></span><span class="caret"></span>';
+  var cur = ans.querySelector('.cur');
+  var plain = AA.a[S.lang].replace(/\*\*/g, '');
+  typeInto(cur, plain, 10, function(){
+    var caret = ans.querySelector('.caret'); if (caret) caret.remove();
+    cur.innerHTML = fmtB(AA.a[S.lang]);
+    var h = '';
+    AA.bars.forEach(function(b){
+      var a = AREAS[b.i];
+      h += '<div class="brow"><span class="bl">' + a.n[S.lang] + '</span><span class="bt"><i data-w="' + b.pct + '" style="background:' + TONES[a.tone] + '"></i></span><span class="bv">+' + b.pct + '%</span></div>';
+    });
+    $('aaBars').innerHTML = h;
+    setTimeout(function(){
+      document.querySelectorAll('#aaBars i').forEach(function(el){ el.style.width = (el.dataset.w * 2.4) + '%'; });
+    }, 60);
+  });
+}
+
+/* files table */
+function renderFilesTable(){
+  $('filesHead').innerHTML = '<tr><th>' + t('thName') + '</th><th>' + t('thArea') + '</th><th>' + t('thStatus') + '</th><th>' + t('thOwner') + '</th><th class="num">' + t('thSize') + '</th><th>' + t('thWhen') + '</th></tr>';
+  var h = '';
+  FILES.forEach(function(f){
+    var a = AREAS[f.area];
+    h += '<tr><td><span class="doc" style="width:26px;height:26px;font-size:8px;display:inline-grid;vertical-align:middle;margin-right:9px;background:' + TYPES[f.type] + '">' + f.type.toUpperCase() + '</span><b style="font-weight:600">' + f.name + '</b></td>' +
+      '<td>' + a.n[S.lang] + '</td>' +
+      '<td><span class="st"><i style="background:' + TONES[f.tone] + '"></i>' + t(f.st) + '</span></td>' +
+      '<td>' + f.owner + '</td><td class="num">' + f.size + '</td><td>' + f.when[S.lang] + '</td></tr>';
+  });
+  $('filesBody').innerHTML = h;
+}
+
+/* reports */
+function renderReports(){
+  var k = '';
+  REP.kpis.forEach(function(x){
+    k += '<div class="kpi"><span>' + t(x.k) + '</span><b>' + x.v + '</b><div class="sub">' + x.sub[S.lang] + '</div></div>';
+  });
+  $('repKpis').innerHTML = k;
+  var max = 2318, h = '';
+  REP.states.forEach(function(s){
+    var pct = Math.max(2, Math.round(s.v / max * 100));
+    h += '<div class="brow"><span class="bl">' + s.n[S.lang] + '</span><span class="bt"><i style="width:' + pct + '%;background:' + TONES[s.tone] + '"></i></span><span class="bv">' + s.v.toLocaleString() + '</span></div>';
+  });
+  $('repBars').innerHTML = h;
+  $('aiHead').innerHTML = '<tr><th>' + t('thOp') + '</th><th class="num">' + t('thCalls') + '</th><th class="num">' + t('thTokens') + '</th></tr>';
+  var b = '';
+  REP.ai.forEach(function(r){
+    b += '<tr><td>' + r.op[S.lang] + '</td><td class="num">' + r.calls + '</td><td class="num">' + r.tok + '</td></tr>';
+  });
+  $('aiBody').innerHTML = b;
+}
+
+/* members */
+function renderMembers(){
+  $('memHead').innerHTML = '<tr><th>' + t('thMember') + '</th><th>' + t('thRole') + '</th><th class="num">' + t('thUsage') + '</th></tr>';
+  var h = '';
+  MEMBERS.forEach(function(m, i){
+    var initials = m.n.split(' ').map(function(x){ return x[0]; }).join('').slice(0, 2);
+    h += '<tr><td><span class="avc" style="background:' + TONES[m.tone] + '">' + initials + '</span><b style="font-weight:600">' + m.n + '</b>' +
+      ' <span style="color:var(--ink-3);font-size:12px">' + m.em + '</span></td>' +
+      '<td><select class="role" onchange="setRole(' + i + ', this.value)">' + roleOpts(m.role) + '</select></td>' +
+      '<td class="num">' + m.used + '</td></tr>';
+  });
+  $('memBody').innerHTML = h;
+}
+function roleOpts(cur){
+  var out = '';
+  ['admin', 'editor', 'viewer'].forEach(function(r){
+    out += '<option value="' + r + '"' + (r === cur ? ' selected' : '') + '>' + r + '</option>';
+  });
+  return out;
+}
+function setRole(i, r){ MEMBERS[i].role = r; toast(t('tRole')); }
+
+/* nav */
+function switchView(v){
+  S.view = v;
+  document.querySelectorAll('.tab').forEach(function(b){ b.classList.toggle('on', b.dataset.view === v); });
+  document.querySelectorAll('.view').forEach(function(s){ s.classList.toggle('on', s.id === 'view-' + v); });
+}
+function setLang(l){
+  S.lang = l;
+  document.querySelectorAll('[data-setlang]').forEach(function(b){ b.classList.toggle('on', b.dataset.setlang === l); });
+  applyI18n(); renderAll();
+  $('aaPanel').style.display = 'none';
+}
+function renderAll(){
+  renderStrip(); renderQueue(); renderFeed(); renderDonut();
+  renderFilesTable(); renderReports(); renderMembers();
+}
+var DESIGNS = [
+  { cls: [], name: 'Vivid' },
+  { cls: ['hybrid'], name: 'Hybrid — zinc + AI gradient' },
+  { cls: ['hybrid', 'warm'], name: 'Warm hybrid — paper + AI gradient' },
+  { cls: ['calm'], name: 'Calm — warm paper' }
+];
+var designIdx = 0;
+function cycleDesign(){
+  var root = document.documentElement;
+  root.classList.remove('hybrid', 'calm', 'warm');
+  designIdx = (designIdx + 1) % DESIGNS.length;
+  DESIGNS[designIdx].cls.forEach(function(c){ root.classList.add(c); });
+  toast(DESIGNS[designIdx].name);
+}
+document.addEventListener('keydown', function(e){
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  var order = ['dash', 'files', 'reports', 'members'];
+  var i = +e.key - 1;
+  if (order[i]) switchView(order[i]);
+});
+
+applyI18n(); renderAll();
+</script>
+</body>
+</html>

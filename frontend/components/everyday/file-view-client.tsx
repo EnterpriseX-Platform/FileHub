@@ -41,11 +41,11 @@ export function FileViewClient({ file, areaName }: { file: FileRow; areaName: st
             {fmtBytes(file.size_bytes)} · {fmtAgo(file.modified_at)}{areaName ? ` · ${areaName}` : ""}
           </div>
         </div>
-        <a className="btn primary sm" href={download} download>
+        <a className="lnk" href={download} download>
           <Ico.download className="icon sm" /> {t("eday.download")}
         </a>
         <StarButton fileId={file.id} />
-        <Link className="btn sm" href="/ask">
+        <Link className="lnk" href="/ask">
           <span style={{ color: "var(--c-violet)", display: "inline-flex" }}><Ico.sparkle className="icon sm" /></span> {t("eday.ask")}
         </Link>
       </div>
