@@ -84,14 +84,14 @@ export function FileAiPanel({ fileId }: { fileId: string }) {
       ) : data === null ? (
         <Skeleton />
       ) : data.ai ? (
-        <>
+        <div className="eday-aicard">
           {data.ai.summary && (
-            <div className="t-sm" style={{ lineHeight: 1.55, marginBottom: 10 }}>
+            <div style={{ marginBottom: 9 }}>
               {data.ai.summary}
             </div>
           )}
           {data.ai.tags.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 9 }}>
               {data.ai.tags.map((t) => (
                 <Tag key={t}>{t}</Tag>
               ))}
@@ -105,11 +105,11 @@ export function FileAiPanel({ fileId }: { fileId: string }) {
             {data.ai.language && <Pill sm>{data.ai.language}</Pill>}
           </div>
           {data.ai.model && (
-            <div className="t-xs t-subtle" style={{ marginTop: 8 }}>
+            <div className="attr">
               {data.ai.model} · {fmtAgo(data.ai.updated_at)}
             </div>
           )}
-        </>
+        </div>
       ) : busy ? (
         <div className="t-xs t-subtle">{t("ai.analyzingFull")}</div>
       ) : (

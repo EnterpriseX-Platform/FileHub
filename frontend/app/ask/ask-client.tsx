@@ -100,8 +100,10 @@ export function AskClient() {
             placeholder={turns.length ? t("ask.followUp") : t("ask.placeholder")}
             autoFocus
           />
-          <button type="submit" className="btn sm primary" style={{ borderRadius: 10 }} disabled={busy || !q.trim()}>
-            {busy ? t("ask.thinking") : t("ask.button")}
+          <button type="submit" className="ask-send" disabled={busy || !q.trim()}
+            aria-label={busy ? t("ask.thinking") : t("ask.button")}
+            style={busy || !q.trim() ? { opacity: 0.55, cursor: "not-allowed" } : undefined}>
+            <Ico.up className="icon" />
           </button>
         </div>
       </form>

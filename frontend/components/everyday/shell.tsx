@@ -23,6 +23,7 @@ const NAV = [
   { href: "/my",      labelKey: "eday.nav.myfiles" },
   { href: "/shared",  labelKey: "eday.nav.shared" },
   { href: "/starred", labelKey: "eday.nav.starred" },
+  { href: "/ask",     labelKey: "nav.ask", ai: true },
 ];
 
 export function EverydayShell({ children }: { children: React.ReactNode }) {
@@ -39,6 +40,7 @@ export function EverydayShell({ children }: { children: React.ReactNode }) {
         <nav className="eday-nav">
           {NAV.map((n) => (
             <a key={n.href} href={n.href} className={"eday-navlink" + (pathname === n.href ? " active" : "")}>
+              {n.ai && <span style={{ color: "var(--c-violet)", display: "inline-flex" }}><Ico.sparkle className="icon sm" /></span>}
               {t(n.labelKey)}
             </a>
           ))}

@@ -48,7 +48,7 @@ export function EdaySection({
 // badge, so a missing/failed thumbnail never leaves a broken image.
 const THUMB_TYPES = new Set(["img", "jpg", "jpeg", "png", "gif", "webp"]);
 
-export function FileTile({ file }: { file: FileRow }) {
+export function FileTile({ file, area }: { file: FileRow; area?: string }) {
   const [imgOk, setImgOk] = React.useState(true);
   const showImg = THUMB_TYPES.has(file.file_type.toLowerCase()) && imgOk;
   return (
@@ -68,10 +68,11 @@ export function FileTile({ file }: { file: FileRow }) {
           <Ft type={file.file_type} size="xl" />
         )}
       </div>
-      <div>
+      <div className="eday-tilemeta">
         <div className="t-sm t-semibold t-trunc" title={file.name}>{file.name}</div>
-        <div className="t-xs t-subtle" style={{ marginTop: 3 }}>
-          {fmtBytes(file.size_bytes)} · {fmtAgo(file.modified_at)}
+        <div className="t-xs t-subtle" style={{ marginTop: 2 }}>
+          {/* Prototype meta: when · area (size only when the area is unknown). */}
+          {fmtAgo(file.modified_at)}{area ? ` · ${area}` : ` · ${fmtBytes(file.size_bytes)}`}
         </div>
       </div>
     </Link>

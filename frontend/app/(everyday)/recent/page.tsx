@@ -1,5 +1,5 @@
 import { MyFilesClient } from "@/components/everyday/my-files-client";
-import { safeFiles } from "@/lib/api";
+import { safeFiles, safeSystems } from "@/lib/api";
 import { loadServerCtx } from "@/lib/auth-server";
 import { canMutate } from "@/lib/roles";
 
@@ -8,9 +8,10 @@ import { canMutate } from "@/lib/roles";
 /// Starred. Recency-by-modified is a solid first cut.)
 export default async function RecentPage() {
   const { cookieHeader, role } = await loadServerCtx();
-  const all = await safeFiles({}, cookieHeader);
+  const [all, systems] = await Promise.all([safeFiles({}, cookieHeader), safeSystems(cookieHeader)]);
   const files = [...all]
     .sort((a, b) => (b.modified_at || "").localeCompare(a.modified_at || ""))
     .slice(0, 50);
-  return <MyFilesClient files={files} titleKey="eday.recent" canUpload={canMutate(role)} />;
+  const areas = systems.filter((s) => s.system_type !== "personal").map((s) => ({ id: s.id, name: s.name, tone: s.tone }));
+  return <MyFilesClient files={files} titleKey="eday.recent" canUpload={canMutate(role)} areas={areas} />;
 }

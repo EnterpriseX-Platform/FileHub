@@ -115,15 +115,29 @@ export function SignPanel({ fileId, canRequest }: { fileId: string; canRequest: 
                   <Pill tone={tone(req.status)} sm><span className="dot" />{t("esign.st." + req.status) || req.status}</Pill>
                   <span className="t-xs t-subtle" style={{ marginLeft: "auto" }}>{fmtAgo(req.created_at)}</span>
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                  {req.signers.map((s) => (
-                    <div key={s.id} className="t-xs" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ color: s.status === "signed" ? "var(--c-emerald)" : s.status === "declined" ? "var(--c-rose)" : "var(--text-subtle)", display: "inline-flex" }}>
-                        {s.status === "signed" ? <Ico.check className="icon sm" /> : s.status === "declined" ? <Ico.x className="icon sm" /> : <Ico.clock className="icon sm" />}
-                      </span>
-                      <span className="t-trunc">{s.user_name || s.user_id}</span>
-                    </div>
-                  ))}
+                <div>
+                  {/* Prototype stepper: done ✓ / current pulsing / waiting. */}
+                  {req.signers.map((s, i) => {
+                    const turn = req.status === "pending" && s.status === "pending" && myTurn(req, s);
+                    const cls = s.status === "signed" ? "done"
+                      : s.status === "declined" ? "no"
+                      : turn ? "now" : "wait";
+                    return (
+                      <div key={s.id} className={"step " + cls}>
+                        <span className="ic">
+                          {s.status === "signed" ? "✓" : s.status === "declined" ? "✕" : i + 1}
+                        </span>
+                        <span className="tx">
+                          <b className="t-trunc">{s.user_name || s.user_id}</b>
+                          <span className="sub">
+                            {s.status === "signed" && s.signed_at ? fmtAgo(s.signed_at)
+                              : s.status === "declined" ? t("esign.st.declined")
+                              : turn ? t("esign.sign") : t("esign.waiting")}
+                          </span>
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
                 {mine && req.status === "pending" && (
                   <div style={{ display: "flex", gap: 6, marginTop: 8 }}>

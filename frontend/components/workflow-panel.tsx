@@ -3,7 +3,7 @@
 import * as React from "react";
 
 import { Ico } from "@/components/icons";
-import { Av, Pill } from "@/components/primitives";
+import { Pill } from "@/components/primitives";
 import { useToast } from "@/components/toast";
 import { useAuth } from "@/lib/auth-context";
 import type { Member, WorkflowTemplate } from "@/lib/api";
@@ -173,68 +173,65 @@ function WorkflowCard({ wf, steps, latest, userId, mutate, busy, onDecide, onSen
       </div>
       {wf.note && <div className="t-xs t-subtle" style={{ marginBottom: 6 }}>{wf.note}</div>}
 
-      <ol style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+      <div>
+        {/* Prototype stepper: done ✓ / rejected ✕ / current pulsing / waiting. */}
         {steps.map((s) => {
           const mine = active && mutate && s.decision === "pending" && s.reviewer_id === userId;
+          const isNow = active && s.decision === "pending" && myTurn(s);
+          const cls = s.decision === "approved" ? "done"
+            : s.decision === "rejected" ? "no"
+            : isNow ? "now" : "wait";
           return (
-            <li key={s.id} style={{ padding: "4px 0", borderTop: "1px solid var(--border-subtle)" }}>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <span className="t-xs t-mono t-subtle" style={{ width: 16 }}>{s.sequence}.</span>
-                <Av name={s.reviewer_name ?? "?"} tone="slate" />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="t-sm t-trunc">
-                    {s.reviewer_name ?? s.reviewer_id}
-                    {s.name && <span className="t-xs t-subtle"> · {s.name}</span>}
-                  </div>
-                  {s.note && <div className="t-xs t-subtle t-trunc">{s.note}</div>}
-                </div>
-                <DecisionPill decision={s.decision} />
-                {latest && mutate && s.decision !== "pending" && (
-                  <button
-                    className="btn xs ghost"
-                    disabled={busy}
-                    title={t("wf.sendBack")}
-                    aria-label={t("wf.sendBack")}
-                    onClick={() => onSendBack(s.id)}
-                  >
-                    <Ico.refresh className="icon sm" />
-                  </button>
+            <div key={s.id} className={"step " + cls}>
+              <span className="ic">
+                {s.decision === "approved" ? "✓" : s.decision === "rejected" ? "✕" : s.sequence}
+              </span>
+              <span className="tx">
+                <b className="t-trunc">
+                  {s.reviewer_name ?? s.reviewer_id}
+                  {s.name && <span className="t-xs t-subtle" style={{ fontWeight: 400 }}> · {s.name}</span>}
+                </b>
+                <span className="sub t-trunc">
+                  {s.note ?? (s.decision === "approved" ? t("wf.approved")
+                    : s.decision === "rejected" ? t("wf.rejected") : t("wf.pending"))}
+                </span>
+                {mine && (
+                  <span style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                    <input
+                      className="field"
+                      style={{ flex: "1 1 120px", minWidth: 0, height: 30 }}
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      placeholder={t("wf.decisionNote")}
+                    />
+                    <button className="btn xs primary" disabled={busy || !myTurn(s)}
+                      onClick={() => onDecide(s.id, "approved", note.trim())}>
+                      {myTurn(s) ? t("wf.approve") : t("wf.waiting")}
+                    </button>
+                    <button className="btn xs ghost" disabled={busy || !myTurn(s)}
+                      onClick={() => onDecide(s.id, "rejected", note.trim())}>
+                      {t("wf.reject")}
+                    </button>
+                  </span>
                 )}
-              </div>
-              {mine && (
-                <div style={{ display: "flex", gap: 6, marginTop: 6, marginLeft: 24, flexWrap: "wrap" }}>
-                  <input
-                    className="field"
-                    style={{ flex: "1 1 120px", minWidth: 0 }}
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    placeholder={t("wf.decisionNote")}
-                  />
-                  <button className="btn xs primary" disabled={busy || !myTurn(s)}
-                    onClick={() => onDecide(s.id, "approved", note.trim())}>
-                    {myTurn(s) ? t("wf.approve") : t("wf.waiting")}
-                  </button>
-                  <button className="btn xs ghost" disabled={busy || !myTurn(s)}
-                    onClick={() => onDecide(s.id, "rejected", note.trim())}>
-                    {t("wf.reject")}
-                  </button>
-                </div>
+              </span>
+              {latest && mutate && s.decision !== "pending" && (
+                <button
+                  className="btn xs ghost"
+                  disabled={busy}
+                  title={t("wf.sendBack")}
+                  aria-label={t("wf.sendBack")}
+                  onClick={() => onSendBack(s.id)}
+                >
+                  <Ico.refresh className="icon sm" />
+                </button>
               )}
-            </li>
+            </div>
           );
         })}
-      </ol>
+      </div>
     </div>
   );
-}
-
-function DecisionPill({ decision }: { decision: string }) {
-  const { t } = useI18n();
-  switch (decision) {
-    case "approved": return <Pill tone="emerald" sm><span className="dot" />{t("wf.approved")}</Pill>;
-    case "rejected": return <Pill tone="rose" sm><span className="dot" />{t("wf.rejected")}</Pill>;
-    default:         return <Pill sm>{t("wf.pending")}</Pill>;
-  }
 }
 
 // -----------------------------------------------------------------------------
