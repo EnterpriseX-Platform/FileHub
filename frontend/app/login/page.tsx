@@ -71,22 +71,24 @@ function LoginInner() {
   };
 
   return (
-    <div style={{
-      minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-      background: "var(--bg-subtle)", padding: 24,
-    }}>
+    <div className="auth-scene">
+      <div className="auth-orb a" />
+      <div className="auth-orb b" />
       <div style={{
+        position: "relative",
         display: "grid",
         gridTemplateColumns: SHOW_DEMO_ACCOUNTS ? "repeat(auto-fit, minmax(340px, 1fr))" : "1fr",
         gap: 24,
-        maxWidth: SHOW_DEMO_ACCOUNTS ? 880 : 400,
+        maxWidth: SHOW_DEMO_ACCOUNTS ? 880 : 420,
         width: "100%",
       }}>
-        <form onSubmit={submit} className="card" style={{ padding: 36, display: "flex", flexDirection: "column", gap: 18, boxShadow: "var(--sh-3)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
-            <span style={{ width: 44, height: 44, borderRadius: "var(--r-5)", background: "var(--accent)", color: "var(--on-accent)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 20 }}>F</span>
+        <form onSubmit={submit} className="auth-card" style={{ padding: 36, display: "flex", flexDirection: "column", gap: 18 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 8 }}>
+            <span className="auth-logo">F</span>
             <div>
-              <div className="t-2xl t-semibold">File Hub</div>
+              <div className="t-2xl t-semibold" style={{ lineHeight: 1.2 }}>
+                File <span className="grad-text">Hub</span>
+              </div>
               <div className="t-sm t-muted">acme.go.th · Digital Content Platform</div>
             </div>
           </div>
@@ -136,7 +138,7 @@ function LoginInner() {
         </form>
 
         {SHOW_DEMO_ACCOUNTS && (
-        <div className="card" style={{ padding: 24, background: "var(--bg)" }}>
+        <div className="auth-card" style={{ padding: 24 }}>
           <div className="t-md t-semibold" style={{ marginBottom: 4 }}>Test accounts</div>
           <div className="t-xs t-muted" style={{ marginBottom: 14 }}>
             Click an account to fill its email, then enter the password.
