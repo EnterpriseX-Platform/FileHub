@@ -363,7 +363,7 @@ function UploadInner() {
                 onChange={(e) => e.target.files && addPlainFiles(e.target.files)}
               />
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--sp-3)", pointerEvents: "none" }}>
-                <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--accent-soft)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent)" }}>
+                <div style={{ width: 56, height: 56, borderRadius: 16, background: "var(--grad)", boxShadow: "var(--sh-accent)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
                   <Ico.upload className="icon lg" />
                 </div>
                 <div className="t-lg t-semibold">Drop files or folders to upload</div>

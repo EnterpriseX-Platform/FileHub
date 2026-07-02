@@ -573,12 +573,14 @@ a.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .dropzone {
   border: 1.5px dashed var(--border-strong);
-  border-radius: var(--r-4);
-  padding: 32px;
+  border-radius: var(--r-5);
+  padding: 44px 32px;
   background: var(--bg-subtle);
   text-align: center;
-  transition: border-color .12s, background .12s;
+  cursor: pointer;
+  transition: border-color .15s var(--ease), background .15s var(--ease), box-shadow .15s var(--ease);
 }
+.dropzone:hover { border-color: var(--accent-border); background: var(--accent-soft); }
 .dropzone.active { border-color: var(--accent); background: var(--accent-soft); border-style: solid; }
 .dropzone.dragging { border-color: var(--accent); background: var(--accent-soft); border-style: solid; }
 
