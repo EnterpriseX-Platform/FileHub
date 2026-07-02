@@ -8,6 +8,7 @@ import { FilePreview } from "@/app/files/[id]/preview";
 import { SignPanel } from "@/components/everyday/sign-panel";
 import { StarButton } from "@/components/everyday/star-button";
 import { Ico } from "@/components/icons";
+import { WorkflowPanel } from "@/components/workflow-panel";
 import { Av, Ft, Tag } from "@/components/primitives";
 import { useAuth } from "@/lib/auth-context";
 import type { FileRow } from "@/lib/api";
@@ -57,6 +58,8 @@ export function FileViewClient({ file, areaName }: { file: FileRow; areaName: st
           <FileAiPanel fileId={file.id} />
           <div className="divider" style={{ margin: "14px 0" }} />
           <SignPanel fileId={file.id} canRequest={canMutate(user?.role ?? null)} />
+          <div className="divider" style={{ margin: "14px 0" }} />
+          <WorkflowPanel fileId={file.id} />
           <div className="divider" style={{ margin: "14px 0" }} />
           <Meta label={t("eday.owner")}>
             <Av name={file.owner} tone="slate" /> <span className="t-sm t-trunc">{file.owner}</span>

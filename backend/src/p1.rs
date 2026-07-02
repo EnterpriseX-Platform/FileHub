@@ -284,6 +284,9 @@ pub struct WorkflowStep {
     pub sequence:     i32,
     pub created_at:   DateTime<Utc>,
     pub decided_at:   Option<DateTime<Utc>>,
+    /// Step name from the template (e.g. "หัวหน้าฝ่าย"); NULL for ad-hoc steps.
+    #[sqlx(default)]
+    pub name:         Option<String>,
     /// Reviewer's display name, joined from `users` in `list_workflow`. The
     /// frontend renders this directly. `#[sqlx(default)]` so the bare
     /// `SELECT * FROM workflow_steps` paths (which don't join) still decode —

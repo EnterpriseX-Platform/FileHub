@@ -2,13 +2,14 @@ import Link from "next/link";
 
 import { Ico } from "@/components/icons";
 
-export type SettingsTab = "general" | "members" | "roles" | "audit";
+export type SettingsTab = "general" | "members" | "roles" | "workflows" | "audit";
 
 const TABS: Array<[SettingsTab, string, React.ComponentType<{ className?: string }>]> = [
-  ["general", "General",             Ico.cog],
-  ["members", "Members",             Ico.users],
-  ["roles",   "Roles & permissions", Ico.shield],
-  ["audit",   "Audit log",           Ico.history],
+  ["general",   "General",             Ico.cog],
+  ["members",   "Members",             Ico.users],
+  ["roles",     "Roles & permissions", Ico.shield],
+  ["workflows", "Workflow templates",  Ico.layers],
+  ["audit",     "Audit log",           Ico.history],
 ];
 
 /// Shared left-rail nav for every /settings/* page. Only pages that exist are

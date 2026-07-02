@@ -42,9 +42,9 @@ Read `CLAUDE.md` first — it's the authoritative architecture guide and was kep
 
 ## Remaining work (prioritized) — **integrations are explicitly out of scope for now**
 
-1. **Workflow builder UI** (frontend) — the engine exists; needs: a template editor (create/edit `workflow-templates`), a "Start workflow" panel on the file view (pick reviewers or template, sequential/parallel), and a step tracker with approve/reject/**send-back** buttons. Backend endpoints ready: `GET/POST /api/files/:id/workflow`, `POST /api/workflow-steps/:id/decision`, `.../send-back`, `GET/POST/DELETE /api/workflow-templates`.
+1. ~~**Workflow builder UI**~~ — **DONE (2026-07-02)**: shared `frontend/components/workflow-panel.tsx` (start from reviewers or template, sequential/parallel, turn-guarded approve/reject with note, send-back) wired into both the everyday `/f/[id]` view and the workspace `app/files/[id]/sidecar.tsx`; template editor at `/settings/workflows` (new settings tab). Backend `WorkflowStep` now also serializes the per-step `name` so template step labels render. Browser-verified end-to-end.
 2. **Conditional routing** (ANNEX-14w) — route by decision/condition. Needs a rules model on top of the current linear steps (not yet started).
-3. **Frontend surfacing** — version-restore button on the file view (backend done); workflow panel in the everyday `/f/[id]` view.
+3. ~~**Frontend surfacing**~~ — **DONE (2026-07-02)**: version-restore button on the workspace sidecar version list (POST `/versions/:v/restore`, editors only); workflow panel in the everyday `/f/[id]` view (item 1).
 4. **Small wins** (each ~contained): metadata CSV import (ANNEX-9p26), template folders (ANNEX-14), bulk watermark (ANNEX-20), PDF highlight/annotate (ANNEX-3).
 5. **E-signature depth** (optional): visible PDF byte-embed (PAdES) + PKI digital certs (ANNEX-34, §26) — data model already carries placement + hashes.
 

@@ -70,6 +70,17 @@ export type Member = {
   created_at: string;
 };
 
+// Workflow templates (backend workflow.rs) — reusable no-code approval flows.
+export type WorkflowTemplateStep = { name?: string | null; reviewer_id: string };
+export type WorkflowTemplate = {
+  id: string;
+  name: string;
+  description: string | null;
+  order_mode: "sequential" | "parallel";
+  steps: WorkflowTemplateStep[];
+  created_at: string;
+};
+
 // Q6 — notifications
 export type Notification = {
   id: string;
@@ -414,6 +425,17 @@ export async function safeWorkspaceConfig(cookieHeader?: string): Promise<Worksp
     if (!r.ok) return {};
     return (await r.json()) as WorkspaceConfig;
   } catch { return {}; }
+}
+
+export async function safeWorkflowTemplates(cookieHeader?: string): Promise<WorkflowTemplate[]> {
+  try {
+    const r = await fetch(`${BASE}/api/workflow-templates`, {
+      cache: "no-store",
+      headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+    });
+    if (!r.ok) return [];
+    return (await r.json()) as WorkflowTemplate[];
+  } catch { return []; }
 }
 
 export async function safeMembers(cookieHeader?: string): Promise<Member[]> {
