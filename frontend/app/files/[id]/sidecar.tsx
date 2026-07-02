@@ -1,11 +1,14 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import * as React from "react";
 
 import { Ico } from "@/components/icons";
 import { Av, Pill } from "@/components/primitives";
+import { WorkflowPanel } from "@/components/workflow-panel";
 import { useAuth } from "@/lib/auth-context";
 import { fmtAgo, fmtBytes } from "@/lib/format";
+import { canMutate } from "@/lib/roles";
 
 // Backend ships `Vec<CommentWithAuthor>` — display_name + avatar_tone come
 // from the join with users; user_id can be null if the author was deleted.
@@ -32,28 +35,6 @@ type Version = {
   created_at: string;
 };
 
-type WorkflowStep = {
-  id: string;
-  workflow_id: string;
-  sequence: number;
-  reviewer_id: string | null;
-  reviewer_name: string;
-  decision: string;       // 'pending' | 'approved' | 'rejected'
-  decided_at: string | null;
-  note: string | null;
-};
-
-type Workflow = {
-  id: string;
-  file_id: string;
-  state: string;          // backend serializes `state` (Draft | Review | Approved | …)
-  created_at: string;
-};
-
-// list_workflow returns `Vec<(Workflow, Vec<WorkflowStep>)>` — a tuple list
-// the JSON shape of which is `[[workflowObj, [steps]], …]`.
-type WorkflowEntry = [Workflow, WorkflowStep[]];
-
 /// Right-inspector tail section: surfaces the three P1 features
 /// (comments, version history, review workflow) that previously only
 /// existed at the API layer.  Server-rendered inspector keeps the static
@@ -64,7 +45,7 @@ export function FileSidecar({ fileId }: { fileId: string }) {
     <div style={{ borderTop: "1px solid var(--border)", padding: "12px 16px" }}>
       <VersionsBlock fileId={fileId} />
       <div className="divider" />
-      <WorkflowBlock fileId={fileId} />
+      <WorkflowPanel fileId={fileId} />
       <div className="divider" />
       <CommentsBlock fileId={fileId} />
     </div>
@@ -75,24 +56,44 @@ export function FileSidecar({ fileId }: { fileId: string }) {
 // Versions
 // -----------------------------------------------------------------------------
 function VersionsBlock({ fileId }: { fileId: string }) {
+  const router = useRouter();
+  const { user } = useAuth();
   const [versions, setVersions] = React.useState<Version[] | null>(null);
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch(`/filehub/api/files/${encodeURIComponent(fileId)}/versions`, {
-          credentials: "include", cache: "no-store",
-        });
-        if (!cancelled && r.ok) setVersions(await r.json());
-      } catch { /* show empty state */ }
-    })();
-    return () => { cancelled = true; };
+  const reload = React.useCallback(async () => {
+    try {
+      const r = await fetch(`/filehub/api/files/${encodeURIComponent(fileId)}/versions`, {
+        credentials: "include", cache: "no-store",
+      });
+      if (r.ok) setVersions(await r.json());
+    } catch { /* show empty state */ }
   }, [fileId]);
+
+  React.useEffect(() => { reload(); }, [reload]);
+
+  const restore = async (v: number) => {
+    setBusy(true); setErr(null);
+    try {
+      const r = await fetch(`/filehub/api/files/${encodeURIComponent(fileId)}/versions/${v}/restore`, {
+        method: "POST", credentials: "include",
+      });
+      if (!r.ok) {
+        let detail = `HTTP ${r.status}`;
+        try { detail = (await r.json()).error ?? detail; } catch { /* keep */ }
+        setErr(detail);
+        return;
+      }
+      await reload();
+      router.refresh(); // header + inspector show the new current version
+    } finally { setBusy(false); }
+  };
 
   return (
     <section>
       <SectionLabel>Version history <Counter n={versions?.length ?? 0} /></SectionLabel>
+      {err && <div className="t-xs" style={{ color: "var(--danger)", marginBottom: 4 }}>{err}</div>}
       {versions === null ? <Loading /> : versions.length === 0 ? (
         <div className="t-xs t-subtle">This is the current version. Each new upload is saved here so you can compare or restore earlier ones.</div>
       ) : (
@@ -104,6 +105,17 @@ function VersionsBlock({ fileId }: { fileId: string }) {
                 <div className="t-sm t-trunc">{v.note ?? `uploaded by ${v.uploaded_by}`}</div>
                 <div className="t-xs t-subtle">{fmtBytes(v.size_bytes)} · {fmtAgo(v.created_at)}</div>
               </div>
+              {canMutate(user?.role ?? null) && (
+                <button
+                  className="btn xs ghost"
+                  disabled={busy}
+                  onClick={() => restore(v.version)}
+                  title={`Restore v${v.version} as the current version`}
+                  aria-label={`Restore version ${v.version}`}
+                >
+                  <Ico.history className="icon sm" />
+                </button>
+              )}
               <a
                 className="btn xs ghost"
                 href={`/filehub/api/files/${encodeURIComponent(fileId)}/download?version=${v.version}`}
@@ -118,62 +130,6 @@ function VersionsBlock({ fileId }: { fileId: string }) {
       )}
     </section>
   );
-}
-
-// -----------------------------------------------------------------------------
-// Workflow / review
-// -----------------------------------------------------------------------------
-function WorkflowBlock({ fileId }: { fileId: string }) {
-  const [entries, setEntries] = React.useState<WorkflowEntry[] | null>(null);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch(`/filehub/api/files/${encodeURIComponent(fileId)}/workflow`, {
-          credentials: "include", cache: "no-store",
-        });
-        if (!cancelled && r.ok) setEntries(await r.json());
-      } catch { /* keep null → loading */ }
-    })();
-    return () => { cancelled = true; };
-  }, [fileId]);
-
-  return (
-    <section>
-      <SectionLabel>Review workflow</SectionLabel>
-      {entries === null ? <Loading /> : entries.length === 0 ? (
-        <div className="t-xs t-subtle">No approval workflow yet — route this file through reviewers to track sign-off and decisions.</div>
-      ) : entries.map(([wf, steps]) => (
-        <div key={wf.id} style={{ marginBottom: 10 }}>
-          <div className="t-xs t-subtle" style={{ marginBottom: 6 }}>
-            {wf.state} · started {fmtAgo(wf.created_at)}
-          </div>
-          <ol style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-            {steps.map((s) => (
-              <li key={s.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 0", borderTop: "1px solid var(--border-subtle)" }}>
-                <span className="t-xs t-mono t-subtle" style={{ width: 16 }}>{s.sequence}.</span>
-                <Av name={s.reviewer_name} tone="slate" />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="t-sm t-trunc">{s.reviewer_name}</div>
-                  {s.note && <div className="t-xs t-subtle t-trunc">{s.note}</div>}
-                </div>
-                <DecisionPill decision={s.decision} />
-              </li>
-            ))}
-          </ol>
-        </div>
-      ))}
-    </section>
-  );
-}
-
-function DecisionPill({ decision }: { decision: string }) {
-  switch (decision) {
-    case "approved": return <Pill tone="emerald" sm><span className="dot" />approved</Pill>;
-    case "rejected": return <Pill tone="rose"    sm><span className="dot" />rejected</Pill>;
-    default:         return <Pill            sm>pending</Pill>;
-  }
 }
 
 // -----------------------------------------------------------------------------
