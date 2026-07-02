@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import * as React from "react";
 
 import { EdaySection, FileTile, ReviewRow } from "@/components/everyday/pieces";
 import { Ico } from "@/components/icons";
@@ -22,6 +24,12 @@ export function HomeClient({
   canUpload: boolean;
 }) {
   const { t } = useI18n();
+  const router = useRouter();
+  const [q, setQ] = React.useState("");
+  const ask = (question: string) => {
+    const trimmed = question.trim();
+    router.push(trimmed ? `/ask?q=${encodeURIComponent(trimmed)}` : "/ask");
+  };
   return (
     <div>
       <UserGreeting />
@@ -29,15 +37,30 @@ export function HomeClient({
         {recent.length > 0 ? t("eday.subLeftOff") : t("eday.subFirst")}
       </div>
 
-      {/* Primary actions — Upload + the AI Ask surface promoted as a hero. */}
-      <div style={{ display: "flex", gap: 12, marginTop: 20, flexWrap: "wrap" }}>
+      {/* AI-first hero: ask bar hands off to /ask?q= (auto-runs there). */}
+      <form className="ask-hero" onSubmit={(e) => { e.preventDefault(); ask(q); }}>
+        <div className="ask-hero-inner">
+          <span style={{ color: "var(--c-violet)", display: "inline-flex" }}><Ico.sparkle className="icon" /></span>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={t("eday.askPlaceholder")}
+            aria-label={t("eday.askPlaceholder")}
+          />
+          <button type="submit" className="btn primary sm" style={{ borderRadius: 10 }}>
+            {t("eday.ask")}
+          </button>
+        </div>
+      </form>
+      <div className="ask-sugs">
+        {[t("eday.sug1"), t("eday.sug2"), t("eday.sug3")].map((s) => (
+          <button key={s} type="button" className="ask-sug" onClick={() => ask(s)}>{s}</button>
+        ))}
         {canUpload && (
-          <Link href="/upload" className="btn primary"><Ico.upload className="icon sm" /> {t("nav.upload")}</Link>
+          <Link href="/upload" className="ask-sug" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <Ico.upload className="icon sm" /> {t("nav.upload")}
+          </Link>
         )}
-        <Link href="/ask" className="btn" style={{ gap: 8 }}>
-          <span style={{ color: "var(--c-violet)", display: "inline-flex" }}><Ico.sparkle className="icon sm" /></span>
-          {t("eday.askIntro")}
-        </Link>
       </div>
 
       {canUpload && (

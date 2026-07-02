@@ -71,26 +71,50 @@ function LoginInner() {
   };
 
   return (
-    <div className="auth-scene">
-      <div className="auth-orb a" />
-      <div className="auth-orb b" />
-      <div style={{
-        position: "relative",
-        display: "grid",
-        gridTemplateColumns: SHOW_DEMO_ACCOUNTS ? "repeat(auto-fit, minmax(340px, 1fr))" : "1fr",
-        gap: 24,
-        maxWidth: SHOW_DEMO_ACCOUNTS ? 880 : 420,
-        width: "100%",
-      }}>
-        <form onSubmit={submit} className="auth-card" style={{ padding: 36, display: "flex", flexDirection: "column", gap: 18 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 8 }}>
-            <span className="auth-logo">F</span>
-            <div>
-              <div className="t-2xl t-semibold" style={{ lineHeight: 1.2 }}>
-                File <span className="grad-text">Hub</span>
-              </div>
-              <div className="t-sm t-muted">acme.go.th · Digital Content Platform</div>
+    <div className="auth-split">
+      {/* Left — AI-first product hero. The chat mock mirrors real /ask output
+          (grounded RAG with citations), so it advertises shipping features. */}
+      <div className="auth-hero">
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span className="auth-logo">F</span>
+          <span className="t-lg t-semibold">File Hub</span>
+          <span className="auth-feat" style={{ marginLeft: 4 }}>✦ AI-native</span>
+        </div>
+        <h1 className="auth-hero-h1">
+          Every document,<br /><span className="grad-text-hero">one question away.</span>
+        </h1>
+        <p className="auth-hero-sub">
+          Semantic search, grounded answers with citations, Thai + English OCR,
+          e-signatures and approval workflows — in one workspace.
+        </p>
+
+        <div className="auth-chat">
+          <div className="auth-bubble q">งบประมาณโครงการ DMS เท่าไหร่ และเบิกจ่ายไปแล้วเท่าไร?</div>
+          <div className="auth-bubble a">
+            งบประมาณรวมทั้งสิ้น <b>4,200,000 บาท</b><span className="auth-cite">1</span> เบิกจ่ายแล้ว{" "}
+            <b>1,260,000 บาท</b> (ร้อยละ 30 งวดที่ 1)<span className="auth-cite">2</span>
+            <div className="auth-chat-meta" style={{ marginTop: 8 }}>
+              <span>✦ grounded</span>·<span>TOR-summary-DMS-2026</span>·<span>meeting-minutes 4/2569</span>
             </div>
+          </div>
+        </div>
+
+        <div className="auth-feats">
+          <span className="auth-feat">⌕ Search by meaning</span>
+          <span className="auth-feat">⌘K everywhere</span>
+          <span className="auth-feat">OCR ไทย · EN</span>
+          <span className="auth-feat">✍ E-sign & workflows</span>
+        </div>
+      </div>
+
+      {/* Right — sign-in pane. */}
+      <div className="auth-pane">
+        <form onSubmit={submit} className="auth-card" style={{ padding: 36, display: "flex", flexDirection: "column", gap: 18, width: "100%", maxWidth: 400 }}>
+          <div style={{ marginBottom: 4 }}>
+            <div className="t-2xl t-semibold" style={{ lineHeight: 1.2 }}>
+              Welcome back
+            </div>
+            <div className="t-sm t-muted">acme.go.th · Digital Content Platform</div>
           </div>
 
           <div>
@@ -138,9 +162,9 @@ function LoginInner() {
         </form>
 
         {SHOW_DEMO_ACCOUNTS && (
-        <div className="auth-card" style={{ padding: 24 }}>
-          <div className="t-md t-semibold" style={{ marginBottom: 4 }}>Test accounts</div>
-          <div className="t-xs t-muted" style={{ marginBottom: 14 }}>
+        <div className="auth-card" style={{ padding: 20, width: "100%", maxWidth: 400 }}>
+          <div className="t-sm t-semibold" style={{ marginBottom: 2 }}>Test accounts</div>
+          <div className="t-xs t-muted" style={{ marginBottom: 10 }}>
             Click an account to fill its email, then enter the password.
           </div>
           {DEMO_ACCOUNTS.map(([em, desc]) => (
@@ -150,12 +174,12 @@ function LoginInner() {
               onClick={() => setEmail(em)}
               className="card"
               style={{
-                padding: "10px 12px", marginBottom: 8, width: "100%", textAlign: "left",
+                padding: "8px 12px", marginBottom: 6, width: "100%", textAlign: "left",
                 cursor: "pointer", background: "var(--bg-subtle)",
               }}
             >
               <div className="t-sm t-mono t-medium">{em}</div>
-              <div className="t-xs t-subtle" style={{ marginTop: 2 }}>{desc}</div>
+              <div className="t-xs t-subtle" style={{ marginTop: 1 }}>{desc}</div>
             </button>
           ))}
         </div>
