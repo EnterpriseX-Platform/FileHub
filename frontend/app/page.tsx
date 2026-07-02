@@ -63,11 +63,10 @@ export default async function DashboardPage() {
   // renders "Backend offline" with "—" in every stat card.
   const { cookieHeader, role } = await loadServerCtx();
 
-  // `/` is the Workspace (power) home. Everyday-mode users belong in the
-  // simplified app — bounce them to /home. Mode = the fh-view cookie, or a
-  // role default when unset (admins → workspace, everyone else → everyday).
+  // `/` is the Admin console (power) home. Everyday is the default face for
+  // every role — only an explicit fh-view=workspace cookie keeps a user here.
   const viewCookie = (await cookies()).get("fh-view")?.value;
-  const mode = viewCookie ?? (role === "admin" ? "workspace" : "everyday");
+  const mode = viewCookie ?? "everyday";
   if (mode === "everyday") redirect("/home");
   const [stats, activity, systems, reviewFiles, views] = await Promise.all([
     safeStats(cookieHeader),

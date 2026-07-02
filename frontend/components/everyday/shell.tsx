@@ -117,10 +117,10 @@ function EdayUserMenu() {
             <Ico.moon className="icon sm" /> Dark mode
             <span className="t-xs t-subtle" style={{ marginLeft: "auto" }}>{dark ? "on" : "off"}</span>
           </button>
-          {/* Only admins/editors have a full view worth switching to. */}
+          {/* Only admins/editors have a console worth switching to. */}
           {(isAdmin(user.role) || canMutate(user.role)) && (
             <button onClick={toFullView} className="btn xs ghost eday-menu-item" role="menuitem">
-              <Ico.cog className="icon sm" /> Switch to full view
+              <Ico.cog className="icon sm" /> Admin console
             </button>
           )}
           <button onClick={() => { setOpen(false); logout(); }} className="btn xs ghost eday-menu-item" role="menuitem">
