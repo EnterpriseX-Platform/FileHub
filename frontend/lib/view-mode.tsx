@@ -41,7 +41,9 @@ export function ViewModeProvider({
 
   React.useEffect(() => {
     if (explicit || !user) return;
-    const def: ViewMode = user.role === "admin" ? "workspace" : "everyday";
+    // Everyday is the product's face for EVERY role — admins included land on
+    // the consumer shell and step into the Admin console explicitly.
+    const def: ViewMode = "everyday";
     setModeState(def);
     writeCookie(def);
     setExplicit(true);

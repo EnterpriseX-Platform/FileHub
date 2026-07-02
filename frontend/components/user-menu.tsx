@@ -123,7 +123,7 @@ export function UserMenu() {
             className="btn xs ghost"
             style={{ width: "100%", justifyContent: "flex-start", padding: "6px 8px" }}
           >
-            <Ico.home className="icon sm" /> Switch to simple view
+            <Ico.home className="icon sm" /> Back to Everyday
           </button>
           <button
             onClick={() => { setOpen(false); logout(); }}
