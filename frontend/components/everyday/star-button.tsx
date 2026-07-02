@@ -3,12 +3,14 @@
 import * as React from "react";
 
 import { Ico } from "@/components/icons";
+import { useToast } from "@/components/toast";
 import { useI18n } from "@/lib/i18n";
 
 /// Star / unstar toggle for the friendly file view. Reads the current state on
 /// mount, toggles optimistically, and reconciles with the server response.
 export function StarButton({ fileId }: { fileId: string }) {
   const { t } = useI18n();
+  const { toast } = useToast();
   const [starred, setStarred] = React.useState<boolean | null>(null);
   const [busy, setBusy] = React.useState(false);
 
@@ -33,6 +35,7 @@ export function StarButton({ fileId }: { fileId: string }) {
       if (!r.ok) throw new Error(String(r.status));
       const d = await r.json();
       setStarred(!!d.starred);
+      toast(t(d.starred ? "toast.starred" : "toast.unstarred"));
     } catch {
       setStarred(!next); // roll back
     } finally {

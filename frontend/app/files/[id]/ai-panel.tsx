@@ -62,7 +62,10 @@ export function FileAiPanel({ fileId }: { fileId: string }) {
   const busy = data && (data.status === "queued" || data.status === "running");
 
   return (
-    <section style={{ marginBottom: 12 }}>
+    <section
+      className={busy ? "ai-glow ai-pulse" : undefined}
+      style={{ marginBottom: 12, borderRadius: 12, padding: busy ? "10px 12px" : 0, transition: "padding .2s var(--ease)" }}
+    >
       <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
         <span style={{ color: "var(--c-violet)", display: "inline-flex" }}>
           <Ico.sparkle className="icon sm" />

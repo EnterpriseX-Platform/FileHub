@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { CountUp } from "@/components/count-up";
 import { Ico } from "@/components/icons";
 import { Pill, SectionHd } from "@/components/primitives";
 import { Sidebar } from "@/components/sidebar";
@@ -16,6 +17,45 @@ import Link from "next/link";
 
 import { DashboardActivity } from "./dashboard-activity";
 import { SyncButton } from "./sync-button";
+
+/// SVG donut of storage share per system (server-rendered — no client JS).
+/// Stroke colors come from the tonal CSS variables so dark mode follows.
+function StorageDonut({ rows, total }: {
+  rows: Array<{ system_id: string; name: string; tone: string; size_bytes: number }>;
+  total: number;
+}) {
+  const R = 40;
+  const C = 2 * Math.PI * R;
+  let acc = 0;
+  return (
+    <div style={{ position: "relative", width: 128, height: 128, flexShrink: 0 }}>
+      <svg viewBox="0 0 100 100" width={128} height={128} role="img" aria-label="Storage by system">
+        <circle cx="50" cy="50" r={R} fill="none" stroke="var(--bg-muted)" strokeWidth="11" />
+        {rows.map((r) => {
+          const frac = r.size_bytes / total;
+          const start = acc;
+          acc += frac;
+          // Tiny gap between segments so adjacent tones don't merge.
+          const dash = Math.max(0, frac * C - 1.5);
+          return (
+            <circle
+              key={r.system_id}
+              cx="50" cy="50" r={R} fill="none"
+              stroke={`var(--c-${r.tone})`} strokeWidth="11"
+              strokeDasharray={`${dash} ${C - dash}`}
+              strokeDashoffset={-start * C}
+              transform="rotate(-90 50 50)"
+            />
+          );
+        })}
+      </svg>
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+        <span className="t-sm t-semibold t-tabular">{fmtBytes(total)}</span>
+        <span className="t-xs t-subtle">used</span>
+      </div>
+    </div>
+  );
+}
 
 export default async function DashboardPage() {
   // Every safe* helper below hits a private /fh/api/* route, so the inbound
@@ -141,7 +181,7 @@ export default async function DashboardPage() {
                 <div className="t-sm t-muted">{label}</div>
                 <span className={"stat-ic " + tone}><Icon className="icon" /></span>
               </div>
-              <div className="t-3xl t-semibold t-tabular" style={{ lineHeight: 1 }}>{value}</div>
+              <div className="t-3xl t-semibold t-tabular" style={{ lineHeight: 1 }}><CountUp value={value} /></div>
               <div className="t-xs t-muted" style={{ marginTop: "var(--sp-2)" }}>{hint}</div>
             </div>
           ))}
@@ -158,17 +198,9 @@ export default async function DashboardPage() {
               {storageBySystem.length === 0 ? (
                 <div className="t-sm t-muted" style={{ padding: "12px 0" }}>Upload a file to see storage usage by system.</div>
               ) : (
-                <>
-                  <div style={{ display: "flex", height: 10, borderRadius: 5, overflow: "hidden", marginBottom: 12 }}>
-                    {storageDisplay.map((r) => (
-                      <div
-                        key={r.system_id}
-                        style={{ flex: r.size_bytes / totalStorage, background: `var(--c-${r.tone})` }}
-                        title={`${r.name} · ${fmtBytes(r.size_bytes)}`}
-                      />
-                    ))}
-                  </div>
-                  <div className="legend-grid">
+                <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
+                  <StorageDonut rows={storageDisplay} total={totalStorage} />
+                  <div className="legend-grid" style={{ flex: 1, minWidth: 240, gridTemplateColumns: "1fr" }}>
                     {storageDisplay.map((r) => (
                       <div key={r.system_id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ width: 8, height: 8, borderRadius: 2, background: `var(--c-${r.tone})`, flexShrink: 0 }} />
@@ -180,7 +212,7 @@ export default async function DashboardPage() {
                       </div>
                     ))}
                   </div>
-                </>
+                </div>
               )}
             </div>
 

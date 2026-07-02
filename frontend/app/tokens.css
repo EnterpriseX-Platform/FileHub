@@ -384,6 +384,16 @@ a.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .ws-name { font-weight: 600; font-size: var(--t-md); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-name .t-sm { font-weight: 400; }
 
+/* Sidebar footer user card. */
+.side-user {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 7px 8px; margin-top: 4px;
+  background: transparent; border: 1px solid transparent; border-radius: var(--r-3);
+  cursor: pointer; font-family: inherit; color: inherit;
+  transition: background .15s var(--ease), border-color .15s var(--ease), box-shadow .15s var(--ease);
+}
+.side-user:hover { background: var(--bg); border-color: var(--border); box-shadow: var(--sh-1); }
+
 /* Avatars */
 .av {
   width: 22px; height: 22px;
@@ -674,9 +684,89 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-mu
   .main-pad { padding: 16px; }
 }
 
-/* AI enrichment skeleton shimmer (ai-panel.tsx) */
-.ai-sk{border-radius:6px;background:linear-gradient(90deg,var(--bg-muted) 25%,var(--bg-strong) 37%,var(--bg-muted) 63%);background-size:400% 100%;animation:aiShimmer 1.3s ease-in-out infinite}
+/* Skeleton shimmer — any loading placeholder (.ai-sk kept as an alias). */
+.sk, .ai-sk {
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--bg-muted) 25%, var(--bg-strong) 37%, var(--bg-muted) 63%);
+  background-size: 400% 100%;
+  animation: aiShimmer 1.3s ease-in-out infinite;
+}
+.sk-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+.sk-row .sk.av { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; }
 @keyframes aiShimmer{0%{background-position:100% 0}100%{background-position:0 0}}
+@media (prefers-reduced-motion: reduce) { .sk, .ai-sk { animation: none; } }
+
+/* Toasts — bottom-right stack, slide-in, auto-dismiss (components/toast.tsx). */
+.toast-stack {
+  position: fixed; right: 20px; bottom: 20px; z-index: 120;
+  display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+}
+.toast {
+  display: flex; align-items: center; gap: 9px;
+  padding: 10px 14px; border-radius: var(--r-3);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.5);
+  backdrop-filter: blur(14px) saturate(1.5);
+  border: 1px solid var(--border);
+  box-shadow: var(--sh-3);
+  color: var(--text);
+  animation: toastIn .22s var(--ease);
+  max-width: 340px;
+}
+.toast .toast-ic { display: inline-flex; }
+.toast.success .toast-ic { color: var(--success); }
+.toast.error .toast-ic { color: var(--danger); }
+.toast.info .toast-ic { color: var(--accent); }
+@keyframes toastIn { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
+@media (max-width: 620px) { .toast-stack { left: 16px; right: 16px; bottom: 76px; } .toast { max-width: none; } }
+
+/* Designed empty states (components/primitives.tsx::Empty). */
+.empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; gap: 6px; padding: 40px 24px;
+}
+.empty .empty-ic {
+  width: 44px; height: 44px; border-radius: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg-muted); color: var(--text-subtle); margin-bottom: 6px;
+}
+.empty .empty-ic .icon { width: 20px; height: 20px; }
+.empty-title { font-size: var(--t-md); font-weight: 600; }
+.empty-hint { font-size: var(--t-sm); color: var(--text-muted); max-width: 40ch; }
+.empty .btn { margin-top: 10px; }
+
+/* AI grammar — every AI surface shares the violet sparkle + soft glow. */
+.ai-glow {
+  border: 1px solid color-mix(in srgb, var(--c-violet) 32%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-violet) 7%, transparent),
+              0 4px 18px color-mix(in srgb, var(--c-violet) 12%, transparent);
+}
+.ai-pulse { animation: aiPulse 2.2s ease-in-out infinite; }
+@keyframes aiPulse {
+  0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-violet) 6%, transparent); }
+  50%      { box-shadow: 0 0 0 5px color-mix(in srgb, var(--c-violet) 14%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) { .ai-pulse { animation: none; } }
+/* Typewriter caret for streaming-feel answers. */
+.ai-caret {
+  display: inline-block; width: 7px; height: 15px; margin-left: 2px;
+  background: var(--c-violet); border-radius: 2px; vertical-align: -2px;
+  animation: aiCaret 0.9s steps(2) infinite;
+}
+@keyframes aiCaret { 50% { opacity: 0; } }
+
+/* Thumbnail cards — image on top, per-type gradient fallback behind. */
+.thumb {
+  position: relative; width: 100%; aspect-ratio: 16 / 10;
+  border-radius: var(--r-3); overflow: hidden;
+  background: var(--bg-muted);
+  display: flex; align-items: center; justify-content: center;
+}
+.thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.thumb .ft { position: relative; }
+
+/* Numbers in data tables read aligned. */
+.tbl { font-variant-numeric: tabular-nums; }
 
 /* ===== Everyday (consumer) shell (components/everyday/shell.tsx) ===== */
 .eday { min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
@@ -796,7 +886,16 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-mu
   border: 1px solid var(--border); border-radius: var(--r-5);
   box-shadow: var(--sh-popover); overflow: hidden;
   max-height: 70vh; display: flex; flex-direction: column;
+  animation: cmdIn .18s var(--ease);
 }
+@keyframes cmdIn { from { opacity: 0; transform: translateY(-8px) scale(.98); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .cmd-panel { animation: none; } }
+.cmd-foot {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 14px; border-top: 1px solid var(--border);
+  color: var(--text-subtle); font-size: var(--t-xs);
+}
+.cmd-foot .kbd-key { margin-right: 3px; }
 .cmd-input { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
 .cmd-input input { flex: 1; border: 0; outline: none; background: transparent; font: inherit; font-size: var(--t-md); color: var(--text); }
 .cmd-modes { display: flex; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--border); }

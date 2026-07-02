@@ -183,3 +183,27 @@ export function SectionHd({
     </div>
   );
 }
+
+/// Designed empty state — icon in a tinted tile, a title, a one-line hint, and
+/// an optional CTA. Replaces bare "nothing here" text so empty screens still
+/// look intentional.
+export function Empty({
+  icon,
+  title,
+  hint,
+  action,
+}: {
+  icon?: React.ReactNode;
+  title: React.ReactNode;
+  hint?: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="empty">
+      {icon && <span className="empty-ic">{icon}</span>}
+      <div className="empty-title">{title}</div>
+      {hint && <div className="empty-hint">{hint}</div>}
+      {action}
+    </div>
+  );
+}

@@ -88,13 +88,10 @@ export function UserMenu() {
     <div style={{ position: "relative" }}>
       <button
         ref={btnRef}
+        className="side-user"
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        style={{
-          display: "flex", alignItems: "center", gap: 8, padding: "8px 10px 4px",
-          background: "transparent", border: 0, width: "100%", cursor: "pointer",
-        }}
       >
         <Av name={user.display_name} tone={tone(user.avatar_tone)} />
         <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>

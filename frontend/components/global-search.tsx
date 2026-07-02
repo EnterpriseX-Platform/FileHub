@@ -181,6 +181,14 @@ export function GlobalSearch() {
                 })
               )}
             </div>
+            <div className="cmd-foot">
+              <span><Kbd>↑↓</Kbd> navigate</span>
+              <span><Kbd>↵</Kbd> open</span>
+              <span><Kbd>esc</Kbd> close</span>
+              <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4, color: "var(--c-violet)" }}>
+                <Ico.sparkle className="icon sm" /> AI-powered
+              </span>
+            </div>
           </div>
         </div>
       )}

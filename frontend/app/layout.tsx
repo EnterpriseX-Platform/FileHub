@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 
 import { MobileUploadFab } from "@/components/mobile-upload-fab";
+import { ToastProvider } from "@/components/toast";
 import { AuthProvider } from "@/lib/auth-context";
 import { I18nProvider, type Locale } from "@/lib/i18n";
 import { SidebarProvider } from "@/lib/sidebar-context";
@@ -48,7 +49,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body>
-        <I18nProvider initialLocale={locale}><ThemeProvider><AuthProvider><ViewModeProvider initialMode={initialMode}><SidebarProvider>{children}<MobileUploadFab /></SidebarProvider></ViewModeProvider></AuthProvider></ThemeProvider></I18nProvider>
+        <I18nProvider initialLocale={locale}><ThemeProvider><AuthProvider><ViewModeProvider initialMode={initialMode}><SidebarProvider><ToastProvider>{children}<MobileUploadFab /></ToastProvider></SidebarProvider></ViewModeProvider></AuthProvider></ThemeProvider></I18nProvider>
       </body>
     </html>
   );
