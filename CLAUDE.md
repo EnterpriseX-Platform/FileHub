@@ -166,4 +166,4 @@ Release builds (`cargo build --release`) fail-fast if `DATABASE_URL`, `CORS_ORIG
 - Share links carry a one-shot token in the URL — that token IS the credential, so `share_meta` / `share_download` live in the *public* router.
 - List sorting/owner filtering is **frontend-side** — `GET /api/files` has no sort/owner params; pages fetch and sort/filter client-side, and pagination on the list pages (Trash/Activity/Audit/Archive/Members) is `components/pager.tsx` over the already-fetched rows. Adding a backend param means also removing the frontend equivalent.
 - The upload page picks transport by size: small files go as one multipart POST, large files use `tus-js-client` resumable upload (8 MB PATCH chunks) against `tus.rs` — see the threshold constant in `app/upload/page.tsx`.
-- `tokens.css` contains a full `.dark` palette but nothing toggles it yet — dark mode is scaffolded, not shipped.
+- Dark mode is shipped: `lib/theme-context.tsx` (localStorage `fh-theme`, respects `prefers-color-scheme`) toggles the `.dark` palette in `tokens.css`; toggle buttons live in the topbar, user menu, and everyday shell.
