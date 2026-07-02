@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { Av, Ft, Pill } from "@/components/primitives";
+import { Av, Ft } from "@/components/primitives";
 import { fmtAgo } from "@/lib/format";
 import type { Activity } from "@/lib/api";
 
@@ -59,14 +59,12 @@ export function DashboardActivity({ activity }: { activity: Activity[] }) {
           >
             <Av name={a.actor} tone={a.actor_tone} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="t-base">
+              <div className="t-base t-trunc">
                 <span className="t-semibold">{a.actor}</span>{" "}
                 <span className="t-muted">{a.action}</span>{" "}
                 <span className="t-medium">{a.target}</span>
               </div>
-              <div className="t-sm t-muted" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
-                <Pill tone={a.actor_tone}><span className="dot" />{a.system_id ?? "—"}</Pill>
-              </div>
+              {a.system_id && <div className="t-xs t-subtle" style={{ marginTop: 1 }}>{a.system_id}</div>}
             </div>
             {a.target_type && <Ft type={a.target_type} />}
             <div className="t-sm t-subtle t-tabular" style={{ width: 80, textAlign: "right" }}>{fmtAgo(a.created_at)}</div>

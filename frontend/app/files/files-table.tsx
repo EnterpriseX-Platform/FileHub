@@ -228,11 +228,20 @@ export function FilesTable({ groups, cols, role, folders = [] }: { groups: FileG
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                         <Ft type={f.file_type} />
                         <a href={`/files/${f.id}`} className="t-medium" style={{ color: "var(--text)" }}>{f.name}</a>
-                        {f.version > 1 && <Pill tone="slate" sm>v{f.version}</Pill>}
+                        {f.version > 1 && <span className="t-xs t-mono t-subtle">v{f.version}</span>}
                       </div>
                     </td>
-                    {show("status") && <td><Pill tone={statusTone(f.status)}><span className="dot" />{f.status}</Pill></td>}
-                    {show("project") && <td>{f.project ? <Pill tone="indigo">{f.project}</Pill> : <span className="t-subtle">—</span>}</td>}
+                    {/* Dot + plain text reads calmer than a pill on every row —
+                        color still carries the status at a glance. */}
+                    {show("status") && (
+                      <td>
+                        <span className="t-sm" style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+                          <span style={{ width: 7, height: 7, borderRadius: "50%", background: `var(--c-${statusTone(f.status)})`, flexShrink: 0 }} />
+                          {f.status}
+                        </span>
+                      </td>
+                    )}
+                    {show("project") && <td className="t-sm">{f.project ?? <span className="t-subtle">—</span>}</td>}
                     {show("owner") && (
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>

@@ -114,6 +114,11 @@ export function NotificationsBell({ tone = "ghost" }: { tone?: "ghost" | "icon" 
           position: "fixed", top: pos.top, right: pos.right,
           width: 360, maxHeight: 480, overflow: "auto", padding: 0,
           boxShadow: "var(--sh-popover)", zIndex: 200,
+          borderRadius: "var(--r-5)",
+          background: "color-mix(in srgb, var(--bg) 90%, transparent)",
+          backdropFilter: "blur(16px) saturate(1.5)",
+          WebkitBackdropFilter: "blur(16px) saturate(1.5)",
+          animation: "cmdIn .16s var(--ease)",
         }}>
           <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div className="t-sm t-semibold">Notifications</div>
