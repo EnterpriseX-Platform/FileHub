@@ -1005,12 +1005,26 @@ pub async fn restore_file(
 
 pub async fn list_activity(
     State(s): State<Arc<AppState>>,
+    user: AuthUser,
     Query(q): Query<ActivityQuery>,
 ) -> ApiResult<Json<Vec<Activity>>> {
     let limit  = q.limit.unwrap_or(50).min(500).max(1);
     let offset = q.offset.unwrap_or(0).max(0);
-    let rows: Vec<Activity> = sqlx::query_as("SELECT * FROM activity ORDER BY created_at DESC LIMIT $1 OFFSET $2")
-        .bind(limit).bind(offset).fetch_all(&s.db).await?;
+    // Permission-scope the feed exactly like the CSV export (audit_csv): a
+    // non-admin must not see activity for systems they can't access (incl.
+    // other users' personal drives). Admins get None → the whole feed.
+    // System-less rows (system_id NULL, e.g. account events) stay visible.
+    let scope = crate::auth::effective_system_ids(&s.db, &user.0).await?;
+    let rows: Vec<Activity> = if let Some(ids) = scope {
+        sqlx::query_as(
+            "SELECT * FROM activity \
+             WHERE system_id IS NULL OR system_id = ANY($3) \
+             ORDER BY created_at DESC LIMIT $1 OFFSET $2"
+        ).bind(limit).bind(offset).bind(&ids).fetch_all(&s.db).await?
+    } else {
+        sqlx::query_as("SELECT * FROM activity ORDER BY created_at DESC LIMIT $1 OFFSET $2")
+            .bind(limit).bind(offset).fetch_all(&s.db).await?
+    };
     Ok(Json(rows))
 }
 
