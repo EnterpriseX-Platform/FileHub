@@ -66,6 +66,7 @@ tags:
   - name: AI
   - name: Checkout
   - name: Signatures
+  - name: Requests
   - name: Health
 
 security:
@@ -700,6 +701,52 @@ paths:
       requestBody:
         content: { application/json: { schema: { type: object, properties: { decision: { type: string, enum: [approved, rejected] }, note: { type: string } } } } }
       responses: { "200": { description: Recorded }, "403": { $ref: "#/components/responses/Forbidden" } }
+
+  # ─────────────────────────── Requests ───────────────────────────
+  # Form/document submissions routed through the workflow engine. A request
+  # anchors to a document and reuses file_workflows for approvals; decisions go
+  # through /api/workflow-steps/{id}/decision above.
+  /api/request-forms:
+    get: { tags: [Requests], summary: Static form schemas for the 4 request kinds, responses: { "200": { description: Schemas } } }
+  /api/requests/intake:
+    post:
+      tags: [Requests]
+      summary: "AI: turn a plain-language message into a structured draft (kind + fields + title + summary + suggested route)"
+      description: No persistence — the client reviews before submitting. 400 when AI is disabled (client falls back to the manual form).
+      requestBody:
+        content: { application/json: { schema: { type: object, required: [message], properties: { message: { type: string } } } } }
+      responses: { "200": { description: Draft }, "400": { description: Bad request } }
+  /api/requests:
+    get:
+      tags: [Requests]
+      summary: List requests — box=mine (my submissions) | inbox (awaiting my decision) | all
+      parameters: [{ name: box, in: query, schema: { type: string, enum: [mine, inbox, all] } }]
+      responses: { "200": { description: Requests } }
+    post:
+      tags: [Requests]
+      summary: "Submit a request (any signed-in user). Generates or accepts an anchor document, then starts a workflow"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, title]
+              properties:
+                kind:       { type: string, enum: [expense, it, document, leave] }
+                title:      { type: string }
+                form_data:  { type: object }
+                amount:     { type: number, nullable: true }
+                file_id:    { type: string, format: uuid, nullable: true, description: "Anchor already uploaded to sys_requests; omit to auto-generate" }
+                reviewers:  { type: array, items: { type: object, properties: { reviewer_id: { type: string }, step_name: { type: string } } }, description: "Caller-edited route; omit for the policy route" }
+                order_mode: { type: string, enum: [sequential, parallel] }
+                ai_summary: { type: string, nullable: true }
+      responses: { "200": { description: Created request (detail) }, "400": { description: Bad request } }
+  /api/requests/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    get:
+      tags: [Requests]
+      summary: Request detail (requester, an assigned reviewer, or admin) — form + anchor + workflow steps
+      responses: { "200": { description: Detail }, "404": { $ref: "#/components/responses/NotFound" } }
 
   # ─────────────────────────── Notifications ───────────────────────────
   /api/notifications:

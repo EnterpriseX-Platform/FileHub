@@ -24,6 +24,7 @@ const NAV = [
   { href: "/my",      labelKey: "eday.nav.myfiles" },
   { href: "/shared",  labelKey: "eday.nav.shared" },
   { href: "/starred", labelKey: "eday.nav.starred" },
+  { href: "/requests", labelKey: "eday.nav.requests" },
   { href: "/ask",     labelKey: "nav.ask", ai: true },
 ];
 

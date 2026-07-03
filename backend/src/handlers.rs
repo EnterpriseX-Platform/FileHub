@@ -734,6 +734,34 @@ async fn persist_upload(s: &AppState, actor: Option<&str>, f: UploadFields) -> A
         .bind(id).fetch_one(&s.db).await?)
 }
 
+/// Persist a File from in-memory bytes, running the same pipeline as a
+/// multipart upload (quota → storage → DB → text/thumbnail/preview → AI).
+/// Used by the Requests feature to store a generated or attached anchor
+/// document without a multipart body. The caller is responsible for its own
+/// authorization; this does not enforce a role gate (a request may be
+/// submitted by any signed-in user, including viewers).
+pub(crate) async fn create_file_from_bytes(
+    s: &AppState,
+    actor: Option<&str>,
+    name: String,
+    system_id: String,
+    org_id: Option<String>,
+    owner: Option<String>,
+    body: bytes::Bytes,
+    content_type: Option<String>,
+) -> ApiResult<File> {
+    persist_upload(s, actor, UploadFields {
+        name: Some(name),
+        system_id: Some(system_id),
+        org_id,
+        status: Some("Review".into()),
+        owner,
+        content_type,
+        body: Some(body),
+        ..Default::default()
+    }).await
+}
+
 pub async fn upload_file(
     State(s): State<Arc<AppState>>,
     user: AuthUser,
