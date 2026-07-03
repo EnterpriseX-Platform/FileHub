@@ -249,8 +249,8 @@ function FormBuilder({ initial, templates, busy, err, onSave, onCancel }: {
         {fields.map((f, i) => (
           <div key={i} className="card" style={{ padding: 8, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ display: "flex", flexDirection: "column" }}>
-              <button className="btn xs ghost" style={{ height: 16, padding: 0 }} onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move up">▲</button>
-              <button className="btn xs ghost" style={{ height: 16, padding: 0 }} onClick={() => move(i, 1)} disabled={i === fields.length - 1} aria-label="Move down">▼</button>
+              <button className="btn xs ghost" style={{ height: 16, padding: "0 4px" }} onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move up"><Ico.up className="icon sm" /></button>
+              <button className="btn xs ghost" style={{ height: 16, padding: "0 4px" }} onClick={() => move(i, 1)} disabled={i === fields.length - 1} aria-label="Move down"><Ico.down className="icon sm" /></button>
             </div>
             <input className="field" style={{ flex: "2 1 140px", height: 32 }} value={f.label_en}
               onChange={(e) => setField(i, { label_en: e.target.value })} placeholder="Label (e.g. Amount)" />
