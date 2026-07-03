@@ -45,10 +45,13 @@ export default function ViewBuilderPage() {
   const [error, setError] = React.useState<string>("");
 
   React.useEffect(() => {
+    // A 401/error body is a JSON object, not an array — coerce so an expired
+    // session can never crash the page with `systems.map is not a function`.
+    const asArray = <T,>(x: unknown): T[] => (Array.isArray(x) ? (x as T[]) : []);
     Promise.all([
       fetch("/filehub/api/systems").then((r) => r.json()).catch(() => []),
       fetch("/filehub/api/views").then((r) => r.json()).catch(() => []),
-    ]).then(([s, v]: [System[], View[]]) => { setSystems(s); setExisting(v); });
+    ]).then(([s, v]) => { setSystems(asArray<System>(s)); setExisting(asArray<View>(v)); });
   }, []);
 
   // Prefill from the params carried by "Save as new view" (system / status /

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 
 import { Ico } from "@/components/icons";
@@ -21,6 +22,7 @@ type Item = {
 /// everything is handled.
 export function ReviewQueue({ items, mayMutate }: { items: Item[]; mayMutate: boolean }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [gone, setGone] = React.useState<Set<string>>(new Set());
   const [leaving, setLeaving] = React.useState<Set<string>>(new Set());
   const [busy, setBusy] = React.useState(false);
@@ -44,6 +46,7 @@ export function ReviewQueue({ items, mayMutate }: { items: Item[]; mayMutate: bo
       setLeaving((s) => new Set(s).add(f.id));
       setTimeout(() => setGone((s) => new Set(s).add(f.id)), 320);
       toast(`${f.name} approved`);
+      router.refresh(); // hero sentence + strip counts follow the queue
     } finally {
       setBusy(false);
     }
