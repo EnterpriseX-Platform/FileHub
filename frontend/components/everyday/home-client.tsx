@@ -75,12 +75,14 @@ export function HomeClient({
           <span style={{ color: "var(--text-subtle)", display: "inline-flex", marginTop: 2 }}>
             <Ico.sparkle className="icon sm" />
           </span>
-          <span>
-            {t("eday.briefPre")}
-            {review.length > 0 && t("eday.briefWait", { n: review.length })}
-            {review.length > 0 && recent.length > 0 && " · "}
-            {recent.length > 0 && t("eday.briefNew", { m: recent.length })}
-          </span>
+          <TypedBrief
+            text={
+              t("eday.briefPre") +
+              (review.length > 0 ? t("eday.briefWait", { n: review.length }) : "") +
+              (review.length > 0 && recent.length > 0 ? " · " : "") +
+              (recent.length > 0 ? t("eday.briefNew", { m: recent.length }) : "")
+            }
+          />
         </div>
       )}
 
@@ -89,7 +91,7 @@ export function HomeClient({
           {review.length === 0 ? (
             <div className="t-sm t-subtle" style={{ padding: "6px 0" }}>{t("eday.allCaughtUp")}</div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <div className="stagger" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
               {review.map((f) => <ReviewRow key={f.id} file={f} />)}
             </div>
           )}
@@ -100,7 +102,7 @@ export function HomeClient({
         {recent.length === 0 ? (
           <div className="t-sm t-subtle" style={{ padding: "6px 0" }}>{t("eday.noFiles")}</div>
         ) : (
-          <div className="eday-cards">
+          <div className="eday-cards stagger">
             {recent.map((f) => <FileTile key={f.id} file={f} area={areaName(f.system_id)} />)}
           </div>
         )}
@@ -108,7 +110,7 @@ export function HomeClient({
 
       {areas.length > 1 && (
         <EdaySection titleKey="eday.yourAreas">
-          <div className="eday-cards">
+          <div className="eday-cards stagger">
             {areas.map((a) => (
               <Link key={a.id} href={`/my?area=${encodeURIComponent(a.id)}`} className="eday-areacard">
                 <span className="eday-areadot" style={{ background: `var(--c-${a.tone})` }}>
@@ -126,4 +128,24 @@ export function HomeClient({
       )}
     </div>
   );
+}
+
+/// Types the brief in at ~160 chars/s (prototype set piece). Instant under
+/// prefers-reduced-motion; retypes when the locale switches the text.
+function TypedBrief({ text }: { text: string }) {
+  const instant =
+    typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const [len, setLen] = React.useState(instant ? text.length : 0);
+  React.useEffect(() => {
+    if (instant) { setLen(text.length); return; }
+    setLen(0);
+    let i = 0;
+    const timer = setInterval(() => {
+      i = Math.min(text.length, i + 2);
+      setLen(i);
+      if (i >= text.length) clearInterval(timer);
+    }, 12);
+    return () => clearInterval(timer);
+  }, [text, instant]);
+  return <span>{text.slice(0, len)}</span>;
 }

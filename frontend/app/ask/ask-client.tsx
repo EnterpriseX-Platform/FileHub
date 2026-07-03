@@ -111,7 +111,11 @@ export function AskClient() {
   );
 }
 
-function TurnBlock({ turn, latest, t }: { turn: Turn; latest: boolean; t: (k: string) => string }) {
+function TurnBlock({ turn, latest, t }: {
+  turn: Turn;
+  latest: boolean;
+  t: (k: string, params?: Record<string, string | number>) => string;
+}) {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
@@ -145,6 +149,12 @@ function TurnBlock({ turn, latest, t }: { turn: Turn; latest: boolean; t: (k: st
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {turn.res.citations.map((c) => <SourceCard key={c.file_id} c={c} />)}
+              </div>
+              {/* Agentic follow-up — a REAL action only (opens the top source). */}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+                <a className="ask-sug" href={`/filehub/f/${encodeURIComponent(turn.res.citations[0].file_id)}`}>
+                  {t("ask.openSrc", { name: shortName(turn.res.citations[0].name) })} →
+                </a>
               </div>
             </>
           )}
@@ -184,6 +194,12 @@ function TypedAnswer({ answer, citations, animate }: { answer: string; citations
       {!done && <span className="ai-caret" aria-hidden />}
     </div>
   );
+}
+
+// Keep follow-up chips compact: trim long file names to their stem.
+function shortName(name: string): string {
+  const stem = name.replace(/\.[a-z0-9]+$/i, "");
+  return stem.length > 28 ? stem.slice(0, 27) + "…" : stem;
 }
 
 // Replace inline [n] tokens with citation chips that link to the source file.
