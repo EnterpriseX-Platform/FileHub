@@ -207,6 +207,14 @@ function shortName(name: string): string {
   return stem.length > 28 ? stem.slice(0, 27) + "…" : stem;
 }
 
+// Citations open the file view of the shell the user is in: /f/:id (everyday)
+// vs /files/:id (Admin console). Read the cookie directly — these render only
+// client-side (after an answer arrives), so document is always available.
+function citeHref(fileId: string): string {
+  const workspace = typeof document !== "undefined" && document.cookie.includes("fh-view=workspace");
+  return `/filehub/${workspace ? "files" : "f"}/${encodeURIComponent(fileId)}`;
+}
+
 // Replace inline [n] tokens with citation chips that link to the source file,
 // and **bold** markdown (the model emphasizes figures) with real <b>.
 function renderAnswer(answer: string, citations: Citation[]): React.ReactNode[] {
@@ -217,7 +225,7 @@ function renderAnswer(answer: string, citations: Citation[]): React.ReactNode[] 
       const c = citations.find((x) => x.n === n);
       if (c) {
         return (
-          <a key={i} href={`/filehub/files/${encodeURIComponent(c.file_id)}`} className="cite-chip" title={c.name}>
+          <a key={i} href={citeHref(c.file_id)} className="cite-chip" title={c.name}>
             {n}
           </a>
         );
@@ -233,7 +241,7 @@ function SourceCard({ c }: { c: Citation }) {
   const pct = Math.max(0, Math.min(100, Math.round(c.score * 100)));
   return (
     <a
-      href={`/filehub/files/${encodeURIComponent(c.file_id)}`}
+      href={citeHref(c.file_id)}
       className="card"
       style={{ display: "flex", gap: 12, padding: 14, textDecoration: "none", color: "inherit", alignItems: "flex-start" }}
     >
