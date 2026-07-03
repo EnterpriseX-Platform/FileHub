@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { Ico } from "@/components/icons";
+import { Pager } from "@/components/pager";
 import { Pill } from "@/components/primitives";
 import { fmtAgo } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
@@ -33,6 +34,8 @@ export function ReportsClient() {
   const { t } = useI18n();
   const [rep, setRep] = React.useState<Report | null>(null);
   const [ai, setAi] = React.useState<AiUsage | null>(null);
+  const [page, setPage] = React.useState(0);
+  const PAGE_SIZE = 15;
 
   React.useEffect(() => {
     (async () => {
@@ -118,7 +121,7 @@ export function ReportsClient() {
             </tr>
           </thead>
           <tbody>
-            {(rep?.items ?? []).map((it) => (
+            {(rep?.items ?? []).slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((it) => (
               <tr key={it.id} style={{ borderTop: "1px solid var(--border)" }}>
                 <td style={{ padding: "9px 14px" }}>
                   <a href={`/filehub/files/${encodeURIComponent(it.id)}`} style={{ color: "inherit", textDecoration: "none", fontWeight: 500 }}>{it.name}</a>
@@ -137,6 +140,7 @@ export function ReportsClient() {
           </tbody>
         </table>
       </div>
+      <Pager page={page} pageSize={PAGE_SIZE} total={rep?.items.length ?? 0} onPage={setPage} />
     </div>
   );
 }

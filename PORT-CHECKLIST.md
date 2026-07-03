@@ -43,8 +43,8 @@ needs visual QA/alignment pass · 🚧 feature-level (build, don't fake)
 | /ask conversation + typewriter + round send | ✅ | |
 | /ask agentic "Open {source} →" chip | ✅ | navigates to /f/{top-source} |
 | Bottom mobile nav ✦ Ask tab | ✅ | replaces Starred slot (Starred stays in top nav + /starred) |
-| Upload page (everyday entry) | 🎨 | dropzone hero done; verify under Calm |
-| Login page | 🎨 | AI split hero predates Calm; tone-check panel |
+| Upload page (everyday entry) | ✅ | swept — ink dropzone, Calm chrome |
+| Login page | ✅ | hero retoned navy→warm ink; violet kept only as AI accent (light+dark shot) |
 | Notifications dropdown | ✅ | glass pass done |
 
 ## Admin console (Workspace)
@@ -55,26 +55,45 @@ needs visual QA/alignment pass · 🚧 feature-level (build, don't fake)
 | Dashboard inline Approve on queue rows | ✅ | app/review-queue.tsx — verified live (row exit + toast) |
 | Dashboard "ask about your workspace" bar | 🚧 | needs analytics-RAG; don't fake — roadmap |
 | Files table (dot statuses, calm rows) | ✅ | |
-| Files board/gallery/calendar/timeline layouts | 🎨 | inherit tokens; QA pass |
+| Files board/gallery/calendar/timeline layouts | ✅ | swept in browser — all four Calm |
 | File detail (workspace) + sidecar | ✅ | steppers landed via shared components |
-| Upload | 🎨 | |
+| Upload | ✅ | swept |
 | Reports: KPI cards | ✅ | AI-usage panel (asks/summaries/embeddings + totals) from real metering, admin-only; prototype's OCR/signature counts have no backing metric yet → 🚧 backlog |
 | Reports: status bars + CSV exports | ✅ | existing, calm-inherited |
-| Settings: general / members / roles / workflows / audit | 🎨 | members role selects exist; QA pass |
-| Orgs / Share / Views / Views-new | 🎨 | |
-| Trash / Activity / Archive / Search | 🎨 | |
+| Reports: document-status table pagination | ✅ | shared Pager, 15/page |
+| Workflow template builder — visual flow diagram | ✅ | ActivePieces-style vertical nodes, + insert, drag-reorder, parallel fan-out (/settings/workflows) |
+| Settings: general / members / roles / workflows / audit | ✅ | swept — all five Calm; workflows now flow-diagram |
+| Orgs / Share / Views / Views-new | ✅ | swept (views/new also crash-fixed) |
+| Trash / Activity / Archive / Search | ✅ | swept — semantic search violet bars = chroma-as-information |
 | Sidebar + user card | ✅ | |
 
 ## Feature-level (roadmap, not ports)
 
 | Item | Status |
 |---|---|
+| **Document viewer: annotation + signature stamp** | 🚧 spec below |
+| Workflow conditional branches in the flow diagram (ANNEX-14w) | 🚧 needs backend rules model |
 | Presence ("X is viewing") — backend heartbeat | 🚧 |
 | True SSE streaming for /api/ask | 🚧 |
 | Conditional workflow routing (ANNEX-14w) | 🚧 |
 | Metadata CSV import / template folders / bulk watermark / PDF annotate | 🚧 |
 | PAdES byte-embed + PKI certs | 🚧 |
 | Claude Design publish (user must run /design-login) | 🚧 |
+
+## Spec: annotation + signature-stamp viewer (user-requested)
+
+Today's viewer is Chrome's PDF plugin in an iframe — nothing can be drawn on
+it. The real build:
+1. **Foundation**: render PDFs with pdf.js onto canvases (replace the iframe in
+   `app/files/[id]/preview.tsx`), with a positioned overlay layer per page.
+2. **Annotations** (TOR ANNEX-3): highlight + note objects on the overlay;
+   new `annotations` table (file_id, page, rect, kind, body, author) + CRUD
+   endpoints; render on load; permission = same as comments.
+3. **Signature stamp**: place a mark from the existing e-sign signature library
+   onto a page — the esign data model ALREADY stores placement (page/x/y/w/h),
+   so stamping = drag the saved mark onto the overlay and create/complete a
+   sign-request with that placement. Server-side bake into the PDF bytes is the
+   PAdES work item (ANNEX-34) and can come after the visual layer.
 
 ## The 🎨 sweep — how to close it
 
