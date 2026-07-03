@@ -56,6 +56,7 @@ export function PdfAnnotator({ fileId, src, fileName }: { fileId: string; src: s
   const [anns, setAnns] = React.useState<Annotation[]>([]);
   const [marks, setMarks] = React.useState<SignatureMark[] | null>(null);
   const [markId, setMarkId] = React.useState<string | null>(null);
+  const [allPages, setAllPages] = React.useState(false);
 
   // Document bytes → pdf.js proxy. Cleanup destroys via the loading task
   // (the typed teardown surface — it also frees the document proxy).
@@ -70,7 +71,12 @@ export function PdfAnnotator({ fileId, src, fileName }: { fileId: string; src: s
         const data = await r.arrayBuffer();
         task = pdfjs.getDocument({ data });
         const doc = await task.promise;
-        if (!cancelled) setPdf(doc);
+        if (!cancelled) {
+          setPdf(doc);
+          // Chrome restores inner scroll positions across reloads — always
+          // open at the top of page 1 instead of wherever the tab left off.
+          requestAnimationFrame(() => containerRef.current?.scrollTo(0, 0));
+        }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       }
@@ -126,6 +132,17 @@ export function PdfAnnotator({ fileId, src, fileName }: { fileId: string; src: s
     if (r.ok) setAnns((s) => s.filter((a) => a.id !== id));
   };
 
+  // Place a stamp at the same spot on the clicked page — or on EVERY page
+  // when "All pages" is on (one annotation per page, so they can still be
+  // removed individually).
+  const stampAt = async (pageNo: number, x: number, y: number) => {
+    if (!markId) return;
+    const pages = allPages && pdf ? Array.from({ length: pdf.numPages }, (_, i) => i + 1) : [pageNo];
+    for (const p of pages) {
+      await createAnn({ page: p, x, y, w: 0.18, h: 0.07, kind: "stamp", signature_id: markId });
+    }
+  };
+
   const canDelete = (a: Annotation) => a.created_by === user?.id || user?.role === "admin";
 
   if (error) {
@@ -163,6 +180,14 @@ export function PdfAnnotator({ fileId, src, fileName }: { fileId: string; src: s
             {marks !== null && marks.length === 0 && (
               <span className="t-xs t-subtle">{t("ann.noMarks")}</span>
             )}
+            <button
+              type="button"
+              className={"btn xs" + (allPages ? " primary" : " ghost")}
+              onClick={() => setAllPages((v) => !v)}
+              title={t("ann.allPagesHint")}
+            >
+              {allPages ? "✓ " : ""}{t("ann.allPages")}
+            </button>
           </div>
         )}
         <div style={{ flex: 1 }} />
@@ -187,6 +212,7 @@ export function PdfAnnotator({ fileId, src, fileName }: { fileId: string; src: s
               markImage={marks?.find((m) => m.id === markId)?.image ?? null}
               anns={anns.filter((a) => a.page === i + 1)}
               onCreate={createAnn}
+              onStamp={stampAt}
               onDelete={deleteAnn}
               canDelete={canDelete}
               afterAct={() => setTool("browse")}
@@ -210,7 +236,7 @@ function ToolBtn({ active, onClick, icon, label }: { active: boolean; onClick: (
 type PendingNote = { x: number; y: number; text: string };
 type DragRect = { x0: number; y0: number; x1: number; y1: number };
 
-function PdfPage({ pdf, pageNo, zoom, tool, markId, markImage, anns, onCreate, onDelete, canDelete, afterAct, t }: {
+function PdfPage({ pdf, pageNo, zoom, tool, markId, markImage, anns, onCreate, onStamp, onDelete, canDelete, afterAct, t }: {
   pdf: import("pdfjs-dist").PDFDocumentProxy;
   pageNo: number;
   zoom: number;
@@ -219,6 +245,7 @@ function PdfPage({ pdf, pageNo, zoom, tool, markId, markImage, anns, onCreate, o
   markImage: string | null;
   anns: Annotation[];
   onCreate: (a: { page: number; x: number; y: number; w: number; h: number; kind: string; body?: string | null; signature_id?: string | null }) => Promise<void>;
+  onStamp: (pageNo: number, x: number, y: number) => Promise<void>;
   onDelete: (id: string) => void;
   canDelete: (a: Annotation) => boolean;
   afterAct: () => void;
@@ -271,7 +298,7 @@ function PdfPage({ pdf, pageNo, zoom, tool, markId, markImage, anns, onCreate, o
     } else if (tool === "stamp" && markId) {
       const p = norm(e);
       // 18% of page width, 7% tall — a sensible default stamp footprint.
-      onCreate({ page: pageNo, x: Math.min(p.x, 0.82), y: Math.min(p.y, 0.93), w: 0.18, h: 0.07, kind: "stamp", signature_id: markId });
+      onStamp(pageNo, Math.min(p.x, 0.82), Math.min(p.y, 0.93));
       afterAct();
     }
   };
