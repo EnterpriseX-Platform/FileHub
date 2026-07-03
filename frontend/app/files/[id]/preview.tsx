@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { PdfAnnotator } from "@/components/pdf-annotator";
 import { Ft } from "@/components/primitives";
 
 const OFFICE_TYPES = new Set(["docx", "doc", "xlsx", "xls", "pptx", "ppt", "odt", "ods", "odp"]);
@@ -70,17 +71,10 @@ export function FilePreview({ fileId, fileType, fileName }: { fileId: string; fi
   // to start a file download instead of rendering inline — `<iframe>` then
   // shows as a blank white box.  The preview endpoint returns the same
   // bytes with `Content-Type: application/pdf` and no attachment header.
-  // `#navpanes=0` collapses Chrome's thumbnail sidebar so the page gets the
-  // full pane width (harmless where unsupported).
+  // pdf.js viewer with the annotation overlay (notes / highlights / stamps) —
+  // replaced the Chrome-plugin iframe, which couldn't be drawn on.
   if (fileType === "pdf") {
-    return (
-      <iframe
-        src={`${preview}#navpanes=0`}
-        title={fileName}
-        // Fill the viewport-locked main pane: 100vh − 52px topbar − 40px padding.
-        style={{ width: "100%", height: "calc(100vh - 92px)", border: 0, borderRadius: "var(--r-1)", background: "var(--bg)", boxShadow: "var(--sh-3)", colorScheme: "light" }}
-      />
-    );
+    return <PdfAnnotator fileId={fileId} src={preview} fileName={fileName} />;
   }
 
   if (OFFICE_TYPES.has(fileType)) {
@@ -262,17 +256,16 @@ function OfficePreview({ fileId, fileType, fileName, download, preview }: {
     );
   }
 
-  // Default — server-rendered PDF preview iframe.  Same path the page
-  // used before Collabora landed.
-  return <ServerPdfPreview preview={preview} download={download} fileName={fileName} fileType={fileType} />;
+  // Default — server-rendered PDF preview through the annotator.  Same path
+  // the page used before Collabora landed.
+  return <ServerPdfPreview fileId={fileId} preview={preview} download={download} fileName={fileName} fileType={fileType} />;
 }
 
-/// Probes the preview endpoint before mounting the iframe: when the server
-/// has no rendered PDF (LibreOffice missing / conversion failed), the iframe
-/// would display the raw `{"error":"not found"}` JSON — show a proper
-/// download card instead.
-function ServerPdfPreview({ preview, download, fileName, fileType }: {
-  preview: string; download: string; fileName: string; fileType: string;
+/// Probes the preview endpoint before mounting the viewer: when the server
+/// has no rendered PDF (LibreOffice missing / conversion failed), show a
+/// proper download card instead of a broken viewer.
+function ServerPdfPreview({ fileId, preview, download, fileName, fileType }: {
+  fileId: string; preview: string; download: string; fileName: string; fileType: string;
 }) {
   const [available, setAvailable] = React.useState<boolean | null>(null);
 
@@ -301,17 +294,5 @@ function ServerPdfPreview({ preview, download, fileName, fileType }: {
     );
   }
 
-  return (
-    <div style={{ width: "100%" }}>
-      <iframe
-        src={`${preview}#navpanes=0`}
-        title={fileName}
-        // Main-pane height minus the footer line below.
-        style={{ width: "100%", height: "calc(100vh - 118px)", border: 0, borderRadius: "var(--r-1)", background: "var(--bg)", boxShadow: "var(--sh-3)", colorScheme: "light" }}
-      />
-      <div className="t-xs t-subtle" style={{ marginTop: 6, textAlign: "center" }}>
-        Server-rendered PDF preview · <a href={download} style={{ color: "var(--accent)" }}>download .{fileType}</a>
-      </div>
-    </div>
-  );
+  return <PdfAnnotator fileId={fileId} src={preview} fileName={fileName} />;
 }

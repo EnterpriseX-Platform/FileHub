@@ -72,7 +72,7 @@ needs visual QA/alignment pass · 🚧 feature-level (build, don't fake)
 
 | Item | Status |
 |---|---|
-| **Document viewer: annotation + signature stamp** | 🚧 spec below |
+| **Document viewer: annotation + signature stamp** | ✅ pdf.js viewer (components/pdf-annotator.tsx) + `annotations` table/CRUD (migration 0021); notes, drag highlights, signature stamps from the user's mark library; both shells |
 | Workflow conditional branches in the flow diagram (ANNEX-14w) | 🚧 needs backend rules model |
 | Presence ("X is viewing") — backend heartbeat | 🚧 |
 | True SSE streaming for /api/ask | 🚧 |

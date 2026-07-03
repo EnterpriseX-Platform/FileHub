@@ -11,6 +11,7 @@ pub mod error;
 pub mod esign;
 pub mod handlers;
 pub mod mailer;
+pub mod annotations;
 pub mod models;
 pub mod ocr;
 pub mod p1;
@@ -264,6 +265,11 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         // Restore an earlier file version (TOR Annex A: revert version).
         .route("/api/files/:id/versions/:v/restore", axum::routing::post(handlers::restore_version))
         // Per-user favorites ("Starred" in the everyday UI).
+        // Annotations (TOR ANNEX-3): notes / highlights / signature stamps on
+        // the rendered page. Any role that can see the file may annotate.
+        .route("/api/files/:id/annotations",
+            get(annotations::list).post(annotations::create))
+        .route("/api/annotations/:id",        axum::routing::delete(annotations::delete))
         .route("/api/starred",                get(stars::list_starred))
         .route("/api/files/:id/star",
             get(stars::get_star)
