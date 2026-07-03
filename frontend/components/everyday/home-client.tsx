@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import * as React from "react";
 
 import { EdaySection, FileTile, ReviewRow } from "@/components/everyday/pieces";
+import { KindTile, StatusPill } from "@/components/everyday/request-bits";
 import { Ico } from "@/components/icons";
 import { UserGreeting } from "@/components/user-greeting";
-import type { FileRow, SignQueueItem } from "@/lib/api";
+import type { FileRow, RequestListItem, SignQueueItem } from "@/lib/api";
 import { fmtAgo } from "@/lib/format";
 import { Ft } from "@/components/primitives";
 import { useI18n } from "@/lib/i18n";
@@ -18,12 +19,14 @@ export function HomeClient({
   recent,
   review,
   signQueue = [],
+  requestsInbox = [],
   areas,
   canUpload,
 }: {
   recent: FileRow[];
   review: FileRow[];
   signQueue?: SignQueueItem[];
+  requestsInbox?: RequestListItem[];
   areas: Area[];
   canUpload: boolean;
 }) {
@@ -114,6 +117,26 @@ export function HomeClient({
               {review.map((f) => <ReviewRow key={f.id} file={f} />)}
             </div>
           )}
+        </EdaySection>
+      )}
+
+      {/* Requests awaiting the caller's approval decision. */}
+      {requestsInbox.length > 0 && (
+        <EdaySection titleKey="eday.reqInbox" href="/requests" viewAll>
+          <div className="stagger" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {requestsInbox.slice(0, 5).map((r) => (
+              <Link key={r.id} href={`/requests/${encodeURIComponent(r.id)}`} className="eday-filerow">
+                <KindTile icon={r.icon} color={r.color} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="t-md t-semibold t-trunc">{r.title}</div>
+                  <div className="t-xs t-subtle t-trunc">
+                    {r.kind_label} · {t("req.submittedBy", { name: r.requester_name })} · {fmtAgo(r.created_at)}
+                  </div>
+                </div>
+                <StatusPill status={r.status} myTurn={r.my_turn} t={t} />
+              </Link>
+            ))}
+          </div>
         </EdaySection>
       )}
 

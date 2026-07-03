@@ -105,6 +105,47 @@ pub async fn delete_template(
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
+/// PATCH /fh/api/workflow-templates/:id — edit a template's name / mode / steps
+/// (editor+). Existing running workflows aren't touched (they hold their own
+/// step rows); only future starts of this template use the new route.
+pub async fn update_template(
+    State(s): State<Arc<AppState>>,
+    user: AuthUser,
+    Path(id): Path<String>,
+    Json(b): Json<NewTemplate>,
+) -> ApiResult<Json<WorkflowTemplate>> {
+    require_role(&user.0, &["admin", "editor"])?;
+    if b.name.trim().is_empty() {
+        return Err(ApiError::BadRequest("name is required".into()));
+    }
+    if b.steps.is_empty() {
+        return Err(ApiError::BadRequest("a template needs at least one step".into()));
+    }
+    let order_mode = match b.order_mode.as_deref() {
+        Some("parallel") => "parallel",
+        _ => "sequential",
+    };
+    let n = sqlx::query(
+        "UPDATE workflow_templates SET name = $2, description = $3, order_mode = $4, steps = $5 WHERE id = $1",
+    )
+    .bind(&id)
+    .bind(b.name.trim())
+    .bind(&b.description)
+    .bind(order_mode)
+    .bind(Value::Array(b.steps))
+    .execute(&s.db)
+    .await?;
+    if n.rows_affected() == 0 {
+        return Err(ApiError::NotFound);
+    }
+    Ok(Json(sqlx::query_as::<_, WorkflowTemplate>(
+        "SELECT id, name, description, order_mode, steps, created_at FROM workflow_templates WHERE id = $1",
+    )
+    .bind(&id)
+    .fetch_one(&s.db)
+    .await?))
+}
+
 /// POST /fh/api/workflow-steps/:id/send-back — reopen this step and every step
 /// after it, returning the workflow to this reviewer for rework (editor+).
 pub async fn send_back(
