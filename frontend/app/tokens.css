@@ -170,7 +170,9 @@ a { color: inherit; text-decoration: none; }
 
 /* Screen layout */
 .scr {
-  width: 100%; min-height: 100vh;
+  /* Viewport-locked: the shell never scrolls — chrome stays fixed and each
+     region (.main, .inspector inner, .side) scrolls independently. */
+  width: 100%; height: 100vh;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
@@ -316,8 +318,8 @@ a.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   background: var(--bg-subtle);
   border-right: 1px solid var(--border);
   display: flex; flex-direction: column;
-  overflow: hidden;
-  min-height: 100vh;
+  overflow-y: auto; overflow-x: hidden;
+  min-height: 0;
 }
 .side-section { padding: 8px 8px; display: flex; flex-direction: column; gap: 1px; }
 .side-label {
@@ -371,6 +373,7 @@ a.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   background: var(--bg);
   display: flex; flex-direction: column;
   overflow: hidden;
+  min-height: 0;
 }
 
 /* Workspace switcher */
@@ -978,6 +981,24 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-mu
 .eday-fileview-hd .ft.lg { width: 44px; height: 44px; border-radius: 11px; }
 .eday-fileview-hd .eday-h1 { line-height: 1.25; }
 .eday-fileview { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; align-items: start; }
+/* Desktop: the file view is viewport-locked — back link + header stay put,
+   the document pane and the info rail each scroll on their own. */
+@media (min-width: 985px) {
+  /* Lock the whole shell — .eday-main is a flex child, so the height has to
+     be pinned on the flex container, not the item (flex-basis wins there). */
+  .eday:has(.eday-fileview) { height: 100vh; overflow: hidden; }
+  .eday-main:has(.eday-fileview) {
+    min-height: 0; overflow: hidden;
+    padding-bottom: 26px;
+    display: flex; flex-direction: column;
+  }
+  .eday-main:has(.eday-fileview) > div { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .eday-fileview { flex: 1; min-height: 0; align-items: stretch; }
+  .eday-preview { height: 100%; overflow: auto; display: flex; }
+  .eday-preview > * { flex: 1; }
+  .eday-preview iframe { height: 100% !important; }
+  .eday-fileinfo { overflow-y: auto; min-height: 0; padding-right: 2px; }
+}
 /* The document page needs room — widen the content column on file views only. */
 .eday-main:has(.eday-fileview) { max-width: 1280px; }
 .eday-preview { min-width: 0; border: 1px solid var(--border); border-radius: var(--r-4); overflow: hidden; background: var(--bg-muted); }
