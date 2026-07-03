@@ -58,7 +58,12 @@ export function AskClient() {
   }, []);
 
   // Auto-run when arriving with ?q= (handoff from ⌘K / the home ask bar).
+  // Ref-guarded: StrictMode double-invokes effects in dev, which fired the
+  // question twice.
+  const autoRan = React.useRef(false);
   React.useEffect(() => {
+    if (autoRan.current) return;
+    autoRan.current = true;
     const q0 = new URLSearchParams(window.location.search).get("q");
     if (q0 && q0.trim()) run(q0);
   }, [run]);
@@ -202,12 +207,13 @@ function shortName(name: string): string {
   return stem.length > 28 ? stem.slice(0, 27) + "…" : stem;
 }
 
-// Replace inline [n] tokens with citation chips that link to the source file.
+// Replace inline [n] tokens with citation chips that link to the source file,
+// and **bold** markdown (the model emphasizes figures) with real <b>.
 function renderAnswer(answer: string, citations: Citation[]): React.ReactNode[] {
-  return answer.split(/(\[\d+\])/g).map((part, i) => {
-    const m = /^\[(\d+)\]$/.exec(part);
-    if (m) {
-      const n = Number(m[1]);
+  return answer.split(/(\[\d+\]|\*\*[^*]+\*\*)/g).map((part, i) => {
+    const cite = /^\[(\d+)\]$/.exec(part);
+    if (cite) {
+      const n = Number(cite[1]);
       const c = citations.find((x) => x.n === n);
       if (c) {
         return (
@@ -217,6 +223,8 @@ function renderAnswer(answer: string, citations: Citation[]): React.ReactNode[] 
         );
       }
     }
+    const bold = /^\*\*([^*]+)\*\*$/.exec(part);
+    if (bold) return <b key={i}>{bold[1]}</b>;
     return <React.Fragment key={i}>{part}</React.Fragment>;
   });
 }
