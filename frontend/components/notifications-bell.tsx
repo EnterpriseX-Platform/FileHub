@@ -7,12 +7,26 @@ import { createPortal } from "react-dom";
 import { Ico } from "@/components/icons";
 import type { Notification } from "@/lib/api";
 import { fmtAgo } from "@/lib/format";
+import { useViewMode } from "@/lib/view-mode";
+
+/// Notification links are stored as workspace paths (/files/:id) or everyday
+/// paths (/f/:id) depending on which handler wrote them — remap to the shell
+/// the user is actually in so a "View" from the everyday bell never lands in
+/// the Admin console (and vice versa).
+function linkForMode(link: string, everyday: boolean): string {
+  const fileMatch = link.match(/^\/files\/([^/?#]+)$/);
+  if (everyday && fileMatch) return `/f/${fileMatch[1]}`;
+  const edayMatch = link.match(/^\/f\/([^/?#]+)$/);
+  if (!everyday && edayMatch) return `/files/${edayMatch[1]}`;
+  return link;
+}
 
 /// Topbar bell with unread-count badge + dropdown.  Replaces the previous
 /// decorative bell button on every page.  Polls /api/notifications/unread-count
 /// every 30s when the popover is closed; opens to a live /api/notifications
 /// list with a one-click "mark read" per row.
 export function NotificationsBell({ tone = "ghost" }: { tone?: "ghost" | "icon" }) {
+  const { mode: viewMode } = useViewMode();
   const [open,    setOpen]    = React.useState(false);
   const [unread,  setUnread]  = React.useState(0);
   const [items,   setItems]   = React.useState<Notification[] | null>(null);
@@ -149,7 +163,7 @@ export function NotificationsBell({ tone = "ghost" }: { tone?: "ghost" | "icon" 
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "flex-end" }}>
                 {n.link && (
-                  <Link href={n.link} className="btn xs ghost" onClick={() => setOpen(false)}>View</Link>
+                  <Link href={linkForMode(n.link, viewMode === "everyday")} className="btn xs ghost" onClick={() => setOpen(false)}>View</Link>
                 )}
                 {!n.read_at && (
                   <button className="btn xs ghost" onClick={() => markRead(n.id)}>Mark read</button>

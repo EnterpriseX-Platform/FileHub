@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import * as React from "react";
 import * as tus from "tus-js-client";
 
+import { EverydayShell } from "@/components/everyday/shell";
 import { Ico } from "@/components/icons";
 import { Ft, Pill, SectionHd, Tag } from "@/components/primitives";
 import { Sidebar } from "@/components/sidebar";
@@ -12,6 +13,7 @@ import { TopBar } from "@/components/topbar";
 import { useAuth } from "@/lib/auth-context";
 import { fmtBytes } from "@/lib/format";
 import { canMutate } from "@/lib/roles";
+import { useViewMode } from "@/lib/view-mode";
 import type { Org, System } from "@/lib/api";
 
 // Files larger than this threshold use TUS resumable upload (PATCH chunks
@@ -130,6 +132,7 @@ function UploadInner() {
   // loads. We only seed it if the user hasn't already typed something, so we
   // don't clobber a manual override (e.g. uploading on behalf of someone else).
   const { user: authUser, loading: authLoading } = useAuth();
+  const { mode: viewMode } = useViewMode();
   // Viewers can't upload (backend require_role(admin|editor) → 403), so show a
   // read-only notice instead of a dropzone that would only fail on submit.
   const readOnly = !canMutate(authUser?.role);
@@ -315,30 +318,21 @@ function UploadInner() {
   const failed    = items.filter((it) => it.state === "error").length;
   const totalSize = items.reduce((s, it) => s + it.file.size, 0);
 
-  return (
-    <div className="scr">
-      <Sidebar nav="files" systems={systems} orgs={orgs} systemActive={systemId} />
-      <TopBar
-        crumbs={["Workspace", "Upload"]}
-        title="Upload files"
-        actions={
-          <>
-            <Link className="btn ghost" href="/files">Cancel</Link>
-            {!readOnly && (
-              <button className="btn primary" onClick={uploadAll} disabled={queued === 0 || !systemId}>
-                Upload {queued || items.length} file{queued === 1 ? "" : "s"}
-              </button>
-            )}
-          </>
-        }
-      />
-      <div className="main main-pad" style={{ overflow: "auto" }}>
-        <div className="page">
-        {authLoading ? (
-          <div style={{ padding: "64px 32px", textAlign: "center", color: "var(--text-subtle)" }}>Loading…</div>
-        ) : readOnly ? (
-          <ReadOnlyNotice />
-        ) : (
+  // The upload page serves BOTH shells: everyday users must never get bounced
+  // into the admin-console chrome just to upload a file.
+  const everyday = viewMode === "everyday";
+
+  const uploadBtn = !readOnly && (
+    <button className="btn primary" onClick={uploadAll} disabled={queued === 0 || !systemId}>
+      Upload {queued || items.length} file{queued === 1 ? "" : "s"}
+    </button>
+  );
+
+  const body = authLoading ? (
+    <div style={{ padding: "64px 32px", textAlign: "center", color: "var(--text-subtle)" }}>Loading…</div>
+  ) : readOnly ? (
+    <ReadOnlyNotice everyday={everyday} />
+  ) : (
         <div className="row-2col" style={{ maxWidth: 1100, margin: "0 auto" }}>
           <div>
             <SectionHd
@@ -393,7 +387,7 @@ function UploadInner() {
                     Clear completed
                   </button>
                   {success > 0 && (
-                    <a className="btn xs primary" href={systemId ? `/files?system_id=${encodeURIComponent(systemId)}` : "/files"}>
+                    <a className="btn xs primary" href={everyday ? "/my" : systemId ? `/files?system_id=${encodeURIComponent(systemId)}` : "/files"}>
                       View {success} in Files →
                     </a>
                   )}
@@ -552,14 +546,43 @@ function UploadInner() {
             </div>
           </div>
         </div>
-        )}
+  );
+
+  if (everyday) {
+    return (
+      <EverydayShell>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
+          <h1 className="eday-h1">Upload files</h1>
+          <div style={{ flex: 1 }} />
+          <Link className="btn ghost sm" href="/home">Cancel</Link>
+          {uploadBtn}
         </div>
+        {body}
+      </EverydayShell>
+    );
+  }
+
+  return (
+    <div className="scr">
+      <Sidebar nav="files" systems={systems} orgs={orgs} systemActive={systemId} />
+      <TopBar
+        crumbs={["Workspace", "Upload"]}
+        title="Upload files"
+        actions={
+          <>
+            <Link className="btn ghost" href="/files">Cancel</Link>
+            {uploadBtn}
+          </>
+        }
+      />
+      <div className="main main-pad" style={{ overflow: "auto" }}>
+        <div className="page">{body}</div>
       </div>
     </div>
   );
 }
 
-function ReadOnlyNotice() {
+function ReadOnlyNotice({ everyday }: { everyday?: boolean }) {
   return (
     <div style={{ maxWidth: 520, margin: "48px auto", padding: "0 32px", textAlign: "center" }}>
       <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--bg-strong)", color: "var(--text-muted)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
@@ -571,7 +594,7 @@ function ReadOnlyNotice() {
         files, but uploading is limited to editors and admins. Ask an admin to change your role if you need to upload.
       </div>
       <div style={{ marginTop: 20 }}>
-        <Link className="btn primary" href="/files">Back to files</Link>
+        <Link className="btn primary" href={everyday ? "/my" : "/files"}>Back to files</Link>
       </div>
     </div>
   );
