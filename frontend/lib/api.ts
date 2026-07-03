@@ -304,6 +304,97 @@ export async function safeStarred(cookieHeader?: string): Promise<FileRow[]> {
   } catch { return []; }
 }
 
+// ---------------------------------------------------------------------------
+// Requests — form/document submissions routed through approvals (requests.rs).
+// ---------------------------------------------------------------------------
+export type RequestKind = "expense" | "it" | "document" | "leave";
+
+export type FormField = { key: string; label_en: string; label_th: string; kind: string; required: boolean };
+export type FormSchema = { kind: RequestKind; name_en: string; name_th: string; fields: FormField[] };
+export type RouteStep = { reviewer_id: string; reviewer_name: string; step_name: string };
+
+export type IntakeResult = {
+  kind: RequestKind;
+  title: string;
+  fields: Record<string, unknown>;
+  amount: number | null;
+  ai_summary: string;
+  order_mode: string;
+  route: RouteStep[];
+};
+
+export type RequestListItem = {
+  id: string;
+  kind: RequestKind;
+  title: string;
+  amount: number | null;
+  status: string; // submitted | in_review | approved | rejected
+  my_turn: boolean;
+  requester_id: string | null;
+  requester_name: string;
+  created_at: string;
+};
+
+export type RequestStep = {
+  id: string;
+  workflow_id: string;
+  reviewer_id: string | null;
+  reviewer_name: string | null;
+  name: string | null;
+  decision: string; // pending | approved | rejected
+  note: string | null;
+  sequence: number;
+  created_at: string;
+  decided_at: string | null;
+};
+export type RequestFileLite = { id: string; name: string; file_type: string; size_bytes: number };
+export type RequestDetail = {
+  id: string;
+  kind: RequestKind;
+  title: string;
+  form_data: Record<string, unknown>;
+  amount: number | null;
+  ai_summary: string | null;
+  status: string;
+  order_mode: string;
+  requester_id: string | null;
+  requester_name: string;
+  created_at: string;
+  file: RequestFileLite | null;
+  steps: RequestStep[];
+};
+
+export async function safeRequests(box: string, cookieHeader?: string): Promise<RequestListItem[]> {
+  try {
+    const r = await fetch(`${BASE}/api/requests?box=${encodeURIComponent(box)}`, {
+      cache: "no-store",
+      headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+    });
+    if (!r.ok) return [];
+    return (await r.json()) as RequestListItem[];
+  } catch { return []; }
+}
+export async function safeRequestForms(cookieHeader?: string): Promise<FormSchema[]> {
+  try {
+    const r = await fetch(`${BASE}/api/request-forms`, {
+      cache: "no-store",
+      headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+    });
+    if (!r.ok) return [];
+    return (await r.json()) as FormSchema[];
+  } catch { return []; }
+}
+export async function safeRequest(id: string, cookieHeader?: string): Promise<RequestDetail | null> {
+  try {
+    const r = await fetch(`${BASE}/api/requests/${encodeURIComponent(id)}`, {
+      cache: "no-store",
+      headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+    });
+    if (!r.ok) return null;
+    return (await r.json()) as RequestDetail;
+  } catch { return null; }
+}
+
 // Mirrors backend esign.rs::QueueItem — documents awaiting my signature.
 export type SignQueueItem = {
   request_id: string;

@@ -40,7 +40,7 @@ type WorkflowEntry = [Workflow, WorkflowStep[]];
 /// a saved template, sequential/parallel), lets the assigned reviewer
 /// approve/reject with an optional note (sequential turn guard mirrored from
 /// the backend), and lets editors send a decided step back for rework.
-export function WorkflowPanel({ fileId }: { fileId: string }) {
+export function WorkflowPanel({ fileId, hideStart }: { fileId: string; hideStart?: boolean }) {
   const { user } = useAuth();
   const { t } = useI18n();
   const { toast } = useToast();
@@ -120,12 +120,12 @@ export function WorkflowPanel({ fileId }: { fileId: string }) {
 
       {err && <div className="t-xs" style={{ color: "var(--danger)", marginBottom: 6 }}>{err}</div>}
 
-      {mutate && !starting && (
+      {mutate && !hideStart && !starting && (
         <button className="btn xs" onClick={() => setStarting(true)}>
           <Ico.plus className="icon sm" /> {t("wf.start")}
         </button>
       )}
-      {mutate && starting && (
+      {mutate && !hideStart && starting && (
         <StartForm
           busy={busy}
           onCancel={() => setStarting(false)}

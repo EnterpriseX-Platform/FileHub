@@ -344,7 +344,7 @@ pub struct StartWorkflow {
 }
 
 /// One resolved step to create: (reviewer_id, step name).
-type ResolvedStep = (String, Option<String>);
+pub(crate) type ResolvedStep = (String, Option<String>);
 
 #[derive(Debug, Deserialize)]
 pub struct DecideStep {
@@ -408,6 +408,27 @@ pub async fn start_workflow(
         };
         (mode, c.reviewer_ids.iter().cloned().map(|r| (r, None)).collect())
     };
+    start_workflow_core(&s.db, file_id, &user.0.id, &c.note, &order_mode, &steps, c.template_id.as_deref())
+        .await
+        .map(Json)
+}
+
+/// Insert a workflow + its steps on a file and notify the right reviewers.
+/// Shared by the file workflow endpoint and the Requests feature so both route
+/// through one implementation (turn-guard, rollup, and send-back all live in
+/// `decide_step`/`send_back` and operate on whatever this creates).
+///
+/// `steps` is the resolved reviewer chain as `(reviewer_id, optional step name)`
+/// in order. Sequential notifies only step 1 up front; parallel notifies all.
+pub(crate) async fn start_workflow_core(
+    db: &sqlx::PgPool,
+    file_id: Uuid,
+    creator_id: &str,
+    note: &Option<String>,
+    order_mode: &str,
+    steps: &[ResolvedStep],
+    template_id: Option<&str>,
+) -> Result<Workflow, ApiError> {
     if steps.is_empty() {
         return Err(ApiError::BadRequest("at least one reviewer is required".into()));
     }
@@ -417,8 +438,8 @@ pub async fn start_workflow(
         r#"INSERT INTO file_workflows (id, file_id, state, note, created_by, order_mode, template_id)
            VALUES ($1, $2, 'Review', $3, $4, $5, $6)"#,
     )
-    .bind(wf_id).bind(file_id).bind(&c.note).bind(&user.0.id).bind(&order_mode).bind(&c.template_id)
-    .execute(&s.db).await?;
+    .bind(wf_id).bind(file_id).bind(note).bind(creator_id).bind(order_mode).bind(template_id)
+    .execute(db).await?;
 
     for (i, (rid, name)) in steps.iter().enumerate() {
         sqlx::query(
@@ -426,21 +447,21 @@ pub async fn start_workflow(
                VALUES ($1, $2, $3, 'pending', $4, $5)"#,
         )
         .bind(Uuid::now_v7()).bind(wf_id).bind(rid).bind((i + 1) as i32).bind(name)
-        .execute(&s.db).await?;
+        .execute(db).await?;
 
         // Sequential: only the first step is notified now; the next is pinged as
         // each step is approved. Parallel: everyone is notified up front.
         if order_mode == "parallel" || i == 0 {
-            notify_reviewer(&s.db, rid, &c.note, file_id).await;
+            notify_reviewer(db, rid, note, file_id).await;
         }
     }
 
     // File status follows the workflow state.
     sqlx::query("UPDATE files SET status = 'Review', modified_at = now() WHERE id = $1")
-        .bind(file_id).execute(&s.db).await?;
+        .bind(file_id).execute(db).await?;
 
-    Ok(Json(sqlx::query_as("SELECT * FROM file_workflows WHERE id = $1")
-        .bind(wf_id).fetch_one(&s.db).await?))
+    Ok(sqlx::query_as("SELECT * FROM file_workflows WHERE id = $1")
+        .bind(wf_id).fetch_one(db).await?)
 }
 
 pub async fn list_workflow(

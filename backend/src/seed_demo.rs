@@ -104,6 +104,27 @@ pub async fn bootstrap_demo_data(db: &PgPool) -> anyhow::Result<()> {
           ('00000000-0000-7000-8000-000000007204'::uuid, '00000000-0000-7000-8000-000000007102'::uuid, 'usr_anong',  'approved', 'Approved for release.',                                2, now() - interval '1 day',   now() - interval '18 hours')
     "#).execute(&mut *tx).await?;
 
+    // ---- Requests ----------------------------------------------------------
+    // Form/document requests routed through the approval engine. These reuse the
+    // two workflows seeded just above (contract-A12 in review, budget-q1
+    // approved) as their anchor, so the Requests area is populated on a fresh
+    // boot: one "waiting on you" for Pat, one approved in Anong's list.
+    sqlx::query("DELETE FROM requests WHERE id::text LIKE '00000000-0000-7000-8000-00000000a1%'")
+        .execute(&mut *tx).await?;
+    sqlx::query(r#"
+        INSERT INTO requests (id, kind, title, form_data, amount, file_id, system_id, org_id, ai_summary, created_by, created_at) VALUES
+          ('00000000-0000-7000-8000-00000000a101'::uuid, 'document', 'Approve Phattana vendor contract (A12)',
+            '{"document":"contract-A12.pdf","deadline":"10 Jul 2026","note":"Legal and finance sign-off before signature."}'::jsonb,
+            NULL, '00000000-0000-7000-8000-000000002001'::uuid, 'sys_hr', 'org_phattana',
+            'Vendor contract A12 for Phattana — legal has approved the indemnification cap; awaiting finance sign-off before signature.',
+            'usr_anong', now() - interval '8 hours'),
+          ('00000000-0000-7000-8000-00000000a102'::uuid, 'document', 'Approve Q1 2026 budget',
+            '{"document":"budget-q1-2026.xlsx","note":"Q1 budget final approval before release."}'::jsonb,
+            NULL, '00000000-0000-7000-8000-000000002007'::uuid, 'sys_fin', 'org_fin_ap',
+            'Q1 budget — sales forecast aligned with the pipeline; both reviewers approved and it is ready for release.',
+            'usr_pat', now() - interval '1 day')
+    "#).execute(&mut *tx).await?;
+
     // ---- Notifications -----------------------------------------------------
     // For the two demo logins (admin + anong) so the bell shows a real unread
     // count and a mix of read/unread items.
