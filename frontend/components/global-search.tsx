@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import * as React from "react";
+import { createPortal } from "react-dom";
 
 import { Ico } from "@/components/icons";
 import { Kbd } from "@/components/primitives";
@@ -128,7 +129,10 @@ export function GlobalSearch() {
         <Kbd>⌘K</Kbd>
       </button>
 
-      {openState && (
+      {/* Portal to <body>: the everyday topbar's backdrop-filter makes it the
+          containing block for position:fixed, which clipped the scrim to a
+          topbar-height band and killed the panel's own glass blur. */}
+      {openState && typeof document !== "undefined" && createPortal(
         <div className="cmd-backdrop" onClick={close} role="presentation">
           <div className="cmd-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t("search.button")}>
             <div className="cmd-input">
@@ -207,7 +211,8 @@ export function GlobalSearch() {
               </span>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
