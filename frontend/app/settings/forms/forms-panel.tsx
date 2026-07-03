@@ -13,7 +13,7 @@ import type { FormAdmin, FormField, WorkflowTemplate } from "@/lib/api";
 /// A form is a request type: metadata (name, icon, color), an ordered set of
 /// fields, and the workflow template that routes it for approval. The everyday
 /// "New request" flow renders these live and the AI classifies into them.
-const FIELD_KINDS = ["text", "textarea", "number", "money", "date"] as const;
+const FIELD_KINDS = ["text", "textarea", "number", "money", "date", "select"] as const;
 
 export function FormsPanel({ initial, templates, canMutate }: {
   initial: FormAdmin[];
@@ -130,7 +130,7 @@ export function FormsPanel({ initial, templates, canMutate }: {
 // ---------------------------------------------------------------------------
 // Builder
 // ---------------------------------------------------------------------------
-type FieldRow = { label_en: string; label_th: string; kind: string; required: boolean };
+type FieldRow = { label_en: string; label_th: string; kind: string; required: boolean; options: string };
 type FormBody = {
   id?: string;
   name_en: string; name_th: string; description: string | null;
@@ -159,13 +159,13 @@ function FormBuilder({ initial, templates, busy, err, onSave, onCancel }: {
   const [active, setActive] = React.useState(initial?.active ?? true);
   const [fields, setFields] = React.useState<FieldRow[]>(
     initial?.fields.length
-      ? initial.fields.map((f) => ({ label_en: f.label_en, label_th: f.label_th, kind: f.kind, required: f.required }))
-      : [{ label_en: "", label_th: "", kind: "text", required: true }],
+      ? initial.fields.map((f) => ({ label_en: f.label_en, label_th: f.label_th, kind: f.kind, required: f.required, options: (f.options ?? []).join(", ") }))
+      : [{ label_en: "", label_th: "", kind: "text", required: true, options: "" }],
   );
 
   const setField = (i: number, patch: Partial<FieldRow>) =>
     setFields((s) => s.map((f, j) => (j === i ? { ...f, ...patch } : f)));
-  const addField = () => setFields((s) => [...s, { label_en: "", label_th: "", kind: "text", required: false }]);
+  const addField = () => setFields((s) => [...s, { label_en: "", label_th: "", kind: "text", required: false, options: "" }]);
   const removeField = (i: number) => setFields((s) => s.filter((_, j) => j !== i));
   const move = (i: number, dir: -1 | 1) => setFields((s) => {
     const j = i + dir;
@@ -185,7 +185,11 @@ function FormBuilder({ initial, templates, busy, err, onSave, onCancel }: {
       const n = seen.get(key) ?? 0;
       seen.set(key, n + 1);
       if (n > 0) key = `${key}_${n + 1}`;
-      return { key, label_en: f.label_en.trim(), label_th: f.label_th.trim() || f.label_en.trim(), kind: f.kind, required: f.required };
+      const out: FormField = { key, label_en: f.label_en.trim(), label_th: f.label_th.trim() || f.label_en.trim(), kind: f.kind, required: f.required };
+      if (f.kind === "select") {
+        out.options = f.options.split(",").map((o) => o.trim()).filter(Boolean);
+      }
+      return out;
     });
     onSave({
       id: initial?.id,
@@ -270,6 +274,11 @@ function FormBuilder({ initial, templates, busy, err, onSave, onCancel }: {
             <button className="btn xs ghost" onClick={() => removeField(i)} disabled={fields.length === 1} aria-label="Remove field">
               <Ico.x className="icon sm" />
             </button>
+            {f.kind === "select" && (
+              <input className="field" style={{ flex: "1 1 100%", height: 32 }} value={f.options}
+                onChange={(e) => setField(i, { options: e.target.value })}
+                placeholder="Choices, comma-separated (e.g. Low, Medium, High)" />
+            )}
           </div>
         ))}
       </div>

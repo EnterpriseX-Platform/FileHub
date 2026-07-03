@@ -260,6 +260,11 @@ function FormGrid({ form, values, setValues, label }: {
             <div className="req-flabel">{label(f)}{f.required && <span style={{ color: "var(--c-rose)" }}> *</span>}</div>
             {f.kind === "textarea" ? (
               <textarea className="req-finput" rows={2} value={values[f.key] ?? ""} onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))} />
+            ) : f.kind === "select" ? (
+              <select className="req-finput" value={values[f.key] ?? ""} onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}>
+                <option value="">—</option>
+                {(f.options ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
             ) : (
               <input
                 className="req-finput"
