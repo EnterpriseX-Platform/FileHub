@@ -10,6 +10,15 @@ export function TrashRowActions({ fileId, fileName, role }: { fileId: string; fi
   const router = useRouter();
   const [busy, setBusy] = React.useState<"restore" | "purge" | "">("");
   const [error, setError] = React.useState<string>("");
+  // Two-step inline confirm instead of a native confirm() — the blocking
+  // dialog froze the tab (and browsers increasingly suppress it). First
+  // Purge click arms; second within 4s commits.
+  const [armed, setArmed] = React.useState(false);
+  React.useEffect(() => {
+    if (!armed) return;
+    const h = setTimeout(() => setArmed(false), 4000);
+    return () => clearTimeout(h);
+  }, [armed]);
 
   const restore = async () => {
     setBusy("restore"); setError("");
@@ -29,7 +38,9 @@ export function TrashRowActions({ fileId, fileName, role }: { fileId: string; fi
   };
 
   const purge = async () => {
-    if (!confirm(`Permanently delete "${fileName}"? Admin role required. This cannot be undone.`)) return;
+    // First click arms the confirm; the button text switches to "Confirm?".
+    if (!armed) { setArmed(true); return; }
+    setArmed(false);
     setBusy("purge"); setError("");
     try {
       const r = await fetch(`/filehub/api/files/${encodeURIComponent(fileId)}?hard=true`, {
@@ -61,8 +72,13 @@ export function TrashRowActions({ fileId, fileName, role }: { fileId: string; fi
         </button>
       )}
       {showPurge && (
-        <button className="btn xs danger" onClick={purge} disabled={busy !== ""}>
-          <Ico.trash className="icon sm" /> {busy === "purge" ? "…" : "Purge"}
+        <button
+          className="btn xs danger"
+          onClick={purge}
+          disabled={busy !== ""}
+          title={armed ? `Permanently delete "${fileName}" — cannot be undone` : "Permanently delete"}
+        >
+          <Ico.trash className="icon sm" /> {busy === "purge" ? "…" : armed ? "Confirm?" : "Purge"}
         </button>
       )}
       {!showRestore && !showPurge && <span className="t-xs t-subtle">View only</span>}

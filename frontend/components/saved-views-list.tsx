@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import * as React from "react";
 
 import type { View } from "@/lib/api";
@@ -29,6 +30,10 @@ const COLORS_BY_NAME: Record<string, string> = {
 export function SavedViewsList() {
   const [views, setViews] = React.useState<View[]>([]);
   const [loaded, setLoaded] = React.useState(false);
+  // The sidebar stays mounted across client-side navigations, so a
+  // mount-only fetch went stale after pin/unpin on /views. Refetching per
+  // pathname keeps it honest for a request that costs a few kilobytes.
+  const pathname = usePathname();
 
   React.useEffect(() => {
     let cancelled = false;
@@ -40,7 +45,7 @@ export function SavedViewsList() {
       finally { if (!cancelled) setLoaded(true); }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [pathname]);
 
   const pinned = views.filter((v) => v.pinned).slice(0, 6);
   // Keep the feature discoverable instead of vanishing: once loaded with no

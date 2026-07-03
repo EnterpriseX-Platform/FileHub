@@ -9,6 +9,8 @@ import { loadServerCtx } from "@/lib/auth-server";
 import { fmtAgo } from "@/lib/format";
 import { hrefForView } from "@/lib/view-href";
 
+import { ViewActions } from "./view-actions";
+
 /// Index page for saved views.  Until today this URL 404'd because we only
 /// shipped `/views/new` — clicking "Views" in the sidebar worked, but
 /// removing the `/new` segment (or hitting a bookmark) sent users to
@@ -51,6 +53,7 @@ export default async function ViewsIndexPage() {
                   <th style={{ width: 110 }}>Layout</th>
                   <th style={{ width: 90 }}>Pinned</th>
                   <th style={{ width: 130 }}>Created</th>
+                  <th style={{ width: 80 }} aria-label="Actions" />
                 </tr>
               </thead>
               <tbody>
@@ -68,6 +71,7 @@ export default async function ViewsIndexPage() {
                         : <span className="t-subtle">—</span>}
                     </td>
                     <td className="t-sm t-muted">{fmtAgo(v.created_at)}</td>
+                    <td><ViewActions id={v.id} pinned={Boolean(v.pinned)} /></td>
                   </tr>
                 ))}
               </tbody>

@@ -298,6 +298,8 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/activity/export.csv",    get(reports::audit_csv))
         .route("/api/activity",               get(handlers::list_activity))
         .route("/api/views",                  get(handlers::list_views).post(handlers::create_view))
+        .route("/api/views/:id",
+            axum::routing::patch(handlers::patch_view).delete(handlers::delete_view))
         .route("/api/permissions/:file_id",   get(handlers::list_permissions))
         .layer(middleware::from_fn_with_state(state.clone(), auth::require_session));
 
