@@ -1725,11 +1725,97 @@ async fn share_target(s: &AppState, token: &str) -> ApiResult<File> {
     Ok(file)
 }
 
+/// Minimal, public-safe view of a shared file. Deliberately excludes internal
+/// storage layout (bucket, object_key), org/system ids, owner/creator, project,
+/// etag, and encryption state — an anonymous recipient only needs enough to
+/// render a download page. (Previously share_meta returned the whole File row,
+/// leaking infra + org structure to anyone holding the link.)
+#[derive(Debug, Serialize)]
+pub struct ShareMeta {
+    pub name: String,
+    pub file_type: String,
+    pub size_bytes: i64,
+    pub created_at: chrono::DateTime<Utc>,
+}
+
 pub async fn share_meta(
     State(s): State<Arc<AppState>>,
     Path(token): Path<String>,
-) -> ApiResult<Json<File>> {
-    Ok(Json(share_target(&s, &token).await?))
+) -> ApiResult<Json<ShareMeta>> {
+    let f = share_target(&s, &token).await?;
+    Ok(Json(ShareMeta {
+        name: f.name,
+        file_type: f.file_type,
+        size_bytes: f.size_bytes,
+        created_at: f.created_at,
+    }))
+}
+
+// -----------------------------------------------------------------------------
+// Share-link management — list a file's links + revoke (TOR 4.15.11). Without
+// these a link could only be killed by waiting for expiry or deleting the file.
+// -----------------------------------------------------------------------------
+#[derive(Debug, Serialize, FromRow)]
+pub struct ShareLinkRow {
+    pub id: Uuid,
+    pub token: String,
+    pub created_by: String,
+    pub note: Option<String>,
+    pub created_at: chrono::DateTime<Utc>,
+    pub expires_at: Option<chrono::DateTime<Utc>>,
+    /// Convenience flag for the UI — true once past expiry.
+    pub expired: bool,
+}
+
+/// GET /api/files/:id/share-links — the file's links, so an owner can review
+/// and revoke them. Gated by role + file access (editor+ who can see the file).
+pub async fn list_share_links(
+    State(s): State<Arc<AppState>>,
+    user: AuthUser,
+    Path(file_id): Path<Uuid>,
+) -> ApiResult<Json<Vec<ShareLinkRow>>> {
+    crate::auth::require_role(&user.0, &["admin", "editor"])?;
+    let row: Option<(String,)> = sqlx::query_as("SELECT system_id FROM files WHERE id = $1 AND deleted_at IS NULL")
+        .bind(file_id).fetch_optional(&s.db).await?;
+    let (system_id,) = row.ok_or(ApiError::NotFound)?;
+    if crate::auth::ensure_system_access(&s.db, &user.0, &system_id).await.is_err() {
+        return Err(ApiError::NotFound);
+    }
+    let rows: Vec<ShareLinkRow> = sqlx::query_as(
+        "SELECT id, token, created_by, note, created_at, expires_at, \
+                (expires_at IS NOT NULL AND expires_at < now()) AS expired \
+           FROM share_links WHERE file_id = $1 ORDER BY created_at DESC"
+    ).bind(file_id).fetch_all(&s.db).await?;
+    Ok(Json(rows))
+}
+
+/// DELETE /api/share-links/:id — revoke a link immediately. The link's creator
+/// or an admin; the file must still be visible to the caller.
+pub async fn revoke_share_link(
+    State(s): State<Arc<AppState>>,
+    user: AuthUser,
+    Path(link_id): Path<Uuid>,
+) -> ApiResult<StatusCode> {
+    crate::auth::require_role(&user.0, &["admin", "editor"])?;
+    let row: Option<(Uuid, Option<String>, String)> = sqlx::query_as(
+        "SELECT sl.file_id, sl.created_by_id, f.system_id \
+           FROM share_links sl JOIN files f ON f.id = sl.file_id WHERE sl.id = $1"
+    ).bind(link_id).fetch_optional(&s.db).await?;
+    let (file_id, creator_id, system_id) = row.ok_or(ApiError::NotFound)?;
+    if crate::auth::ensure_system_access(&s.db, &user.0, &system_id).await.is_err() {
+        return Err(ApiError::NotFound);
+    }
+    if creator_id.as_deref() != Some(user.0.id.as_str()) && user.0.role != "admin" {
+        return Err(ApiError::Forbidden);
+    }
+    sqlx::query("DELETE FROM share_links WHERE id = $1").bind(link_id).execute(&s.db).await?;
+    let _ = sqlx::query(
+        r#"INSERT INTO activity (id, actor, actor_tone, action, target_type, file_id, system_id, created_at, actor_id)
+           VALUES ($1,$2,'slate','revoked a share link','file',$3,$4,now(),$5)"#,
+    )
+    .bind(Uuid::now_v7()).bind(&user.0.display_name).bind(file_id).bind(&system_id).bind(&user.0.id)
+    .execute(&s.db).await;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn share_download(

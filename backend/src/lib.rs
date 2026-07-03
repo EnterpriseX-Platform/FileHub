@@ -219,6 +219,8 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         )
         .route("/api/files/:id/download",     get(handlers::download_file))
         .route("/api/files/:id/share",        axum::routing::post(handlers::create_share_link))
+        .route("/api/files/:id/share-links",  get(handlers::list_share_links))
+        .route("/api/share-links/:id",        axum::routing::delete(handlers::revoke_share_link))
         .route("/api/folders",                get(handlers::list_folders).post(handlers::create_folder))
         .route("/api/folders/:id",            axum::routing::delete(handlers::delete_folder))
         .route("/api/trash",                  get(handlers::list_trash))

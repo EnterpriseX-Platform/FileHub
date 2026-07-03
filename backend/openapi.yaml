@@ -574,14 +574,60 @@ paths:
                   expires_at: { type: string, format: date-time, nullable: true }
                   file:       { $ref: "#/components/schemas/File" }
         "403": { $ref: "#/components/responses/Forbidden" }
+  /api/files/{id}/share-links:
+    parameters: [{ $ref: "#/components/parameters/FileId" }]
+    get:
+      tags: [Sharing]
+      summary: List a file's share links (editor+, access-gated) so they can be reviewed/revoked
+      responses:
+        "200":
+          description: Share links on the file
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:         { type: string, format: uuid }
+                    token:      { type: string }
+                    created_by: { type: string }
+                    note:       { type: string, nullable: true }
+                    created_at: { type: string, format: date-time }
+                    expires_at: { type: string, format: date-time, nullable: true }
+                    expired:    { type: boolean }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/share-links/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    delete:
+      tags: [Sharing]
+      summary: Revoke a share link immediately (its creator or an admin)
+      responses:
+        "204": { description: Revoked }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/share/{token}:
     parameters: [{ name: token, in: path, required: true, schema: { type: string } }]
     get:
       tags: [Sharing]
-      summary: Public — share metadata (no auth; the token IS the credential)
+      summary: Public — minimal share metadata (no auth; the token IS the credential)
+      description: >
+        Returns only display-safe fields (name, file_type, size_bytes, created_at).
+        Storage layout, org/system ids, owner and other internals are deliberately withheld.
       security: []
       responses:
-        "200": { description: Share metadata + file }
+        "200":
+          description: Minimal share metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:       { type: string }
+                  file_type:  { type: string }
+                  size_bytes: { type: integer, format: int64 }
+                  created_at: { type: string, format: date-time }
         "404": { $ref: "#/components/responses/NotFound" }
   /api/share/{token}/download:
     parameters: [{ name: token, in: path, required: true, schema: { type: string } }]
