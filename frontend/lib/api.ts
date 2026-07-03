@@ -307,7 +307,7 @@ export async function safeStarred(cookieHeader?: string): Promise<FileRow[]> {
 // ---------------------------------------------------------------------------
 // Requests — form/document submissions routed through approvals (requests.rs).
 // ---------------------------------------------------------------------------
-export type FormField = { key: string; label_en: string; label_th: string; kind: string; required: boolean };
+export type FormField = { key: string; label_en: string; label_th: string; kind: string; required: boolean; options?: string[] };
 export type RouteStep = { reviewer_id: string; reviewer_name: string; step_name: string };
 
 // A form as the Everyday flow needs it (active + resolved route). `kind` on a

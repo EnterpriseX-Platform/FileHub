@@ -391,9 +391,20 @@ pub async fn intake(
     let ids: Vec<String> = forms.iter().map(|f| f.id.clone()).collect();
     let mut catalog = String::new();
     for f in &forms {
-        let keys: Vec<String> = f.fields.as_array().map(|a| a.iter()
-            .filter_map(|x| x.get("key").and_then(|k| k.as_str()).map(String::from)).collect()).unwrap_or_default();
-        catalog.push_str(&format!("- {} ({}): fields = [{}]\n", f.id, f.name_en, keys.join(", ")));
+        // Describe each field; for a `select` field, list its allowed choices so
+        // the model fills a valid value.
+        let descs: Vec<String> = f.fields.as_array().map(|a| a.iter().filter_map(|x| {
+            let key = x.get("key").and_then(|k| k.as_str())?;
+            let kind = x.get("kind").and_then(|k| k.as_str()).unwrap_or("text");
+            if kind == "select" {
+                let opts: Vec<&str> = x.get("options").and_then(|o| o.as_array())
+                    .map(|a| a.iter().filter_map(|v| v.as_str()).collect()).unwrap_or_default();
+                Some(format!("{key} (one of: {})", opts.join(" | ")))
+            } else {
+                Some(key.to_string())
+            }
+        }).collect()).unwrap_or_default();
+        catalog.push_str(&format!("- {} ({}): fields = [{}]\n", f.id, f.name_en, descs.join(", ")));
     }
 
     let system = "You convert a plain-language staff request into a structured form. \
