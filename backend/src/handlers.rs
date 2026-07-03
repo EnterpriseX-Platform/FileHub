@@ -941,6 +941,13 @@ pub async fn delete_file(
         .ok_or(ApiError::NotFound)?;
     crate::auth::ensure_system_access(&s.db, &user.0, &file.system_id).await?;
 
+    // Check-out lock (TOR 5.3.8.4-5): a file checked out by someone else can't
+    // be deleted out from under them. The holder isn't blocked; anyone else —
+    // admin included — must check it in first (an explicit, audited action).
+    if let Some(holder) = crate::checkout::lock_blocks(&s.db, id, &user.0.id).await {
+        return Err(ApiError::Conflict(format!("checked out by {holder} — check in first to delete")));
+    }
+
     if q.hard.unwrap_or(false) {
         crate::auth::require_role(&user.0, &["admin"])?;
         let version_keys: Vec<(String,)> = sqlx::query_as(
@@ -1413,6 +1420,13 @@ pub async fn patch_file(
         .bind(id).fetch_optional(&s.db).await?
         .ok_or(ApiError::NotFound)?;
     crate::auth::ensure_system_access(&s.db, &user.0, &file.system_id).await?;
+
+    // Check-out lock (TOR 5.3.8.4-5): rename / move / re-status / metadata edits
+    // are content-adjacent mutations, so a non-holder must not apply them while
+    // someone else has the file checked out for editing.
+    if let Some(holder) = crate::checkout::lock_blocks(&s.db, id, &user.0.id).await {
+        return Err(ApiError::Conflict(format!("checked out by {holder} — check in first to edit")));
+    }
 
     let new_system: Option<System> = match &p.system_id {
         Some(sid) if sid != &file.system_id => {
