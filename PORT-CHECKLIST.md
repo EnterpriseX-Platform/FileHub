@@ -35,7 +35,8 @@ needs visual QA/alignment pass · 🚧 feature-level (build, don't fake)
 |---|---|---|
 | Topbar (62px glass, pill nav, ✦ Ask, ⌘K pill) | ✅ | `06a75e5` |
 | Home hero + ask bar + chips + brief | ✅ | brief types in (reduced-motion safe) |
-| "Waiting on you" human rows + Review → | ✅ | |
+| "Waiting on you" human rows + Review → | ✅ | now also lists signature turns (GET /sign-requests/mine) with Sign → — every role |
+| Signature-mark library (upload + sign with mark) | ✅ | SignPanel: saved marks, upload image → /api/signatures, sign sends signature_id |
 | Tiles ("when · area", flush thumb) | ✅ | |
 | Area tiles (tone dot + real counts) | ✅ | |
 | My files / Shared / Recent / Starred + area chips | ✅ | |

@@ -7,7 +7,9 @@ import * as React from "react";
 import { EdaySection, FileTile, ReviewRow } from "@/components/everyday/pieces";
 import { Ico } from "@/components/icons";
 import { UserGreeting } from "@/components/user-greeting";
-import type { FileRow } from "@/lib/api";
+import type { FileRow, SignQueueItem } from "@/lib/api";
+import { fmtAgo } from "@/lib/format";
+import { Ft } from "@/components/primitives";
 import { useI18n } from "@/lib/i18n";
 
 type Area = { id: string; name: string; tone: string; count: number };
@@ -15,11 +17,13 @@ type Area = { id: string; name: string; tone: string; count: number };
 export function HomeClient({
   recent,
   review,
+  signQueue = [],
   areas,
   canUpload,
 }: {
   recent: FileRow[];
   review: FileRow[];
+  signQueue?: SignQueueItem[];
   areas: Area[];
   canUpload: boolean;
 }) {
@@ -86,12 +90,27 @@ export function HomeClient({
         </div>
       )}
 
-      {canUpload && (
+      {/* Task list: signature turns (every role) + review queue (editors). */}
+      {(canUpload || signQueue.length > 0) && (
         <EdaySection titleKey="eday.waiting" href="/my?status=Review" viewAll={review.length > 0}>
-          {review.length === 0 ? (
+          {review.length === 0 && signQueue.length === 0 ? (
             <div className="t-sm t-subtle" style={{ padding: "6px 0" }}>{t("eday.allCaughtUp")}</div>
           ) : (
             <div className="stagger" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {signQueue.map((s) => (
+                <Link key={s.signer_id} href={`/f/${encodeURIComponent(s.file_id)}`} className="eday-filerow">
+                  <Ft type="file" size="lg" />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="t-md t-semibold t-trunc">{s.file_name}</div>
+                    <div className="t-xs t-subtle t-trunc">
+                      {t("eday.waitSign")} · {fmtAgo(s.created_at)}
+                    </div>
+                  </div>
+                  <span className="t-sm" style={{ color: "var(--accent-text)", flexShrink: 0 }}>
+                    {s.my_turn ? `${t("eday.signGo")} →` : t("esign.waiting")}
+                  </span>
+                </Link>
+              ))}
               {review.map((f) => <ReviewRow key={f.id} file={f} />)}
             </div>
           )}

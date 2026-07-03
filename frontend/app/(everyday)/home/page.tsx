@@ -1,5 +1,5 @@
 import { HomeClient } from "@/components/everyday/home-client";
-import { safeFiles, safeSystems } from "@/lib/api";
+import { safeFiles, safeSignQueue, safeSystems } from "@/lib/api";
 import { loadServerCtx } from "@/lib/auth-server";
 import { canMutate } from "@/lib/roles";
 
@@ -9,9 +9,11 @@ import { canMutate } from "@/lib/roles";
 export default async function EverydayHome() {
   const { cookieHeader, role } = await loadServerCtx();
   const canUpload = canMutate(role);
-  const [allFiles, reviewFiles, systems] = await Promise.all([
+  const [allFiles, reviewFiles, signQueue, systems] = await Promise.all([
     safeFiles({}, cookieHeader),
     canUpload ? safeFiles({ status: "Review", limit: "6" }, cookieHeader) : Promise.resolve([]),
+    // Signature tasks apply to every role — viewers sign too.
+    safeSignQueue(cookieHeader),
     safeSystems(cookieHeader),
   ]);
 
@@ -24,5 +26,5 @@ export default async function EverydayHome() {
     .filter((s) => s.system_type !== "personal")
     .map((s) => ({ id: s.id, name: s.name, tone: s.tone, count: countBySystem.get(s.id) ?? 0 }));
 
-  return <HomeClient recent={recent} review={reviewFiles} areas={areas} canUpload={canUpload} />;
+  return <HomeClient recent={recent} review={reviewFiles} signQueue={signQueue} areas={areas} canUpload={canUpload} />;
 }
