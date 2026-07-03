@@ -685,7 +685,9 @@ paths:
     get:  { tags: [Workflow], summary: Reusable no-code flow templates, responses: { "200": { description: Templates } } }
     post: { tags: [Workflow], summary: "Create a template (editor+): { name, order_mode, steps:[{name?,reviewer_id}] }", responses: { "200": { description: Created }, "403": { $ref: "#/components/responses/Forbidden" } } }
   /api/workflow-templates/{id}:
-    delete: { tags: [Workflow], summary: Delete a template (editor+), parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "204": { description: Deleted } } }
+    parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+    patch:  { tags: [Workflow], summary: "Edit a template — name/order_mode/steps (editor+); running workflows are untouched", responses: { "200": { description: Updated }, "403": { $ref: "#/components/responses/Forbidden" }, "404": { $ref: "#/components/responses/NotFound" } } }
+    delete: { tags: [Workflow], summary: Delete a template (editor+), responses: { "204": { description: Deleted } } }
   /api/workflow-steps/{id}/send-back:
     post:
       tags: [Workflow]

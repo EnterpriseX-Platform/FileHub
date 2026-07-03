@@ -93,6 +93,12 @@ export function NewRequestClient({ forms, members, role }: {
   }
 
   async function submit() {
+    // Client-side required-field check (the form defines which fields are required).
+    const missing = curForm.fields.filter((f) => f.required && !(values[f.key] ?? "").trim());
+    if (missing.length) {
+      setError(t("req.fillRequired", { fields: missing.map((f) => label(f)).join(", ") }));
+      return;
+    }
     setSubmitting(true);
     setError(null);
     const amountStr = values.amount;

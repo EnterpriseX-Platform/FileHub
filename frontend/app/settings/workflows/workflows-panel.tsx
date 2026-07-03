@@ -17,6 +17,7 @@ export function WorkflowsPanel({ initial, members, canMutate }: {
 }) {
   const [templates, setTemplates] = React.useState(initial);
   const [creating, setCreating] = React.useState(false);
+  const [editing, setEditing] = React.useState<WorkflowTemplate | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
 
@@ -41,11 +42,11 @@ export function WorkflowsPanel({ initial, members, canMutate }: {
     } finally { setBusy(false); }
   };
 
-  const create = async (body: { name: string; description?: string; order_mode: string; steps: WorkflowTemplateStep[] }) => {
+  const save = async (body: { name: string; description?: string; order_mode: string; steps: WorkflowTemplateStep[] }, id: string | null) => {
     setBusy(true); setErr(null);
     try {
-      const r = await fetch("/filehub/api/workflow-templates", {
-        method: "POST", credentials: "include",
+      const r = await fetch(id ? `/filehub/api/workflow-templates/${encodeURIComponent(id)}` : "/filehub/api/workflow-templates", {
+        method: id ? "PATCH" : "POST", credentials: "include",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       });
@@ -56,6 +57,7 @@ export function WorkflowsPanel({ initial, members, canMutate }: {
         return;
       }
       setCreating(false);
+      setEditing(null);
       await reload();
     } finally { setBusy(false); }
   };
@@ -81,6 +83,9 @@ export function WorkflowsPanel({ initial, members, canMutate }: {
               <Pill sm>{tp.order_mode === "parallel" ? "any order" : "in order"}</Pill>
               <span className="t-xs t-subtle">{fmtAgo(tp.created_at)}</span>
               {canMutate && (
+                <button className="btn xs" disabled={busy} onClick={() => { setCreating(false); setEditing(tp); }}>Edit</button>
+              )}
+              {canMutate && (
                 <button className="btn xs ghost" disabled={busy} onClick={() => remove(tp.id)}
                   title="Delete template" aria-label={`Delete template ${tp.name}`}>
                   <Ico.trash className="icon sm" />
@@ -101,13 +106,20 @@ export function WorkflowsPanel({ initial, members, canMutate }: {
         ))}
       </div>
 
-      {canMutate && !creating && (
+      {canMutate && !creating && !editing && (
         <button className="btn" onClick={() => setCreating(true)}>
           <Ico.plus className="icon sm" /> New template
         </button>
       )}
-      {canMutate && creating && (
-        <TemplateForm members={active} busy={busy} onCreate={create} onCancel={() => setCreating(false)} />
+      {canMutate && (creating || editing) && (
+        <TemplateForm
+          key={editing?.id ?? "new"}
+          initial={editing}
+          members={active}
+          busy={busy}
+          onSubmit={(body) => save(body, editing?.id ?? null)}
+          onCancel={() => { setCreating(false); setEditing(null); }}
+        />
       )}
     </div>
   );
@@ -121,16 +133,21 @@ export function WorkflowsPanel({ initial, members, canMutate }: {
 // -----------------------------------------------------------------------------
 type DraftStep = { reviewer_id: string; name: string };
 
-function TemplateForm({ members, busy, onCreate, onCancel }: {
+function TemplateForm({ initial, members, busy, onSubmit, onCancel }: {
+  initial: WorkflowTemplate | null;
   members: Member[];
   busy: boolean;
-  onCreate: (body: { name: string; description?: string; order_mode: string; steps: WorkflowTemplateStep[] }) => void;
+  onSubmit: (body: { name: string; description?: string; order_mode: string; steps: WorkflowTemplateStep[] }) => void;
   onCancel: () => void;
 }) {
-  const [name, setName] = React.useState("");
-  const [description, setDescription] = React.useState("");
-  const [mode, setMode] = React.useState<"sequential" | "parallel">("sequential");
-  const [steps, setSteps] = React.useState<DraftStep[]>([{ reviewer_id: members[0]?.id ?? "", name: "" }]);
+  const [name, setName] = React.useState(initial?.name ?? "");
+  const [description, setDescription] = React.useState(initial?.description ?? "");
+  const [mode, setMode] = React.useState<"sequential" | "parallel">(initial?.order_mode === "parallel" ? "parallel" : "sequential");
+  const [steps, setSteps] = React.useState<DraftStep[]>(
+    initial?.steps.length
+      ? initial.steps.map((st) => ({ reviewer_id: st.reviewer_id, name: st.name ?? "" }))
+      : [{ reviewer_id: members[0]?.id ?? "", name: "" }],
+  );
   const [dragIdx, setDragIdx] = React.useState<number | null>(null);
   const [overIdx, setOverIdx] = React.useState<number | null>(null);
 
@@ -151,7 +168,7 @@ function TemplateForm({ members, busy, onCreate, onCancel }: {
   };
 
   const valid = name.trim().length > 0 && steps.length > 0 && steps.every((st) => st.reviewer_id);
-  const submit = () => onCreate({
+  const submit = () => onSubmit({
     name: name.trim(),
     description: description.trim() || undefined,
     order_mode: mode,
@@ -191,7 +208,7 @@ function TemplateForm({ members, busy, onCreate, onCancel }: {
 
   return (
     <div className="card" style={{ padding: 16 }}>
-      <div className="t-sm t-semibold" style={{ marginBottom: 10 }}>New template</div>
+      <div className="t-sm t-semibold" style={{ marginBottom: 10 }}>{initial ? "Edit template" : "New template"}</div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
         <input className="field" style={{ flex: "2 1 200px" }} value={name}
@@ -254,7 +271,7 @@ function TemplateForm({ members, busy, onCreate, onCancel }: {
       </div>
 
       <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
-        <button className="btn primary sm" disabled={busy || !valid} onClick={submit}>Create template</button>
+        <button className="btn primary sm" disabled={busy || !valid} onClick={submit}>{initial ? "Save changes" : "Create template"}</button>
         <button className="btn sm" disabled={busy} onClick={onCancel}>Cancel</button>
       </div>
     </div>

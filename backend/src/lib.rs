@@ -251,7 +251,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/workflow-templates",
             get(workflow::list_templates).post(workflow::create_template))
         .route("/api/workflow-templates/:id",
-            axum::routing::delete(workflow::delete_template))
+            axum::routing::patch(workflow::update_template).delete(workflow::delete_template))
         .route("/api/workflow-steps/:id/send-back",
             axum::routing::post(workflow::send_back))
         // Requests: form/document submissions routed through the workflow engine.
