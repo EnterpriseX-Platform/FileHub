@@ -75,7 +75,7 @@ export function FilePreview({ fileId, fileType, fileName }: { fileId: string; fi
       <iframe
         src={preview}
         title={fileName}
-        style={{ width: "min(720px, 100%)", height: "70vh", border: 0, borderRadius: "var(--r-1)", background: "var(--bg)", boxShadow: "var(--sh-3)", colorScheme: "light" }}
+        style={{ width: "100%", height: "76vh", border: 0, borderRadius: "var(--r-1)", background: "var(--bg)", boxShadow: "var(--sh-3)", colorScheme: "light" }}
       />
     );
   }
