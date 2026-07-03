@@ -20,6 +20,15 @@ export function TrashRowActions({ fileId, fileName, role }: { fileId: string; fi
     return () => clearTimeout(h);
   }, [armed]);
 
+  // fetch() rejects with the unhelpful "Failed to fetch" when the server is
+  // unreachable — and when only the BACKEND is down, the Next.js proxy turns
+  // it into a bare 5xx instead. Translate both to something a person can
+  // act on.
+  const friendly = (e: unknown) =>
+    e instanceof TypeError || (e instanceof Error && /^HTTP 5\d\d$/.test(e.message))
+      ? "Couldn't reach the server — try again in a moment."
+      : e instanceof Error ? e.message : String(e);
+
   const restore = async () => {
     setBusy("restore"); setError("");
     try {
@@ -31,7 +40,7 @@ export function TrashRowActions({ fileId, fileName, role }: { fileId: string; fi
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(friendly(e));
     } finally {
       setBusy("");
     }
@@ -52,7 +61,7 @@ export function TrashRowActions({ fileId, fileName, role }: { fileId: string; fi
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(friendly(e));
     } finally {
       setBusy("");
     }
@@ -65,24 +74,30 @@ export function TrashRowActions({ fileId, fileName, role }: { fileId: string; fi
   const showPurge   = isAdmin(role);
 
   return (
-    <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>
-      {showRestore && (
-        <button className="btn xs" onClick={restore} disabled={busy !== ""}>
-          <Ico.refresh className="icon sm" /> {busy === "restore" ? "…" : "Restore"}
-        </button>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        {showRestore && (
+          <button className="btn xs" onClick={restore} disabled={busy !== ""}>
+            <Ico.refresh className="icon sm" /> {busy === "restore" ? "…" : "Restore"}
+          </button>
+        )}
+        {showPurge && (
+          <button
+            className="btn xs danger"
+            onClick={purge}
+            disabled={busy !== ""}
+            title={armed ? `Permanently delete "${fileName}" — cannot be undone` : "Permanently delete"}
+          >
+            <Ico.trash className="icon sm" /> {busy === "purge" ? "…" : armed ? "Confirm?" : "Purge"}
+          </button>
+        )}
+        {!showRestore && !showPurge && <span className="t-xs t-subtle">View only</span>}
+      </div>
+      {/* Own line below the buttons — squeezing into the flex row wrapped the
+          message into a one-word-per-line column at the table edge. */}
+      {error && (
+        <span className="t-xs" style={{ color: "var(--danger)", whiteSpace: "nowrap" }}>{error}</span>
       )}
-      {showPurge && (
-        <button
-          className="btn xs danger"
-          onClick={purge}
-          disabled={busy !== ""}
-          title={armed ? `Permanently delete "${fileName}" — cannot be undone` : "Permanently delete"}
-        >
-          <Ico.trash className="icon sm" /> {busy === "purge" ? "…" : armed ? "Confirm?" : "Purge"}
-        </button>
-      )}
-      {!showRestore && !showPurge && <span className="t-xs t-subtle">View only</span>}
-      {error && <span className="t-xs" style={{ color: "var(--danger)" }}>{error}</span>}
     </div>
   );
 }
