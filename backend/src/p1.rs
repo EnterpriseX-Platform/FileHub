@@ -247,23 +247,49 @@ pub async fn get_thumbnail(
     user: AuthUser,
     Path(file_id): Path<Uuid>,
 ) -> ApiResult<axum::response::Response> {
-    let owner_row: Option<(String,)> = sqlx::query_as(
-        "SELECT system_id FROM files WHERE id = $1 AND deleted_at IS NULL"
+    let owner_row: Option<(String, String, String, bool)> = sqlx::query_as(
+        "SELECT system_id, file_type, object_key, encrypted FROM files WHERE id = $1 AND deleted_at IS NULL"
     ).bind(file_id).fetch_optional(&s.db).await?;
-    let (system_id,) = owner_row.ok_or(ApiError::NotFound)?;
+    let (system_id, file_type, object_key, encrypted) = owner_row.ok_or(ApiError::NotFound)?;
     // Map "you can't see this file" to 404 so personal-drive contents don't
     // leak existence via the response code.
     if crate::auth::ensure_system_access(&s.db, &user.0, &system_id).await.is_err() {
         return Err(ApiError::NotFound);
     }
-    let row: Option<(String, Vec<u8>)> = sqlx::query_as(
+    // Fast path — thumbnail already cached.
+    if let Some((mime, data)) = sqlx::query_as::<_, (String, Vec<u8>)>(
         "SELECT mime, data FROM thumbnails WHERE file_id = $1"
-    ).bind(file_id).fetch_optional(&s.db).await?;
-    let (mime, data) = row.ok_or(ApiError::NotFound)?;
+    ).bind(file_id).fetch_optional(&s.db).await? {
+        return Ok(thumb_response(mime, data));
+    }
+
+    // Slow path — file was never indexed (seed data, or body written outside
+    // the upload path). Generate on demand and cache, mirroring get_preview.
+    if !matches!(file_type.as_str(), "img" | "png" | "jpg" | "jpeg" | "gif" | "webp") {
+        return Err(ApiError::NotFound);
+    }
+    let (body, _) = s.storage.get(&object_key, encrypted).await?
+        .ok_or(ApiError::NotFound)?;
+    let bytes = body.to_vec();
+    let (w, h, thumb) = tokio::task::spawn_blocking(move || make_thumbnail(&bytes, 256))
+        .await
+        .map_err(|e| ApiError::Other(anyhow::anyhow!("thumbnail task: {e}")))?
+        .ok_or(ApiError::NotFound)?;
+    sqlx::query(
+        r#"INSERT INTO thumbnails (file_id, width, height, mime, data)
+           VALUES ($1, $2, $3, 'image/png', $4)
+           ON CONFLICT (file_id) DO UPDATE SET data = EXCLUDED.data"#,
+    )
+    .bind(file_id).bind(w as i32).bind(h as i32).bind(&thumb)
+    .execute(&s.db).await?;
+    Ok(thumb_response("image/png".into(), thumb))
+}
+
+fn thumb_response(mime: String, data: Vec<u8>) -> axum::response::Response {
     let mut h = HeaderMap::new();
     h.insert(header::CONTENT_TYPE, mime.parse().unwrap());
     h.insert(header::CACHE_CONTROL, "public, max-age=604800, immutable".parse().unwrap());
-    Ok((StatusCode::OK, h, Bytes::from(data)).into_response())
+    (StatusCode::OK, h, Bytes::from(data)).into_response()
 }
 
 // =============================================================================

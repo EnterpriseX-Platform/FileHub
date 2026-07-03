@@ -50,7 +50,17 @@ const THUMB_TYPES = new Set(["img", "jpg", "jpeg", "png", "gif", "webp"]);
 
 export function FileTile({ file, area }: { file: FileRow; area?: string }) {
   const [imgOk, setImgOk] = React.useState(true);
+  const imgRef = React.useRef<HTMLImageElement>(null);
   const showImg = THUMB_TYPES.has(file.file_type.toLowerCase()) && imgOk;
+
+  // An SSR-rendered <img> can fail BEFORE hydration attaches onError — the
+  // event never re-fires, leaving the browser's broken-image glyph. Check the
+  // already-settled state on mount and fall back to the type badge.
+  React.useEffect(() => {
+    const el = imgRef.current;
+    if (el && el.complete && el.naturalWidth === 0) setImgOk(false);
+  }, []);
+
   return (
     <Link href={fileHref(file.id)} className="eday-filecard">
       <div className="thumb">
@@ -59,7 +69,10 @@ export function FileTile({ file, area }: { file: FileRow; area?: string }) {
              optimize it, so the plain element is intentional. */
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={`/filehub/api/files/${encodeURIComponent(file.id)}/thumb`}
+            ref={imgRef}
+            /* ?v= busts the week-long immutable cache when a new version
+               replaces the bytes behind the same file id. */
+            src={`/filehub/api/files/${encodeURIComponent(file.id)}/thumb?v=${file.version}`}
             alt=""
             loading="lazy"
             onError={() => setImgOk(false)}
