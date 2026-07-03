@@ -49,7 +49,11 @@ export function PdfAnnotator({ fileId, src, fileName }: { fileId: string; src: s
   const { t } = useI18n();
   const { user } = useAuth();
   const containerRef = React.useRef<HTMLDivElement>(null);
+  // Original document bytes, kept for "download signed copy" — pdf.js
+  // TRANSFERS the buffer it's given to its worker, so it gets a copy.
+  const bytesRef = React.useRef<ArrayBuffer | null>(null);
   const [pdf, setPdf] = React.useState<import("pdfjs-dist").PDFDocumentProxy | null>(null);
+  const [baking, setBaking] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [zoom, setZoom] = React.useState(1);
   const [tool, setTool] = React.useState<Tool>("browse");
@@ -69,7 +73,8 @@ export function PdfAnnotator({ fileId, src, fileName }: { fileId: string; src: s
         const r = await fetch(src, { credentials: "include" });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const data = await r.arrayBuffer();
-        task = pdfjs.getDocument({ data });
+        bytesRef.current = data;
+        task = pdfjs.getDocument({ data: data.slice(0) });
         const doc = await task.promise;
         if (!cancelled) {
           setPdf(doc);
@@ -145,6 +150,69 @@ export function PdfAnnotator({ fileId, src, fileName }: { fileId: string; src: s
 
   const canDelete = (a: Annotation) => a.created_by === user?.id || user?.role === "admin";
 
+  // "Download signed copy" — flatten stamps + highlights into the PDF bytes
+  // (client-side via pdf-lib) so the signature travels with the file instead
+  // of living only in FileHub's overlay. Notes stay review-side on purpose.
+  const downloadSigned = async () => {
+    const bytes = bytesRef.current;
+    if (!bytes || baking) return;
+    setBaking(true);
+    try {
+      const { PDFDocument, rgb } = await import("pdf-lib");
+      const doc = await PDFDocument.load(bytes);
+      const pages = doc.getPages();
+      const imageCache = new Map<string, Awaited<ReturnType<typeof doc.embedPng>>>();
+
+      for (const a of anns) {
+        const page = pages[a.page - 1];
+        if (!page) continue;
+        const { width: pw, height: ph } = page.getSize();
+        if (a.kind === "highlight") {
+          page.drawRectangle({
+            x: a.x * pw,
+            y: ph - (a.y + a.h) * ph,
+            width: a.w * pw,
+            height: a.h * ph,
+            color: rgb(1, 0.84, 0.31),
+            opacity: 0.35,
+          });
+        } else if (a.kind === "stamp" && a.signature_image) {
+          let img = imageCache.get(a.signature_image);
+          if (!img) {
+            img = await doc.embedPng(a.signature_image);
+            imageCache.set(a.signature_image, img);
+          }
+          // object-fit: contain — same as the on-screen overlay.
+          const bw = a.w * pw;
+          const bh = a.h * ph;
+          const scale = Math.min(bw / img.width, bh / img.height);
+          const dw = img.width * scale;
+          const dh = img.height * scale;
+          page.drawImage(img, {
+            x: a.x * pw + (bw - dw) / 2,
+            y: ph - (a.y + a.h) * ph + (bh - dh) / 2,
+            width: dw,
+            height: dh,
+          });
+        }
+      }
+
+      const baked = await doc.save();
+      const ab = new ArrayBuffer(baked.byteLength);
+      new Uint8Array(ab).set(baked);
+      const url = URL.createObjectURL(new Blob([ab], { type: "application/pdf" }));
+      const aEl = document.createElement("a");
+      aEl.href = url;
+      aEl.download = `${fileName.replace(/\.pdf$/i, "")}-signed.pdf`;
+      aEl.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setBaking(false);
+    }
+  };
+
+  const hasBakeable = anns.some((a) => a.kind === "stamp" || a.kind === "highlight");
+
   if (error) {
     return (
       <div style={{ padding: 32, textAlign: "center", color: "var(--text-muted)" }}>
@@ -191,6 +259,11 @@ export function PdfAnnotator({ fileId, src, fileName }: { fileId: string; src: s
           </div>
         )}
         <div style={{ flex: 1 }} />
+        {hasBakeable && (
+          <button className="btn xs" disabled={baking} onClick={downloadSigned} title={t("ann.signedCopyHint")}>
+            <Ico.download className="icon sm" /> {baking ? t("ann.baking") : t("ann.signedCopy")}
+          </button>
+        )}
         <button className="btn xs ghost" aria-label="Zoom out" onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.15).toFixed(2)))}>−</button>
         <span className="t-xs t-subtle" style={{ minWidth: 40, textAlign: "center" }}>{Math.round(zoom * 100)}%</span>
         <button className="btn xs ghost" aria-label="Zoom in" onClick={() => setZoom((z) => Math.min(2.5, +(z + 0.15).toFixed(2)))}>+</button>
