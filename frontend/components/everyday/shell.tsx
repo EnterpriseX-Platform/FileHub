@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 
@@ -40,22 +41,24 @@ export function EverydayShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="eday">
       <header className="eday-top">
-        <a href="/home" className="eday-brand" aria-label="Home">
+        {/* next/link everywhere: basePath only auto-prefixes <Link> — a plain
+            <a href="/my"> navigates to the un-prefixed path and 404s. */}
+        <Link href="/home" className="eday-brand" aria-label="Home">
           <span className="ws-logo" style={{ background: "var(--grad)" }}>F</span>
           <span className="eday-brand-name">File Hub</span>
-        </a>
+        </Link>
         <nav className="eday-nav">
           {NAV.map((n) => (
-            <a key={n.href} href={n.href} className={"eday-navlink" + (pathname === n.href ? " active" : "")}>
+            <Link key={n.href} href={n.href} className={"eday-navlink" + (pathname === n.href ? " active" : "")}>
               {n.ai && <span style={{ color: "var(--c-violet)", display: "inline-flex" }}><Ico.sparkle className="icon sm" /></span>}
               {t(n.labelKey)}
-            </a>
+            </Link>
           ))}
         </nav>
         <div style={{ flex: 1 }} />
         <div className="eday-search"><GlobalSearch /></div>
         {canMutate(user?.role ?? null) && (
-          <a className="btn primary sm eday-upload" href="/upload"><Ico.upload className="icon sm" /> <span>Upload</span></a>
+          <Link className="btn primary sm eday-upload" href="/upload"><Ico.upload className="icon sm" /> <span>Upload</span></Link>
         )}
         <NotificationsBell tone="ghost" />
         <EdayUserMenu />
@@ -68,7 +71,7 @@ export function EverydayShell({ children }: { children: React.ReactNode }) {
         <BottomTab href="/home" icon={<Ico.home />} label={t("eday.nav.home")} active={pathname === "/home"} />
         <BottomTab href="/my" icon={<Ico.files />} label={t("eday.nav.myfiles")} active={pathname === "/my"} />
         {canMutate(user?.role ?? null) && (
-          <a href="/upload" className="eday-bottom-upload" aria-label="Upload"><Ico.upload /></a>
+          <Link href="/upload" className="eday-bottom-upload" aria-label="Upload"><Ico.upload /></Link>
         )}
         <BottomTab href="/shared" icon={<Ico.share />} label={t("eday.nav.shared")} active={pathname === "/shared"} />
         <BottomTab href="/ask" icon={<Ico.sparkle />} label={t("nav.ask")} active={pathname === "/ask"} />
@@ -79,10 +82,10 @@ export function EverydayShell({ children }: { children: React.ReactNode }) {
 
 function BottomTab({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active: boolean }) {
   return (
-    <a href={href} className={"eday-bottomtab" + (active ? " active" : "")}>
+    <Link href={href} className={"eday-bottomtab" + (active ? " active" : "")}>
       {icon}
       <span>{label}</span>
-    </a>
+    </Link>
   );
 }
 
@@ -103,7 +106,7 @@ function EdayUserMenu() {
     return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
   }, [open]);
 
-  if (!user) return <a href="/login" className="btn sm primary">Sign in</a>;
+  if (!user) return <Link href="/login" className="btn sm primary">Sign in</Link>;
 
   const toFullView = () => { setMode("workspace"); router.push("/"); };
 

@@ -61,6 +61,13 @@ const nextConfig: NextConfig = {
       { source: "/settings",      destination: "/filehub/settings",      basePath: false, permanent: false },
       { source: "/settings/:path*", destination: "/filehub/settings/:path*", basePath: false, permanent: false },
       { source: "/login",         destination: "/filehub/login",         basePath: false, permanent: false },
+      // Everyday-shell routes — same bare-path safety net.
+      { source: "/home",          destination: "/filehub/home",          basePath: false, permanent: false },
+      { source: "/my",            destination: "/filehub/my",            basePath: false, permanent: false },
+      { source: "/shared",        destination: "/filehub/shared",        basePath: false, permanent: false },
+      { source: "/starred",       destination: "/filehub/starred",       basePath: false, permanent: false },
+      { source: "/recent",        destination: "/filehub/recent",        basePath: false, permanent: false },
+      { source: "/f/:path*",      destination: "/filehub/f/:path*",      basePath: false, permanent: false },
     ];
   },
 };
