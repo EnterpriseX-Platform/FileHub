@@ -645,6 +645,9 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-mu
 /* Caps content width on wide screens so forms/cards don't stretch edge-to-edge
    and read as sparse. Apply to content/form pages — NOT full-width data tables. */
 .page             { width: 100%; max-width: 1200px; margin-inline: auto; }
+/* Content measure for rail pages (settings, views): one fixed width, centered
+   in the remaining space — matches .page's centering so nothing left-hugs. */
+.page-body        { width: 100%; max-width: 920px; margin-inline: auto; }
 /* Page padding as a class (replaces inline "24px 32px") so it tightens on phones. */
 .main-pad         { padding: 24px 32px; }
 
@@ -971,7 +974,9 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-mu
 /* Friendly file view (components/everyday/file-view-client.tsx) */
 .eday-back { display: inline-flex; align-items: center; gap: 4px; text-decoration: none; color: var(--text-subtle); font-size: var(--t-sm); margin-bottom: 12px; }
 .eday-back:hover { color: var(--text); }
-.eday-fileview-hd { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 18px; }
+.eday-fileview-hd { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.eday-fileview-hd .ft.lg { width: 44px; height: 44px; border-radius: 11px; }
+.eday-fileview-hd .eday-h1 { line-height: 1.25; }
 .eday-fileview { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; align-items: start; }
 /* The document page needs room — widen the content column on file views only. */
 .eday-main:has(.eday-fileview) { max-width: 1280px; }

@@ -41,7 +41,7 @@ export default async function SettingsRolesPage() {
       <div className="main split-rail" style={{ overflow: "auto" }}>
         <SettingsNav active="roles" />
         <div className="main-pad" style={{ overflow: "auto" }}>
-          <div style={{ maxWidth: 920 }}>
+          <div className="page-body">
             <div className="t-3xl t-semibold">Roles & permissions</div>
             <div className="t-sm t-muted" style={{ marginTop: 4, marginBottom: 24 }}>
               Three built-in roles, enforced by the server on every request.
