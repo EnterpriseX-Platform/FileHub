@@ -2,12 +2,13 @@ import Link from "next/link";
 
 import { Ico } from "@/components/icons";
 
-export type SettingsTab = "general" | "members" | "roles" | "workflows" | "audit";
+export type SettingsTab = "general" | "members" | "roles" | "forms" | "workflows" | "audit";
 
 const TABS: Array<[SettingsTab, string, React.ComponentType<{ className?: string }>]> = [
   ["general",   "General",             Ico.cog],
   ["members",   "Members",             Ico.users],
   ["roles",     "Roles & permissions", Ico.shield],
+  ["forms",     "Request forms",       Ico.file],
   ["workflows", "Workflow templates",  Ico.layers],
   ["audit",     "Audit log",           Ico.history],
 ];

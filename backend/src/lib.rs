@@ -256,6 +256,11 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             axum::routing::post(workflow::send_back))
         // Requests: form/document submissions routed through the workflow engine.
         .route("/api/request-forms",          get(requests::list_forms))
+        // Form Designer CRUD (Admin Console, editor+).
+        .route("/api/forms",
+            get(requests::list_forms_admin).post(requests::create_form))
+        .route("/api/forms/:id",
+            axum::routing::patch(requests::update_form).delete(requests::delete_form))
         .route("/api/requests/intake",        axum::routing::post(requests::intake))
         .route("/api/requests",
             get(requests::list).post(requests::create))

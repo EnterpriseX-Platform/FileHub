@@ -1,11 +1,14 @@
 import { NewRequestClient } from "@/components/everyday/new-request-client";
-import { safeRequestForms } from "@/lib/api";
+import { safeMembers, safeRequestForms } from "@/lib/api";
 import { loadServerCtx } from "@/lib/auth-server";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewRequestPage() {
   const { cookieHeader, role } = await loadServerCtx();
-  const forms = await safeRequestForms(cookieHeader);
-  return <NewRequestClient forms={forms} role={role} />;
+  const [forms, members] = await Promise.all([
+    safeRequestForms(cookieHeader),
+    safeMembers(cookieHeader),
+  ]);
+  return <NewRequestClient forms={forms} members={members} role={role} />;
 }

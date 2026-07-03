@@ -307,14 +307,40 @@ export async function safeStarred(cookieHeader?: string): Promise<FileRow[]> {
 // ---------------------------------------------------------------------------
 // Requests — form/document submissions routed through approvals (requests.rs).
 // ---------------------------------------------------------------------------
-export type RequestKind = "expense" | "it" | "document" | "leave";
-
 export type FormField = { key: string; label_en: string; label_th: string; kind: string; required: boolean };
-export type FormSchema = { kind: RequestKind; name_en: string; name_th: string; fields: FormField[] };
 export type RouteStep = { reviewer_id: string; reviewer_name: string; step_name: string };
 
+// A form as the Everyday flow needs it (active + resolved route). `kind` on a
+// request is a form id (the four defaults keep the ids expense/it/document/leave).
+export type RequestForm = {
+  id: string;
+  name_en: string;
+  name_th: string;
+  description: string | null;
+  icon: string;   // glyph key: expense | it | document | leave | generic
+  color: string;  // design-token color name
+  fields: FormField[];
+  order_mode: string;
+  route: RouteStep[];
+};
+
+// The Form Designer's admin view (all forms incl. inactive + the template link).
+export type FormAdmin = {
+  id: string;
+  name_en: string;
+  name_th: string;
+  description: string | null;
+  icon: string;
+  color: string;
+  fields: FormField[];
+  template_id: string | null;
+  active: boolean;
+  sort_order: number;
+  created_at: string;
+};
+
 export type IntakeResult = {
-  kind: RequestKind;
+  kind: string; // the chosen form id
   title: string;
   fields: Record<string, unknown>;
   amount: number | null;
@@ -325,7 +351,10 @@ export type IntakeResult = {
 
 export type RequestListItem = {
   id: string;
-  kind: RequestKind;
+  kind: string;
+  kind_label: string;
+  icon: string;
+  color: string;
   title: string;
   amount: number | null;
   status: string; // submitted | in_review | approved | rejected
@@ -350,7 +379,10 @@ export type RequestStep = {
 export type RequestFileLite = { id: string; name: string; file_type: string; size_bytes: number };
 export type RequestDetail = {
   id: string;
-  kind: RequestKind;
+  kind: string;
+  kind_label: string;
+  icon: string;
+  color: string;
   title: string;
   form_data: Record<string, unknown>;
   amount: number | null;
@@ -374,14 +406,24 @@ export async function safeRequests(box: string, cookieHeader?: string): Promise<
     return (await r.json()) as RequestListItem[];
   } catch { return []; }
 }
-export async function safeRequestForms(cookieHeader?: string): Promise<FormSchema[]> {
+export async function safeRequestForms(cookieHeader?: string): Promise<RequestForm[]> {
   try {
     const r = await fetch(`${BASE}/api/request-forms`, {
       cache: "no-store",
       headers: cookieHeader ? { cookie: cookieHeader } : undefined,
     });
     if (!r.ok) return [];
-    return (await r.json()) as FormSchema[];
+    return (await r.json()) as RequestForm[];
+  } catch { return []; }
+}
+export async function safeFormsAdmin(cookieHeader?: string): Promise<FormAdmin[]> {
+  try {
+    const r = await fetch(`${BASE}/api/forms`, {
+      cache: "no-store",
+      headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+    });
+    if (!r.ok) return [];
+    return (await r.json()) as FormAdmin[];
   } catch { return []; }
 }
 export async function safeRequest(id: string, cookieHeader?: string): Promise<RequestDetail | null> {
