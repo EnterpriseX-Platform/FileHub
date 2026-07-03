@@ -77,8 +77,9 @@ needs visual QA/alignment pass · 🚧 feature-level (build, don't fake)
 | Presence ("X is viewing") — backend heartbeat | 🚧 |
 | True SSE streaming for /api/ask | 🚧 |
 | Conditional workflow routing (ANNEX-14w) | 🚧 |
-| Metadata CSV import / template folders / bulk watermark / PDF annotate | 🚧 |
-| PAdES byte-embed + PKI certs | 🚧 |
+| Metadata CSV import / template folders / bulk watermark | 🚧 |
+| Signed-copy download (stamps/highlights baked into PDF bytes, pdf-lib) | ✅ viewer toolbar |
+| PAdES cryptographic signature + PKI certs | 🚧 (visual bake shipped; CMS/cert signing still open) |
 | Claude Design publish (user must run /design-login) | 🚧 |
 
 ## Spec: annotation + signature-stamp viewer (user-requested)
