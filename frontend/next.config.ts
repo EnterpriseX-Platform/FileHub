@@ -19,6 +19,14 @@ const nextConfig: NextConfig = {
   // basePath to all <Link> hrefs, static assets, and rewrites automatically.
   basePath: "/filehub",
 
+  // The rewrite proxy defaults to a 30s upstream timeout — /api/ask (RAG
+  // against a slow chat model) legitimately runs longer, and the proxy was
+  // killing those requests as bare 500s. Match the backend's AI_TIMEOUT_SECS
+  // (120s) with headroom.
+  experimental: {
+    proxyTimeout: 180_000,
+  },
+
   async rewrites() {
     // /filehub/api/* → http://backend/fh/api/* — same-origin from the browser's
     // POV so cookies flow without CORS gymnastics.

@@ -32,10 +32,14 @@ export function EverydayShell({ children }: { children: React.ReactNode }) {
   const { t } = useI18n();
   const pathname = usePathname();
   const { mode, setMode } = useViewMode();
-  // Living in the everyday shell IS the mode — sync the cookie so "/" keeps
-  // landing on /home instead of bouncing to the Admin console after a visit
-  // there. Entering the console stays explicit (user-menu switch).
+  // Living in the everyday shell IS the mode — sync the cookie ON MOUNT so
+  // "/" keeps landing on /home after a console visit. Mount-only on purpose:
+  // re-running on every mode change would fight the explicit "Admin console"
+  // switch (which sets workspace and navigates away from this shell).
+  const synced = React.useRef(false);
   React.useEffect(() => {
+    if (synced.current) return;
+    synced.current = true;
     if (mode !== "everyday") setMode("everyday");
   }, [mode, setMode]);
   return (

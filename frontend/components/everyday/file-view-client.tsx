@@ -35,7 +35,7 @@ export function FileViewClient({ file, areaName }: { file: FileRow; areaName: st
 
       <div className="eday-fileview-hd">
         <Ft type={file.file_type} size="lg" />
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="eday-fileview-title">
           <h1 className="eday-h1 t-trunc" title={file.name}>{file.name}</h1>
           <div className="t-sm t-subtle">
             {fmtBytes(file.size_bytes)} · {fmtAgo(file.modified_at)}{areaName ? ` · ${areaName}` : ""}
