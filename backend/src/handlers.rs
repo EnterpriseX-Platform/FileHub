@@ -1217,7 +1217,8 @@ pub async fn upload_version(
                   file.org_id.as_deref(),
                   Some(&user.0.id)).await?;
     let ct = content_type.or_else(|| mime_guess::from_path(&display_name).first().map(|m| m.to_string()));
-    let etag = s.storage.put(&new_object_key, body, ct.as_deref()).await?;
+    // Bytes is refcounted — the clone keeps the body around for re-indexing.
+    let etag = s.storage.put(&new_object_key, body.clone(), ct.as_deref()).await?;
     let encrypted = s.storage.encryption_enabled();
     let now = Utc::now();
 
@@ -1242,8 +1243,20 @@ pub async fn upload_version(
     .bind(&uploaded_by)
     .bind(format!("uploaded v{} of", new_version))
     .bind(&file.name).bind(&file.file_type).bind(file.id)
-    .bind(file.system_id).bind(file.org_id).bind(now).bind(user.0.id)
+    .bind(&file.system_id).bind(&file.org_id).bind(now).bind(&user.0.id)
     .execute(&s.db).await?;
+
+    // Re-index derived artifacts against the NEW bytes — same pipeline as a
+    // fresh upload. Without this, the thumbnail, office/PDF preview, full-text
+    // index, and AI embeddings all keep serving the previous version.
+    if let Some(text) = crate::p1::extract_text_from(&file.file_type, &body) {
+        crate::p1::index_file_content(&s.db, file.id, &text).await;
+    }
+    crate::p1::index_thumbnail(&s.db, file.id, &file.file_type, &body).await;
+    crate::p1::index_office_preview(&s.db, file.id, &file.file_type, &display_name, &body).await;
+    if s.ai.enabled() {
+        crate::ai_worker::enqueue(&s.db, file.id).await;
+    }
 
     let updated: File = sqlx::query_as(&format!("SELECT {FILE_COLS} FROM files WHERE id = $1"))
         .bind(file.id).fetch_one(&s.db).await?;
@@ -1292,10 +1305,16 @@ pub async fn restore_version(
     .bind(id).bind(&tobj).bind(tsize).bind(&tetag).bind(new_version)
     .execute(&s.db).await?;
 
-    // Re-index full-text content from the restored bytes (best-effort).
+    // Re-index derived artifacts from the restored bytes (best-effort) —
+    // thumbnail and preview must track the now-current content too.
     if let Some((bytes, _)) = s.storage.get(&tobj, file.encrypted).await.ok().flatten() {
         if let Some(text) = crate::p1::extract_text_from(&file.file_type, &bytes) {
             crate::p1::index_file_content(&s.db, id, &text).await;
+        }
+        crate::p1::index_thumbnail(&s.db, id, &file.file_type, &bytes).await;
+        crate::p1::index_office_preview(&s.db, id, &file.file_type, &file.name, &bytes).await;
+        if s.ai.enabled() {
+            crate::ai_worker::enqueue(&s.db, id).await;
         }
     }
 
