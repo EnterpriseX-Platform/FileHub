@@ -1047,6 +1047,59 @@ pub async fn create_view(
         .bind(&id).fetch_one(&s.db).await?))
 }
 
+#[derive(Deserialize)]
+pub struct PatchView {
+    pub pinned: Option<bool>,
+    pub name: Option<String>,
+}
+
+/// PATCH /api/views/:id — pin/unpin or rename. Creator or admin.
+pub async fn patch_view(
+    State(s): State<Arc<AppState>>,
+    user: AuthUser,
+    Path(id): Path<String>,
+    Json(p): Json<PatchView>,
+) -> ApiResult<Json<View>> {
+    let owner: Option<(Option<String>,)> =
+        sqlx::query_as("SELECT created_by FROM views WHERE id = $1")
+            .bind(&id).fetch_optional(&s.db).await?;
+    let (created_by,) = owner.ok_or(ApiError::NotFound)?;
+    if created_by.as_deref() != Some(user.0.id.as_str()) && user.0.role != "admin" {
+        return Err(ApiError::Forbidden);
+    }
+    if let Some(pinned) = p.pinned {
+        sqlx::query("UPDATE views SET pinned = $2 WHERE id = $1")
+            .bind(&id).bind(pinned).execute(&s.db).await?;
+    }
+    if let Some(name) = p.name {
+        let name = name.trim().to_string();
+        if name.is_empty() {
+            return Err(ApiError::BadRequest("name must not be empty".into()));
+        }
+        sqlx::query("UPDATE views SET name = $2 WHERE id = $1")
+            .bind(&id).bind(name).execute(&s.db).await?;
+    }
+    Ok(Json(sqlx::query_as::<_, View>("SELECT * FROM views WHERE id = $1")
+        .bind(&id).fetch_one(&s.db).await?))
+}
+
+/// DELETE /api/views/:id — creator or admin.
+pub async fn delete_view(
+    State(s): State<Arc<AppState>>,
+    user: AuthUser,
+    Path(id): Path<String>,
+) -> ApiResult<axum::http::StatusCode> {
+    let owner: Option<(Option<String>,)> =
+        sqlx::query_as("SELECT created_by FROM views WHERE id = $1")
+            .bind(&id).fetch_optional(&s.db).await?;
+    let (created_by,) = owner.ok_or(ApiError::NotFound)?;
+    if created_by.as_deref() != Some(user.0.id.as_str()) && user.0.role != "admin" {
+        return Err(ApiError::Forbidden);
+    }
+    sqlx::query("DELETE FROM views WHERE id = $1").bind(&id).execute(&s.db).await?;
+    Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
 pub async fn list_permissions(
     State(s): State<Arc<AppState>>,
     user: AuthUser,
