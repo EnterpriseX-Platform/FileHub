@@ -707,7 +707,41 @@ paths:
   # anchors to a document and reuses file_workflows for approvals; decisions go
   # through /api/workflow-steps/{id}/decision above.
   /api/request-forms:
-    get: { tags: [Requests], summary: Static form schemas for the 4 request kinds, responses: { "200": { description: Schemas } } }
+    get: { tags: [Requests], summary: "Active request forms + each form's resolved approval route (Everyday + intake)", responses: { "200": { description: Forms } } }
+  # Form Designer — admin-authored request types (fields + linked workflow template).
+  /api/forms:
+    get: { tags: [Requests], summary: "List all request forms incl. inactive (Form Designer, editor+)", responses: { "200": { description: Forms }, "403": { $ref: "#/components/responses/Forbidden" } } }
+    post:
+      tags: [Requests]
+      summary: "Create a request form (editor+)"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name_en]
+              properties:
+                id:          { type: string, description: "Omit to generate form_<id>" }
+                name_en:     { type: string }
+                name_th:     { type: string }
+                description: { type: string, nullable: true }
+                icon:        { type: string, enum: [expense, it, document, leave, generic] }
+                color:       { type: string, description: "design-token color name" }
+                fields:      { type: array, items: { type: object, properties: { key: { type: string }, label_en: { type: string }, label_th: { type: string }, kind: { type: string, enum: [text, textarea, number, money, date] }, required: { type: boolean } } } }
+                template_id: { type: string, nullable: true, description: "linked workflow_templates.id (the route)" }
+                active:      { type: boolean }
+                sort_order:  { type: integer }
+      responses: { "200": { description: Created }, "400": { description: Bad request }, "403": { $ref: "#/components/responses/Forbidden" } }
+  /api/forms/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+    patch:
+      tags: [Requests]
+      summary: "Update a request form (editor+)"
+      responses: { "200": { description: Updated }, "403": { $ref: "#/components/responses/Forbidden" }, "404": { $ref: "#/components/responses/NotFound" } }
+    delete:
+      tags: [Requests]
+      summary: "Delete a request form (editor+)"
+      responses: { "204": { description: Deleted }, "403": { $ref: "#/components/responses/Forbidden" }, "404": { $ref: "#/components/responses/NotFound" } }
   /api/requests/intake:
     post:
       tags: [Requests]

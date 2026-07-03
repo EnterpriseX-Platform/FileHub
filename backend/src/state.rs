@@ -47,6 +47,13 @@ impl AppState {
         // restart never duplicates them.
         crate::auth::bootstrap_seed_users(&db).await?;
 
+        // Default request forms + their approval templates (the Form Designer's
+        // seed data). Non-destructive (ON CONFLICT DO NOTHING) so admin edits
+        // survive restarts. Needs the seed reviewer users above.
+        if let Err(e) = crate::requests::bootstrap_request_forms(&db).await {
+            tracing::warn!("request-forms seed skipped: {e:#}");
+        }
+
         // Demo collaboration data (comment threads, review workflows,
         // notifications, version history). Best-effort: a failure must never
         // block startup, so we log and continue rather than propagate.

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import * as React from "react";
 
 import { Ico } from "@/components/icons";
-import { KindTile, KIND_META, StatusPill, money } from "@/components/everyday/request-bits";
+import { KindTile, StatusPill, money } from "@/components/everyday/request-bits";
 import { WorkflowPanel } from "@/components/workflow-panel";
 import { Ft } from "@/components/primitives";
 import type { RequestDetail } from "@/lib/api";
@@ -17,9 +17,8 @@ import { useI18n } from "@/lib/i18n";
 /// WorkflowPanel — the same approve / reject / send-back the file view uses,
 /// pointed at the request's anchor document).
 export function RequestDetailClient({ req }: { req: RequestDetail }) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const router = useRouter();
-  const meta = KIND_META[req.kind];
   const entries = Object.entries(req.form_data || {}).filter(([, v]) => v != null && String(v).trim() !== "");
 
   return (
@@ -30,11 +29,11 @@ export function RequestDetailClient({ req }: { req: RequestDetail }) {
 
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginTop: 6 }}>
         <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
-          <KindTile kind={req.kind} size={40} />
+          <KindTile icon={req.icon} color={req.color} size={40} />
           <div style={{ minWidth: 0 }}>
             <div className="t-2xl t-semibold t-trunc">{req.title}</div>
             <div className="t-xs t-muted" style={{ marginTop: 4 }}>
-              {meta.labelEn}{req.amount != null ? ` · ${money(req.amount)}` : ""} · {t("req.submittedBy", { name: req.requester_name })} · {fmtAgo(req.created_at)}
+              {req.kind_label}{req.amount != null ? ` · ${money(req.amount)}` : ""} · {t("req.submittedBy", { name: req.requester_name })} · {fmtAgo(req.created_at)}
             </div>
           </div>
         </div>

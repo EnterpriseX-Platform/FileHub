@@ -4,7 +4,7 @@ import Link from "next/link";
 import * as React from "react";
 
 import { Ico } from "@/components/icons";
-import { KindTile, KIND_META, StatusPill, money } from "@/components/everyday/request-bits";
+import { KindTile, StatusPill, money } from "@/components/everyday/request-bits";
 import type { RequestListItem } from "@/lib/api";
 import { fmtAgo } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
@@ -74,14 +74,13 @@ export function RequestsClient({ inbox, mine }: { inbox: RequestListItem[]; mine
 }
 
 function Row({ r, t }: { r: RequestListItem; t: (k: string, p?: Record<string, string | number>) => string }) {
-  const meta = KIND_META[r.kind];
   return (
     <Link href={`/requests/${encodeURIComponent(r.id)}`} className="eday-filerow">
-      <KindTile kind={r.kind} />
+      <KindTile icon={r.icon} color={r.color} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="t-md t-semibold t-trunc">{r.title}</div>
         <div className="t-xs t-subtle t-trunc">
-          {meta.labelEn}{r.amount != null ? ` · ${money(r.amount)}` : ""} · {t("req.submittedBy", { name: r.requester_name })} · {fmtAgo(r.created_at)}
+          {r.kind_label}{r.amount != null ? ` · ${money(r.amount)}` : ""} · {t("req.submittedBy", { name: r.requester_name })} · {fmtAgo(r.created_at)}
         </div>
       </div>
       <StatusPill status={r.status} myTurn={r.my_turn} t={t} />

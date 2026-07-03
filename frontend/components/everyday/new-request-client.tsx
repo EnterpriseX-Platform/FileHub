@@ -4,15 +4,15 @@ import { useRouter } from "next/navigation";
 import * as React from "react";
 
 import { Ico } from "@/components/icons";
-import { KindTile, KIND_META, money } from "@/components/everyday/request-bits";
-import type { FormSchema, IntakeResult, RequestKind, RouteStep } from "@/lib/api";
+import { KindTile } from "@/components/everyday/request-bits";
+import type { IntakeResult, Member, RequestForm, RouteStep } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { canMutate } from "@/lib/roles";
 
 /// Start a request, chat-first. The user describes what they need; the AI picks
-/// the request type, fills the form, and proposes an approval route (which the
-/// user can edit). "Fill a form instead" drops straight to the manual form. On
-/// submit we POST /api/requests, which starts the workflow, and jump to detail.
+/// the request type (an admin-authored form), fills its fields, and proposes the
+/// form's approval route (which the user can edit). "Fill a form instead" drops
+/// straight to the manual form. On submit we POST /api/requests and jump to detail.
 
 type Stage = "chat" | "thinking" | "draft" | "form";
 
@@ -22,16 +22,11 @@ const EXAMPLES = [
   "Please approve the Phattana vendor contract before Friday",
 ];
 
-// A curated pool for the "edit approvers" affordance — the seed review team.
-const REVIEWER_POOL: RouteStep[] = [
-  { reviewer_id: "usr_krit", reviewer_name: "Krit M.", step_name: "Manager" },
-  { reviewer_id: "usr_pat", reviewer_name: "Pat S.", step_name: "Finance" },
-  { reviewer_id: "usr_wisanu", reviewer_name: "Wisanu T.", step_name: "Legal" },
-  { reviewer_id: "usr_sarah", reviewer_name: "Sarah L.", step_name: "Director" },
-  { reviewer_id: "usr_anong", reviewer_name: "Anong K.", step_name: "Approver" },
-];
-
-export function NewRequestClient({ forms, role }: { forms: FormSchema[]; role: string | null }) {
+export function NewRequestClient({ forms, members, role }: {
+  forms: RequestForm[];
+  members: Member[];
+  role: string | null;
+}) {
   const { t, locale } = useI18n();
   const router = useRouter();
 
@@ -39,8 +34,8 @@ export function NewRequestClient({ forms, role }: { forms: FormSchema[]; role: s
   const [message, setMessage] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
 
-  // The working draft (shared by the AI draft + the manual form).
-  const [kind, setKind] = React.useState<RequestKind>("expense");
+  const first = forms[0]?.id ?? "";
+  const [kind, setKind] = React.useState<string>(first);
   const [title, setTitle] = React.useState("");
   const [values, setValues] = React.useState<Record<string, string>>({});
   const [aiSummary, setAiSummary] = React.useState("");
@@ -48,24 +43,21 @@ export function NewRequestClient({ forms, role }: { forms: FormSchema[]; role: s
   const [attach, setAttach] = React.useState<{ id: string; name: string } | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
 
-  const schemaFor = React.useCallback(
-    (k: RequestKind) => forms.find((f) => f.kind === k),
-    [forms],
-  );
+  const formById = React.useCallback((id: string) => forms.find((f) => f.id === id), [forms]);
+  const curForm = formById(kind) ?? forms[0];
 
   const setDraftFromIntake = (r: IntakeResult) => {
-    setKind(r.kind);
+    const f = formById(r.kind) ?? forms[0];
+    setKind(f.id);
     setTitle(r.title || "");
     const vals: Record<string, string> = {};
-    const sc = schemaFor(r.kind);
-    for (const f of sc?.fields ?? []) {
-      const v = (r.fields as Record<string, unknown>)[f.key];
-      vals[f.key] = v == null ? "" : String(v);
+    for (const fl of f.fields) {
+      const v = (r.fields as Record<string, unknown>)[fl.key];
+      vals[fl.key] = v == null ? "" : String(v);
     }
-    if (r.amount != null && vals.amount === undefined) vals.amount = String(r.amount);
     setValues(vals);
     setAiSummary(r.ai_summary || "");
-    setRoute(r.route || []);
+    setRoute(r.route?.length ? r.route : f.route);
     setStage("draft");
   };
 
@@ -81,34 +73,30 @@ export function NewRequestClient({ forms, role }: { forms: FormSchema[]; role: s
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ message: msg }),
       });
-      if (!r.ok) {
-        // AI off/unavailable → fall back to the manual form, no dead end.
-        startForm("expense");
-        return;
-      }
+      if (!r.ok) { startForm(first); return; } // AI off/unavailable → manual form
       setDraftFromIntake((await r.json()) as IntakeResult);
     } catch {
-      startForm("expense");
+      startForm(first);
     }
   }
 
-  function startForm(k: RequestKind) {
-    setKind(k);
-    setTitle((cur) => cur || "");
-    setValues((cur) => (Object.keys(cur).length ? cur : {}));
-    if (route.length === 0) setRoute(defaultRoute(k, values.amount));
+  function startForm(id: string) {
+    const f = formById(id) ?? forms[0];
+    setKind(f.id);
+    setRoute((cur) => (cur.length ? cur : f.route));
     setStage("form");
   }
-
-  function switchFormKind(k: RequestKind) {
-    setKind(k);
-    setRoute(defaultRoute(k, values.amount));
+  function switchFormKind(id: string) {
+    const f = formById(id) ?? forms[0];
+    setKind(f.id);
+    setRoute(f.route);
   }
 
   async function submit() {
     setSubmitting(true);
     setError(null);
-    const amount = kind === "expense" && values.amount ? Number(values.amount) : null;
+    const amountStr = values.amount;
+    const amount = amountStr && Number.isFinite(Number(amountStr)) ? Number(amountStr) : null;
     try {
       const r = await fetch(`/filehub/api/requests`, {
         method: "POST",
@@ -116,11 +104,11 @@ export function NewRequestClient({ forms, role }: { forms: FormSchema[]; role: s
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           kind,
-          title: title.trim() || KIND_META[kind].labelEn,
+          title: title.trim() || curForm.name_en,
           form_data: values,
-          amount: Number.isFinite(amount as number) ? amount : null,
+          amount,
           reviewers: route.map((s) => ({ reviewer_id: s.reviewer_id, step_name: s.step_name })),
-          order_mode: "sequential",
+          order_mode: curForm.order_mode || "sequential",
           ai_summary: aiSummary || null,
           file_id: attach?.id ?? null,
         }),
@@ -138,6 +126,7 @@ export function NewRequestClient({ forms, role }: { forms: FormSchema[]; role: s
   }
 
   const label = (f: { label_en: string; label_th: string }) => (locale === "th" ? f.label_th : f.label_en);
+  const formName = (f: RequestForm) => (locale === "th" ? f.name_th : f.name_en);
 
   return (
     <div className="page" style={{ maxWidth: 760 }}>
@@ -163,7 +152,7 @@ export function NewRequestClient({ forms, role }: { forms: FormSchema[]; role: s
               onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) runIntake(message); }}
             />
             <div className="req-chatfoot">
-              <button className="btn ghost sm" onClick={() => startForm("expense")}>{t("req.fillForm")}</button>
+              <button className="btn ghost sm" onClick={() => startForm(first)}>{t("req.fillForm")}</button>
               <div style={{ flex: 1 }} />
               <button className="btn primary" disabled={stage === "thinking" || !message.trim()} onClick={() => runIntake(message)}>
                 {t("req.continue")} <Ico.chevron className="icon sm" />
@@ -187,21 +176,21 @@ export function NewRequestClient({ forms, role }: { forms: FormSchema[]; role: s
         </div>
       )}
 
-      {stage === "draft" && (
+      {stage === "draft" && curForm && (
         <div style={{ marginTop: 22 }}>
           <div className="req-aitag"><Ico.sparkle className="icon sm" /> {t("req.understood")}</div>
           <div className="card" style={{ overflow: "hidden", marginTop: 10 }}>
             <div className="req-drafttop">
-              <KindTile kind={kind} />
+              <KindTile icon={curForm.icon} color={curForm.color} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <input className="req-titleinput" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={KIND_META[kind].labelEn} />
-                <div className="t-xs t-subtle">{KIND_META[kind].labelEn} · fields extracted from your message — edit anything.</div>
+                <input className="req-titleinput" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={formName(curForm)} />
+                <div className="t-xs t-subtle">{formName(curForm)} · fields extracted from your message — edit anything.</div>
               </div>
             </div>
-            <FormGrid schema={schemaFor(kind)} values={values} setValues={setValues} label={label} />
+            <FormGrid form={curForm} values={values} setValues={setValues} label={label} />
           </div>
 
-          <RouteEditor route={route} setRoute={setRoute} t={t} />
+          <RouteEditor route={route} setRoute={setRoute} members={members} t={t} />
 
           {aiSummary && (
             <div className="req-aisum" style={{ marginTop: 16 }}>
@@ -211,7 +200,6 @@ export function NewRequestClient({ forms, role }: { forms: FormSchema[]; role: s
           )}
 
           <AttachRow role={role} attach={attach} setAttach={setAttach} t={t} />
-
           {error && <div className="t-sm" style={{ color: "var(--c-rose)", marginTop: 12 }}>{error}</div>}
 
           <div style={{ display: "flex", gap: 10, marginTop: 18, alignItems: "center", flexWrap: "wrap" }}>
@@ -225,22 +213,20 @@ export function NewRequestClient({ forms, role }: { forms: FormSchema[]; role: s
         </div>
       )}
 
-      {stage === "form" && (
+      {stage === "form" && curForm && (
         <div className="card pad" style={{ marginTop: 22 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 14 }}>
             <div className="t-lg t-semibold">{t("req.new")}</div>
-            <select className="req-select" value={kind} onChange={(e) => switchFormKind(e.target.value as RequestKind)}>
-              {forms.map((f) => (
-                <option key={f.kind} value={f.kind}>{locale === "th" ? f.name_th : f.name_en}</option>
-              ))}
+            <select className="req-select" value={kind} onChange={(e) => switchFormKind(e.target.value)}>
+              {forms.map((f) => <option key={f.id} value={f.id}>{formName(f)}</option>)}
             </select>
           </div>
           <input className="req-titleinput" style={{ fontSize: 16, marginBottom: 10 }}
-            value={title} onChange={(e) => setTitle(e.target.value)} placeholder={`${KIND_META[kind].labelEn} title`} />
+            value={title} onChange={(e) => setTitle(e.target.value)} placeholder={`${formName(curForm)} title`} />
           <div className="card" style={{ overflow: "hidden" }}>
-            <FormGrid schema={schemaFor(kind)} values={values} setValues={setValues} label={label} />
+            <FormGrid form={curForm} values={values} setValues={setValues} label={label} />
           </div>
-          <RouteEditor route={route} setRoute={setRoute} t={t} />
+          <RouteEditor route={route} setRoute={setRoute} members={members} t={t} />
           <AttachRow role={role} attach={attach} setAttach={setAttach} t={t} />
           {error && <div className="t-sm" style={{ color: "var(--c-rose)", marginTop: 12 }}>{error}</div>}
           <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
@@ -253,30 +239,15 @@ export function NewRequestClient({ forms, role }: { forms: FormSchema[]; role: s
   );
 }
 
-function defaultRoute(kind: RequestKind, amountStr?: string): RouteStep[] {
-  const pick = (id: string) => REVIEWER_POOL.find((r) => r.reviewer_id === id)!;
-  switch (kind) {
-    case "it": return [{ ...pick("usr_pat"), step_name: "IT" }, { ...pick("usr_krit"), step_name: "Asset owner" }];
-    case "document": return [{ ...pick("usr_wisanu") }, { ...pick("usr_sarah") }];
-    case "leave": return [{ ...pick("usr_krit") }];
-    default: {
-      const r: RouteStep[] = [{ ...pick("usr_krit") }, { ...pick("usr_pat") }];
-      if (Number(amountStr) > 5000) r.push({ ...pick("usr_sarah") });
-      return r;
-    }
-  }
-}
-
-function FormGrid({ schema, values, setValues, label }: {
-  schema?: FormSchema;
+function FormGrid({ form, values, setValues, label }: {
+  form: RequestForm;
   values: Record<string, string>;
   setValues: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   label: (f: { label_en: string; label_th: string }) => string;
 }) {
-  if (!schema) return null;
   return (
     <div className="req-formgrid">
-      {schema.fields.map((f) => {
+      {form.fields.map((f) => {
         const full = f.kind === "textarea";
         return (
           <div key={f.key} className={"req-fld" + (full ? " full" : "")}>
@@ -286,7 +257,7 @@ function FormGrid({ schema, values, setValues, label }: {
             ) : (
               <input
                 className="req-finput"
-                type={f.kind === "money" || f.kind === "number" ? "number" : f.kind === "date" ? "text" : "text"}
+                type={f.kind === "money" || f.kind === "number" ? "number" : "text"}
                 value={values[f.key] ?? ""}
                 onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
               />
@@ -298,13 +269,14 @@ function FormGrid({ schema, values, setValues, label }: {
   );
 }
 
-function RouteEditor({ route, setRoute, t }: {
+function RouteEditor({ route, setRoute, members, t }: {
   route: RouteStep[];
   setRoute: React.Dispatch<React.SetStateAction<RouteStep[]>>;
+  members: Member[];
   t: (k: string) => string;
 }) {
   const [editing, setEditing] = React.useState(false);
-  const canAdd = REVIEWER_POOL.filter((p) => !route.some((r) => r.reviewer_id === p.reviewer_id));
+  const pool = members.filter((m) => m.status === "active" && !route.some((r) => r.reviewer_id === m.id));
   return (
     <div className="card pad" style={{ marginTop: 16 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -330,10 +302,13 @@ function RouteEditor({ route, setRoute, t }: {
           </React.Fragment>
         ))}
       </div>
-      {editing && canAdd.length > 0 && (
+      {editing && pool.length > 0 && (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}>
-          {canAdd.map((p) => (
-            <button key={p.reviewer_id} className="req-chip" onClick={() => setRoute((r) => [...r, p])}>+ {p.reviewer_name}</button>
+          {pool.map((m) => (
+            <button key={m.id} className="req-chip"
+              onClick={() => setRoute((r) => [...r, { reviewer_id: m.id, reviewer_name: m.display_name, step_name: "" }])}>
+              + {m.display_name}
+            </button>
           ))}
         </div>
       )}
