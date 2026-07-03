@@ -70,12 +70,15 @@ export function FilePreview({ fileId, fileType, fileName }: { fileId: string; fi
   // to start a file download instead of rendering inline — `<iframe>` then
   // shows as a blank white box.  The preview endpoint returns the same
   // bytes with `Content-Type: application/pdf` and no attachment header.
+  // `#navpanes=0` collapses Chrome's thumbnail sidebar so the page gets the
+  // full pane width (harmless where unsupported).
   if (fileType === "pdf") {
     return (
       <iframe
-        src={preview}
+        src={`${preview}#navpanes=0`}
         title={fileName}
-        style={{ width: "100%", height: "76vh", border: 0, borderRadius: "var(--r-1)", background: "var(--bg)", boxShadow: "var(--sh-3)", colorScheme: "light" }}
+        // Fill the viewport-locked main pane: 100vh − 52px topbar − 40px padding.
+        style={{ width: "100%", height: "calc(100vh - 92px)", border: 0, borderRadius: "var(--r-1)", background: "var(--bg)", boxShadow: "var(--sh-3)", colorScheme: "light" }}
       />
     );
   }
@@ -261,12 +264,50 @@ function OfficePreview({ fileId, fileType, fileName, download, preview }: {
 
   // Default — server-rendered PDF preview iframe.  Same path the page
   // used before Collabora landed.
+  return <ServerPdfPreview preview={preview} download={download} fileName={fileName} fileType={fileType} />;
+}
+
+/// Probes the preview endpoint before mounting the iframe: when the server
+/// has no rendered PDF (LibreOffice missing / conversion failed), the iframe
+/// would display the raw `{"error":"not found"}` JSON — show a proper
+/// download card instead.
+function ServerPdfPreview({ preview, download, fileName, fileType }: {
+  preview: string; download: string; fileName: string; fileType: string;
+}) {
+  const [available, setAvailable] = React.useState<boolean | null>(null);
+
+  React.useEffect(() => {
+    let alive = true;
+    fetch(preview, { method: "HEAD", credentials: "include", cache: "no-store" })
+      .then((r) => { if (alive) setAvailable(r.ok); })
+      .catch(() => { if (alive) setAvailable(false); });
+    return () => { alive = false; };
+  }, [preview]);
+
+  if (available === null) {
+    return <div style={{ width: "100%", height: "70vh", background: "var(--bg-subtle)", borderRadius: "var(--r-1)" }} />;
+  }
+
+  if (!available) {
+    return (
+      <div style={{ width: "min(540px, 100%)", margin: "0 auto", padding: 48, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "var(--r-3)", boxShadow: "var(--sh-1)", display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: "var(--text-muted)" }}>
+        <Ft type={fileType} size="xl" />
+        <div className="t-base t-semibold t-trunc" style={{ color: "var(--text)" }}>{fileName}</div>
+        <div className="t-sm t-muted" style={{ textAlign: "center" }}>
+          No preview rendered for this document yet — the server-side PDF converter (LibreOffice) isn&apos;t available.
+        </div>
+        <a href={download} className="btn primary">Download .{fileType} to view</a>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ width: "min(720px, 100%)" }}>
+    <div style={{ width: "100%" }}>
       <iframe
-        src={preview}
+        src={`${preview}#navpanes=0`}
         title={fileName}
-        style={{ width: "100%", height: "70vh", border: 0, borderRadius: "var(--r-1)", background: "var(--bg)", boxShadow: "var(--sh-3)", colorScheme: "light" }}
+        // Main-pane height minus the footer line below.
+        style={{ width: "100%", height: "calc(100vh - 118px)", border: 0, borderRadius: "var(--r-1)", background: "var(--bg)", boxShadow: "var(--sh-3)", colorScheme: "light" }}
       />
       <div className="t-xs t-subtle" style={{ marginTop: 6, textAlign: "center" }}>
         Server-rendered PDF preview · <a href={download} style={{ color: "var(--accent)" }}>download .{fileType}</a>

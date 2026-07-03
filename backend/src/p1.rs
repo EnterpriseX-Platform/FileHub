@@ -115,11 +115,21 @@ pub fn convert_to_pdf(file_name: &str, body: &[u8]) -> Option<Vec<u8>> {
         return Some(body.to_vec());
     }
 
-    // Pick the binary.  Some distros install as `libreoffice`, others as `soffice`.
-    let bin = ["soffice", "libreoffice"]
-        .into_iter()
-        .find(|b| std::process::Command::new("which").arg(b).output()
-                    .ok().map(|o| !o.stdout.is_empty()).unwrap_or(false))?;
+    // Pick the binary.  Some distros install as `libreoffice`, others as
+    // `soffice`; Windows installs don't put it on PATH at all, so probe the
+    // default install locations too.  Spawning `--version` doubles as the
+    // existence check (portable — no `which`/`where` dependency).
+    let mut candidates: Vec<String> = vec!["soffice".into(), "libreoffice".into()];
+    if cfg!(windows) {
+        candidates.push(r"C:\Program Files\LibreOffice\program\soffice.exe".into());
+        candidates.push(r"C:\Program Files (x86)\LibreOffice\program\soffice.exe".into());
+    }
+    let bin = candidates.into_iter().find(|b| {
+        std::process::Command::new(b).arg("--version")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status().map(|s| s.success()).unwrap_or(false)
+    })?;
 
     // Write the input to a temp file (LibreOffice doesn't read stdin).
     let dir = std::env::temp_dir().join(format!("filehub-conv-{}", uuid::Uuid::now_v7()));
