@@ -304,6 +304,31 @@ export async function safeStarred(cookieHeader?: string): Promise<FileRow[]> {
   } catch { return []; }
 }
 
+// Mirrors backend esign.rs::QueueItem — documents awaiting my signature.
+export type SignQueueItem = {
+  request_id: string;
+  signer_id: string;
+  file_id: string;
+  file_name: string;
+  message: string | null;
+  order_mode: string;
+  seq: number;
+  created_at: string;
+  expires_at: string | null;
+  my_turn: boolean;
+};
+
+export async function safeSignQueue(cookieHeader?: string): Promise<SignQueueItem[]> {
+  try {
+    const r = await fetch(`${BASE}/api/sign-requests/mine`, {
+      cache: "no-store",
+      headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+    });
+    if (!r.ok) return [];
+    return (await r.json()) as SignQueueItem[];
+  } catch { return []; }
+}
+
 export async function safeOrgs(system_id?: string, cookieHeader?: string): Promise<Org[]> {
   if (cookieHeader === undefined) {
     try { return await api.orgs(system_id); } catch { return []; }

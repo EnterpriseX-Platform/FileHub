@@ -27,6 +27,7 @@ type SignRequest = {
   expires_at: string | null;
   signers: Signer[];
 };
+type SignatureMark = { id: string; label: string; kind: string; image: string; created_at: string };
 
 /// Electronic-signature panel on the file view. Shows signing requests and
 /// their signers, lets editors start a request, and lets an assigned signer
@@ -40,6 +41,12 @@ export function SignPanel({ fileId, canRequest }: { fileId: string; canRequest: 
   const [selected, setSelected] = React.useState<string[]>([]);
   const [mode, setMode] = React.useState<"sequential" | "parallel">("sequential");
   const [busy, setBusy] = React.useState(false);
+  // Signature-mark library (backend: GET/POST /api/signatures). Loaded lazily
+  // the first time it's the user's turn to sign; `markId` is what gets sent
+  // as signature_id.
+  const [marks, setMarks] = React.useState<SignatureMark[] | null>(null);
+  const [markId, setMarkId] = React.useState<string | null>(null);
+  const markInputRef = React.useRef<HTMLInputElement>(null);
 
   const base = `/filehub/api/files/${encodeURIComponent(fileId)}/sign-requests`;
 
@@ -70,10 +77,43 @@ export function SignPanel({ fileId, canRequest }: { fileId: string; canRequest: 
         method: "POST",
         credentials: "include",
         headers: { "content-type": "application/json" },
-        body: "{}",
+        body: JSON.stringify(action === "sign" && markId ? { signature_id: markId } : {}),
       });
       await load();
     } finally { setBusy(false); }
+  };
+
+  const loadMarks = React.useCallback(async () => {
+    try {
+      const r = await fetch("/filehub/api/signatures", { credentials: "include", cache: "no-store" });
+      if (r.ok) {
+        const rows: SignatureMark[] = await r.json();
+        setMarks(rows);
+        setMarkId((cur) => cur ?? rows[0]?.id ?? null);
+      }
+    } catch { /* section degrades to sign-without-mark */ }
+  }, []);
+
+  // Upload an image file as a new signature mark (stored as a data URL).
+  const addMark = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      setBusy(true);
+      try {
+        const r = await fetch("/filehub/api/signatures", {
+          method: "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ label: file.name.replace(/\.[a-z0-9]+$/i, ""), kind: "uploaded", image: reader.result }),
+        });
+        if (r.ok) {
+          const created: SignatureMark = await r.json();
+          setMarks((m) => [created, ...(m ?? [])]);
+          setMarkId(created.id);
+        }
+      } finally { setBusy(false); }
+    };
+    reader.readAsDataURL(file);
   };
 
   const createRequest = async () => {
@@ -140,18 +180,41 @@ export function SignPanel({ fileId, canRequest }: { fileId: string; canRequest: 
                   })}
                 </div>
                 {mine && req.status === "pending" && (
-                  <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                    <button className="btn xs primary" disabled={busy || !myTurn(req, mine)} onClick={() => act(req.id, "sign")}>
-                      {myTurn(req, mine) ? t("esign.sign") : t("esign.waiting")}
-                    </button>
-                    <button className="btn xs ghost" disabled={busy} onClick={() => act(req.id, "decline")}>{t("esign.decline")}</button>
-                  </div>
+                  <>
+                    {myTurn(req, mine) && (
+                      <MarkPicker
+                        marks={marks}
+                        markId={markId}
+                        onPick={setMarkId}
+                        onAdd={() => markInputRef.current?.click()}
+                        onFirstRender={loadMarks}
+                        busy={busy}
+                        t={t}
+                      />
+                    )}
+                    <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                      <button className="btn xs primary" disabled={busy || !myTurn(req, mine)} onClick={() => act(req.id, "sign")}>
+                        {myTurn(req, mine) ? t("esign.sign") : t("esign.waiting")}
+                      </button>
+                      <button className="btn xs ghost" disabled={busy} onClick={() => act(req.id, "decline")}>{t("esign.decline")}</button>
+                    </div>
+                  </>
                 )}
               </div>
             );
           })}
         </div>
       )}
+
+      {/* Hidden file input for uploading a signature-mark image. */}
+      <input
+        ref={markInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: "none" }}
+        aria-label={t("esign.addMark")}
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) addMark(f); e.target.value = ""; }}
+      />
 
       {canRequest && !picking && (
         <button className="btn xs" onClick={() => setPicking(true)}><Ico.plus className="icon sm" /> {t("esign.request")}</button>
@@ -183,5 +246,53 @@ export function SignPanel({ fileId, canRequest }: { fileId: string; canRequest: 
         </div>
       )}
     </section>
+  );
+}
+
+/// Signature-mark chooser shown when it's the user's turn: saved marks as
+/// selectable thumbnails, "no mark" for a bare e-signature, and an upload
+/// entry into the personal library (POST /api/signatures).
+function MarkPicker({ marks, markId, onPick, onAdd, onFirstRender, busy, t }: {
+  marks: SignatureMark[] | null;
+  markId: string | null;
+  onPick: (id: string | null) => void;
+  onAdd: () => void;
+  onFirstRender: () => void;
+  busy: boolean;
+  t: (k: string) => string;
+}) {
+  React.useEffect(() => { if (marks === null) onFirstRender(); }, [marks, onFirstRender]);
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div className="t-xs t-subtle" style={{ marginBottom: 4 }}>{t("esign.signAs")}</div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+        {(marks ?? []).map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            title={m.label}
+            onClick={() => onPick(m.id)}
+            style={{
+              padding: 2, borderRadius: 8, cursor: "pointer", background: "var(--bg)",
+              border: markId === m.id ? "2px solid var(--accent)" : "1px solid var(--border)",
+            }}
+          >
+            {/* Data-URL mark from the user's own library — plain img on purpose. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={m.image} alt={m.label} style={{ height: 28, maxWidth: 90, display: "block", objectFit: "contain" }} />
+          </button>
+        ))}
+        <button
+          type="button"
+          className={"btn xs" + (markId === null ? " primary" : " ghost")}
+          onClick={() => onPick(null)}
+        >
+          {t("esign.noMark")}
+        </button>
+        <button type="button" className="btn xs ghost" disabled={busy} onClick={onAdd}>
+          <Ico.plus className="icon sm" /> {t("esign.addMark")}
+        </button>
+      </div>
+    </div>
   );
 }
