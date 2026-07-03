@@ -5,6 +5,7 @@ import * as React from "react";
 import { Ico } from "@/components/icons";
 import { Ft, Pill } from "@/components/primitives";
 import { useI18n } from "@/lib/i18n";
+import { useViewMode } from "@/lib/view-mode";
 
 // Mirrors backend ai_api.rs::SemanticHit.
 type Hit = {
@@ -112,10 +113,11 @@ export function SemanticSearch() {
 }
 
 function HitCard({ hit }: { hit: Hit }) {
+  const { mode } = useViewMode();
   const pct = Math.max(0, Math.min(100, Math.round(hit.score * 100)));
   return (
     <a
-      href={`/filehub/files/${encodeURIComponent(hit.file_id)}`}
+      href={`/filehub/${mode === "everyday" ? "f" : "files"}/${encodeURIComponent(hit.file_id)}`}
       className="card"
       style={{ display: "flex", gap: 12, padding: 14, textDecoration: "none", color: "inherit", alignItems: "flex-start" }}
     >

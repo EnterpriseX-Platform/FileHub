@@ -34,6 +34,14 @@ export function MyFilesClient({
   const [q, setQ] = React.useState("");
   const [area, setArea] = React.useState<string>("all");
 
+  // ⌘K "search files" from the everyday shell lands here as /my?q=term —
+  // seed the filter box once on mount (window API avoids the useSearchParams
+  // Suspense requirement in a client component).
+  React.useEffect(() => {
+    const initial = new URLSearchParams(window.location.search).get("q");
+    if (initial) setQ(initial);
+  }, []);
+
   const heading = titleKey ? t(titleKey) : (title ?? t("eday.nav.myfiles"));
   const term = q.trim().toLowerCase();
   const areaName = React.useMemo(() => {

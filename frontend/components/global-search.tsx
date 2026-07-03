@@ -6,6 +6,7 @@ import * as React from "react";
 import { Ico } from "@/components/icons";
 import { Kbd } from "@/components/primitives";
 import { useI18n } from "@/lib/i18n";
+import { useViewMode } from "@/lib/view-mode";
 
 /// Unified search/command palette. One entry point for the three things that
 /// used to be scattered across a sidebar box, a "Search" page, and an "Ask"
@@ -14,6 +15,9 @@ import { useI18n } from "@/lib/i18n";
 /// selection, Enter activates it; the "Go to" list jumps to a destination.
 type Mode = "files" | "meaning" | "ask";
 
+/// "Go to" destinations differ per shell — from the everyday app the palette
+/// must never route into the Admin console (that switch lives in the user
+/// menu, explicitly).
 const NAV_TARGETS: { labelKey: string; href: string; key: string }[] = [
   { labelKey: "nav.dashboard", href: "/",         key: "dashboard" },
   { labelKey: "nav.files",     href: "/files",    key: "files" },
@@ -25,9 +29,21 @@ const NAV_TARGETS: { labelKey: string; href: string; key: string }[] = [
   { labelKey: "nav.settings",  href: "/settings", key: "settings" },
 ];
 
+const EDAY_NAV_TARGETS: { labelKey: string; href: string; key: string }[] = [
+  { labelKey: "eday.nav.home",    href: "/home",    key: "home" },
+  { labelKey: "eday.nav.myfiles", href: "/my",      key: "my" },
+  { labelKey: "eday.nav.shared",  href: "/shared",  key: "shared" },
+  { labelKey: "eday.nav.starred", href: "/starred", key: "starred" },
+  { labelKey: "nav.ask",          href: "/ask",     key: "ask" },
+  { labelKey: "nav.upload",       href: "/upload",  key: "upload" },
+];
+
 export function GlobalSearch() {
   const router = useRouter();
   const { t } = useI18n();
+  const { mode: viewMode } = useViewMode();
+  const everyday = viewMode === "everyday";
+  const navTargets = everyday ? EDAY_NAV_TARGETS : NAV_TARGETS;
   const [openState, setOpen] = React.useState(false);
   const [mode, setMode] = React.useState<Mode>("files");
   const [q, setQ] = React.useState("");
@@ -61,14 +77,15 @@ export function GlobalSearch() {
     const dest =
       mode === "ask" ? `/ask?q=${encodeURIComponent(term)}`
       : mode === "meaning" ? `/search?q=${encodeURIComponent(term)}`
+      : everyday ? `/my?q=${encodeURIComponent(term)}`
       : `/files?q=${encodeURIComponent(term)}`;
     go(dest);
   };
 
   const lower = term.toLowerCase();
   const navMatches = lower
-    ? NAV_TARGETS.filter((n) => t(n.labelKey).toLowerCase().includes(lower))
-    : NAV_TARGETS;
+    ? navTargets.filter((n) => t(n.labelKey).toLowerCase().includes(lower))
+    : navTargets;
 
   // Flat action list drives keyboard selection: the search-run row (when there
   // is a query) sits at index 0, the nav jumps follow.
