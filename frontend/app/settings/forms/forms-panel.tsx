@@ -4,6 +4,7 @@ import Link from "next/link";
 import * as React from "react";
 
 import { Ico } from "@/components/icons";
+import { Modal } from "@/components/modal";
 import { Pill } from "@/components/primitives";
 import { KindGlyph, KindTile, colorVar, FORM_COLORS, GLYPHS } from "@/components/everyday/request-bits";
 import type { FormAdmin, FormField, WorkflowTemplate } from "@/lib/api";
@@ -61,22 +62,25 @@ export function FormsPanel({ initial, templates, canMutate }: {
     } finally { setBusy(false); }
   };
 
-  if (editing) {
-    return (
-      <FormBuilder
-        initial={editing === "new" ? null : editing}
-        templates={templates}
-        busy={busy}
-        err={err}
-        onSave={(body) => save(body, editing === "new" ? null : editing.id)}
-        onCancel={() => { setEditing(null); setErr(null); }}
-      />
-    );
-  }
-
   return (
     <div>
-      {err && <div className="t-xs" style={{ color: "var(--danger)", marginBottom: 8 }}>{err}</div>}
+      {editing && (
+        <Modal
+          title={editing === "new" ? "New form" : "Edit form"}
+          wide
+          onClose={() => { setEditing(null); setErr(null); }}
+        >
+          <FormBuilder
+            initial={editing === "new" ? null : editing}
+            templates={templates}
+            busy={busy}
+            err={err}
+            onSave={(body) => save(body, editing === "new" ? null : editing.id)}
+            onCancel={() => { setEditing(null); setErr(null); }}
+          />
+        </Modal>
+      )}
+      {err && !editing && <div className="t-xs" style={{ color: "var(--danger)", marginBottom: 8 }}>{err}</div>}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
         {forms.map((f) => (
@@ -196,10 +200,10 @@ function FormBuilder({ initial, templates, busy, err, onSave, onCancel }: {
   };
 
   return (
-    <div className="card" style={{ padding: 18 }}>
+    <div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
         <KindTile icon={icon} color={color} />
-        <div className="t-lg t-semibold">{initial ? "Edit form" : "New form"}</div>
+        <div className="t-sm t-subtle">Live preview</div>
         <div style={{ flex: 1 }} />
         <label className="t-xs" style={{ display: "flex", gap: 5, alignItems: "center" }}>
           <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> Visible in everyday
