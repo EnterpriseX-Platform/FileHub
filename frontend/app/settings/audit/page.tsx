@@ -35,7 +35,7 @@ export default async function SettingsAuditPage({ searchParams }: { searchParams
       <div className="main split-rail" style={{ overflow: "auto" }}>
         <SettingsNav active="audit" />
         <div style={{ overflow: "auto" }} className="main-pad">
-          <div style={{ maxWidth: 1100 }}>
+          <div className="page-body">
             <div className="t-3xl t-semibold">Audit log</div>
             <div className="t-sm t-muted" style={{ marginTop: 4, marginBottom: 24 }}>
               A complete record of workspace activity — uploads, deletions, shares, approvals, and other changes.

@@ -53,7 +53,7 @@ export function GeneralForm({ initial, canMutate }: { initial: WorkspaceConfig; 
   };
 
   return (
-    <div style={{ maxWidth: 760 }}>
+    <div>
       <div className="card" style={{ padding: 20, marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
           <div className="t-md t-semibold">Workspace identity</div>

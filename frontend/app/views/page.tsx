@@ -26,7 +26,7 @@ export default async function ViewsIndexPage() {
         actions={<Link className="btn primary" href="/views/new"><Ico.plus className="icon sm" /> New view</Link>}
       />
       <div className="main main-pad" style={{ overflow: "auto" }}>
-        <div style={{ maxWidth: 960 }}>
+        <div className="page-body">
           <div className="t-3xl t-semibold">Saved views</div>
           <div className="t-sm t-muted" style={{ marginTop: 4, marginBottom: 24 }}>
             {views.length} view{views.length === 1 ? "" : "s"} · live from /api/views

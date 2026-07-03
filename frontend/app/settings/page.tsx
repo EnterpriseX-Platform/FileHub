@@ -51,7 +51,7 @@ export default async function SettingsGeneralPage() {
         <SettingsNav active="general" />
 
         <div className="main-pad" style={{ overflow: "auto" }}>
-          <div style={{ maxWidth: 760 }}>
+          <div className="page-body">
             <div className="t-3xl t-semibold">General</div>
             <div className="t-sm t-muted" style={{ marginTop: 4, marginBottom: 24 }}>
               Workspace identity, access policy, and defaults

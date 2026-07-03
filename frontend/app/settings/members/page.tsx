@@ -23,7 +23,7 @@ export default async function SettingsMembersPage() {
       <div className="main split-rail" style={{ overflow: "auto" }}>
         <SettingsNav active="members" />
         <div style={{ overflow: "auto", padding: "24px 32px" }}>
-          <div style={{ maxWidth: 960 }}>
+          <div className="page-body">
             <div className="t-3xl t-semibold">Members</div>
             <div className="t-sm t-muted" style={{ marginTop: 4, marginBottom: 24 }}>
               Workspace accounts · {members.length} total · admins can invite + change roles

@@ -24,7 +24,7 @@ export default async function SettingsWorkflowsPage() {
       <div className="main split-rail" style={{ overflow: "auto" }}>
         <SettingsNav active="workflows" />
         <div style={{ overflow: "auto", padding: "24px 32px" }}>
-          <div style={{ maxWidth: 760 }}>
+          <div className="page-body">
             <div className="t-3xl t-semibold">Workflow templates</div>
             <div className="t-sm t-muted" style={{ marginTop: 4, marginBottom: 24 }}>
               Define an approval route once — named steps, each assigned to a reviewer,
