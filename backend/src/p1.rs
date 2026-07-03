@@ -648,7 +648,13 @@ pub async fn create_comment(
         "SELECT system_id FROM files WHERE id = $1 AND deleted_at IS NULL"
     ).bind(file_id).fetch_optional(&s.db).await?;
     let (system_id,) = sys_row.ok_or(ApiError::NotFound)?;
-    crate::auth::ensure_system_access(&s.db, &user.0, &system_id).await?;
+    // Access denial → 404, matching list_comments: commenting has no role gate
+    // (viewers may comment), so ensure_system_access is the only discriminator.
+    // Propagating its 403 would let a probe distinguish "exists but hidden"
+    // from "doesn't exist" on someone else's personal-drive file.
+    if crate::auth::ensure_system_access(&s.db, &user.0, &system_id).await.is_err() {
+        return Err(ApiError::NotFound);
+    }
     let id = Uuid::now_v7();
     sqlx::query(
         r#"INSERT INTO file_comments (id, file_id, user_id, parent_id, body)
@@ -672,7 +678,10 @@ pub async fn delete_comment(
         "SELECT system_id FROM files WHERE id = $1 AND deleted_at IS NULL"
     ).bind(file_id).fetch_optional(&s.db).await?;
     let (system_id,) = sys_row.ok_or(ApiError::NotFound)?;
-    crate::auth::ensure_system_access(&s.db, &user.0, &system_id).await?;
+    // Access denial → 404 (no existence leak), consistent with the read path.
+    if crate::auth::ensure_system_access(&s.db, &user.0, &system_id).await.is_err() {
+        return Err(ApiError::NotFound);
+    }
     let owner: Option<(String,)> = sqlx::query_as(
         "SELECT user_id FROM file_comments WHERE id = $1 AND file_id = $2"
     ).bind(comment_id).bind(file_id).fetch_optional(&s.db).await?;

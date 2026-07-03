@@ -40,8 +40,13 @@ pub struct NewTemplate {
 /// GET /fh/api/workflow-templates — reusable flow templates.
 pub async fn list_templates(
     State(s): State<Arc<AppState>>,
-    _user: AuthUser,
+    user: AuthUser,
 ) -> ApiResult<Json<Vec<WorkflowTemplate>>> {
+    // Templates are only ever used by admins (Settings › Workflows) and
+    // editors (the "Start workflow" panel). Gate reads to editor+ so a viewer
+    // can't enumerate approval routes + reviewer identities they never need —
+    // matching create/delete, which are already editor+.
+    require_role(&user.0, &["admin", "editor"])?;
     Ok(Json(sqlx::query_as::<_, WorkflowTemplate>(
         "SELECT id, name, description, order_mode, steps, created_at FROM workflow_templates ORDER BY created_at DESC",
     )
