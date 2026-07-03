@@ -17,6 +17,10 @@ type Item = {
   deleted_at: string | null;
 };
 type Report = { active: number; inactive: number; retention: number; deleted: number; items: Item[] };
+type AiBucket = { key: string; ops: number; input_tokens: number; output_tokens: number };
+type AiUsage = { total_ops: number; total_input_tokens: number; total_output_tokens: number; by_op: AiBucket[]; by_model: AiBucket[] };
+
+const fmtTok = (n: number) => (n >= 1_000_000 ? (n / 1_000_000).toFixed(1) + "M" : n >= 1_000 ? (n / 1_000).toFixed(1) + "k" : String(n));
 
 const STATE_TONE: Record<string, "emerald" | "amber" | "rose" | "slate"> = {
   active: "emerald",
@@ -28,6 +32,7 @@ const STATE_TONE: Record<string, "emerald" | "amber" | "rose" | "slate"> = {
 export function ReportsClient() {
   const { t } = useI18n();
   const [rep, setRep] = React.useState<Report | null>(null);
+  const [ai, setAi] = React.useState<AiUsage | null>(null);
 
   React.useEffect(() => {
     (async () => {
@@ -35,6 +40,11 @@ export function ReportsClient() {
         const r = await fetch("/filehub/api/reports/status", { credentials: "include", cache: "no-store" });
         if (r.ok) setRep(await r.json());
       } catch { /* empty state */ }
+      try {
+        // Admin-only metering; non-admins get 403 and the panel stays hidden.
+        const r = await fetch("/filehub/api/reports/ai-usage", { credentials: "include", cache: "no-store" });
+        if (r.ok) setAi(await r.json());
+      } catch { /* hidden */ }
     })();
   }, []);
 
@@ -67,6 +77,31 @@ export function ReportsClient() {
           </div>
         ))}
       </div>
+
+      {/* AI usage metering — the console prototype's right-hand panel, on real
+          data (admin-only; hidden for everyone else). */}
+      {ai && ai.total_ops > 0 && (
+        <>
+          <div className="t-xs t-subtle t-medium" style={{ letterSpacing: "0.04em", textTransform: "uppercase", margin: "6px 0 8px", display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ color: "var(--c-violet)", display: "inline-flex" }}><Ico.sparkle className="icon sm" /></span>
+            {t("rep.aiUsage")}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: "var(--sp-5)" }}>
+            {ai.by_op.map((b) => (
+              <div key={b.key} className="card" style={{ padding: "16px 18px" }}>
+                <span className="t-sm t-muted">{t("rep.op." + b.key) !== "rep.op." + b.key ? t("rep.op." + b.key) : b.key}</span>
+                <div className="t-3xl t-semibold t-tabular" style={{ marginTop: 4 }}>{b.ops.toLocaleString()}</div>
+                <div className="t-xs t-subtle">{fmtTok(b.input_tokens + b.output_tokens)} tokens</div>
+              </div>
+            ))}
+            <div className="card" style={{ padding: "16px 18px" }}>
+              <span className="t-sm t-muted">{t("rep.aiTotal")}</span>
+              <div className="t-3xl t-semibold t-tabular" style={{ marginTop: 4 }}>{ai.total_ops.toLocaleString()}</div>
+              <div className="t-xs t-subtle">{fmtTok(ai.total_input_tokens + ai.total_output_tokens)} tokens</div>
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="t-xs t-subtle t-medium" style={{ letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 8 }}>
         {t("rep.docState")}

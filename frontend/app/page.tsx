@@ -6,7 +6,6 @@ import { Ico } from "@/components/icons";
 import { SectionHd } from "@/components/primitives";
 import { Sidebar } from "@/components/sidebar";
 import { TopBar } from "@/components/topbar";
-import { Ft } from "@/components/primitives";
 import { UserGreeting } from "@/components/user-greeting";
 import { safeStats, safeActivity, safeSystems, safeFiles, safeViews, safeOrgs } from "@/lib/api";
 import { loadServerCtx } from "@/lib/auth-server";
@@ -16,6 +15,7 @@ import { hrefForView } from "@/lib/view-href";
 import Link from "next/link";
 
 import { DashboardActivity } from "./dashboard-activity";
+import { ReviewQueue } from "./review-queue";
 import { SyncButton } from "./sync-button";
 
 /// SVG donut of storage share per system (server-rendered — no client JS).
@@ -157,29 +157,17 @@ export default async function DashboardPage() {
         )}
 
         {/* What needs you — the only actionable block, so it comes first,
-            full-width. */}
-        {reviewFiles.length > 0 && (
-          <div className="card" style={{ padding: 16, marginBottom: 16 }}>
-            <SectionHd
-              title="Needs your review"
-              sub={`${reviewFiles.length} item${reviewFiles.length === 1 ? "" : "s"}`}
-              action={<Link className="btn xs ghost" href="/files?status=Review">View all <Ico.chevron className="icon sm" /></Link>}
-            />
-            {reviewFiles.map((f, i) => {
-              const sys = systems.find((s) => s.id === f.system_id);
-              return (
-                <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: i ? "1px solid var(--border-subtle)" : "none" }}>
-                  <Ft type={f.file_type} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <a href={`/files/${f.id}`} className="t-base t-medium t-trunc" style={{ color: "var(--text)", display: "block" }}>{f.name}</a>
-                    <div className="t-xs t-muted t-trunc">{sys?.name ?? f.system_id} · {f.owner}</div>
-                  </div>
-                  <a className="btn xs primary" href={`/files/${f.id}`}>Review</a>
-                </div>
-              );
-            })}
-          </div>
-        )}
+            full-width. Approve acts inline (console-prototype behavior). */}
+        <ReviewQueue
+          mayMutate={canMutate(role)}
+          items={reviewFiles.map((f) => ({
+            id: f.id,
+            name: f.name,
+            file_type: f.file_type,
+            owner: f.owner,
+            systemName: systems.find((s) => s.id === f.system_id)?.name ?? f.system_id,
+          }))}
+        />
 
         <div className="content-grid-2col">
           <div className="card" style={{ padding: 0, alignSelf: "start" }}>

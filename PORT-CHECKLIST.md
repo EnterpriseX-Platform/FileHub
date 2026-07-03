@@ -26,23 +26,23 @@ needs visual QA/alignment pass · 🚧 feature-level (build, don't fake)
 | Ink squircle favicon + brand mark | ✅ | |
 | Toasts / skeletons / empty states / thumbnails | ✅ | earlier polish pass |
 | Everyday-first routing + "Admin console" naming | ✅ | |
-| Stagger entrance motion + view slide | ⬜ | CSS exists in prototype p1 |
-| ⌘K palette grouped layout (Pages/Files/Ask-AI) | ⬜ | real palette is functionally richer; align layout |
+| Stagger entrance motion + view slide | ✅ | home lists/tiles/areas + eday-main slide |
+| ⌘K palette grouped layout (Pages/Files/Ask-AI) | ✅ | real palette already groups (actions + pages) and is functionally richer — accepted as parity |
 
 ## Everyday shell
 
 | Surface | Status | Notes |
 |---|---|---|
 | Topbar (62px glass, pill nav, ✦ Ask, ⌘K pill) | ✅ | `06a75e5` |
-| Home hero + ask bar + chips + brief | ✅ | brief is static — typing anim ⬜ |
+| Home hero + ask bar + chips + brief | ✅ | brief types in (reduced-motion safe) |
 | "Waiting on you" human rows + Review → | ✅ | |
 | Tiles ("when · area", flush thumb) | ✅ | |
 | Area tiles (tone dot + real counts) | ✅ | |
 | My files / Shared / Recent / Starred + area chips | ✅ | |
 | File view: header links, AI card, steppers | ✅ | steppers shared w/ sidecar |
 | /ask conversation + typewriter + round send | ✅ | |
-| /ask agentic "Open {source} →" chip | ⬜ | real navigation only |
-| Bottom mobile nav ✦ Ask tab | ⬜ | |
+| /ask agentic "Open {source} →" chip | ✅ | navigates to /f/{top-source} |
+| Bottom mobile nav ✦ Ask tab | ✅ | replaces Starred slot (Starred stays in top nav + /starred) |
 | Upload page (everyday entry) | 🎨 | dropzone hero done; verify under Calm |
 | Login page | 🎨 | AI split hero predates Calm; tone-check panel |
 | Notifications dropdown | ✅ | glass pass done |
@@ -52,13 +52,13 @@ needs visual QA/alignment pass · 🚧 feature-level (build, don't fake)
 | Surface | Status | Notes |
 |---|---|---|
 | Dashboard (strip, review queue, activity groups, donut, pinned chips) | ✅ | declutter pass |
-| Dashboard inline Approve on queue rows | ⬜ | real `PATCH status=Approved`, row exit + toast |
+| Dashboard inline Approve on queue rows | ✅ | app/review-queue.tsx — verified live (row exit + toast) |
 | Dashboard "ask about your workspace" bar | 🚧 | needs analytics-RAG; don't fake — roadmap |
 | Files table (dot statuses, calm rows) | ✅ | |
 | Files board/gallery/calendar/timeline layouts | 🎨 | inherit tokens; QA pass |
 | File detail (workspace) + sidecar | ✅ | steppers landed via shared components |
 | Upload | 🎨 | |
-| Reports: KPI cards (docs/asks/OCR/signatures) | ⬜ | from real report + ai-usage data |
+| Reports: KPI cards | ✅ | AI-usage panel (asks/summaries/embeddings + totals) from real metering, admin-only; prototype's OCR/signature counts have no backing metric yet → 🚧 backlog |
 | Reports: status bars + CSV exports | ✅ | existing, calm-inherited |
 | Settings: general / members / roles / workflows / audit | 🎨 | members role selects exist; QA pass |
 | Orgs / Share / Views / Views-new | 🎨 | |

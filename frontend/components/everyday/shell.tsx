@@ -64,7 +64,7 @@ export function EverydayShell({ children }: { children: React.ReactNode }) {
           <a href="/upload" className="eday-bottom-upload" aria-label="Upload"><Ico.upload /></a>
         )}
         <BottomTab href="/shared" icon={<Ico.share />} label={t("eday.nav.shared")} active={pathname === "/shared"} />
-        <BottomTab href="/starred" icon={<Ico.star />} label={t("eday.nav.starred")} active={pathname === "/starred"} />
+        <BottomTab href="/ask" icon={<Ico.sparkle />} label={t("nav.ask")} active={pathname === "/ask"} />
       </nav>
     </div>
   );
