@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { Ico } from "@/components/icons";
+import { Modal } from "@/components/modal";
 import { Pill } from "@/components/primitives";
 import type { Member, WorkflowTemplate, WorkflowTemplateStep } from "@/lib/api";
 import { fmtAgo } from "@/lib/format";
@@ -106,20 +107,26 @@ export function WorkflowsPanel({ initial, members, canMutate }: {
         ))}
       </div>
 
-      {canMutate && !creating && !editing && (
-        <button className="btn" onClick={() => setCreating(true)}>
+      {canMutate && (
+        <button className="btn" onClick={() => { setEditing(null); setCreating(true); }}>
           <Ico.plus className="icon sm" /> New template
         </button>
       )}
       {canMutate && (creating || editing) && (
-        <TemplateForm
-          key={editing?.id ?? "new"}
-          initial={editing}
-          members={active}
-          busy={busy}
-          onSubmit={(body) => save(body, editing?.id ?? null)}
-          onCancel={() => { setCreating(false); setEditing(null); }}
-        />
+        <Modal
+          title={editing ? "Edit template" : "New template"}
+          wide
+          onClose={() => { setCreating(false); setEditing(null); setErr(null); }}
+        >
+          <TemplateForm
+            key={editing?.id ?? "new"}
+            initial={editing}
+            members={active}
+            busy={busy}
+            onSubmit={(body) => save(body, editing?.id ?? null)}
+            onCancel={() => { setCreating(false); setEditing(null); }}
+          />
+        </Modal>
       )}
     </div>
   );
@@ -207,9 +214,7 @@ function TemplateForm({ initial, members, busy, onSubmit, onCancel }: {
   );
 
   return (
-    <div className="card" style={{ padding: 16 }}>
-      <div className="t-sm t-semibold" style={{ marginBottom: 10 }}>{initial ? "Edit template" : "New template"}</div>
-
+    <div>
       <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
         <input className="field" style={{ flex: "2 1 200px" }} value={name}
           onChange={(e) => setName(e.target.value)} placeholder="Template name (e.g. Contract approval)" />
