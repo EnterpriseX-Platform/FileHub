@@ -273,8 +273,9 @@ export default async function FilesTablePage({ searchParams }: FilesPageProps) {
               })}
             </div>
 
-            {/* Child folders to drill into */}
-            {childFolders.length > 0 && (
+            {/* Child folders to drill into. Shown whenever we're inside a folder
+                (so "Up" is always available) or there are subfolders to open. */}
+            {(folderId || childFolders.length > 0) && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {folderId && (
                   <Link
