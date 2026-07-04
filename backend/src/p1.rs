@@ -353,7 +353,20 @@ pub struct DecideStep {
 }
 
 /// Notify a reviewer that a document awaits their review (in-app + email).
+/// Resolve the human link for a workflow subject: the friendly request view if
+/// this file anchors a request, otherwise the everyday file view. So a reviewer
+/// notified about a request lands on the request, not its raw anchor document.
+pub(crate) async fn subject_link(db: &sqlx::PgPool, file_id: Uuid) -> String {
+    let req: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM requests WHERE file_id = $1 LIMIT 1")
+        .bind(file_id).fetch_optional(db).await.ok().flatten();
+    match req {
+        Some((rid,)) => format!("/requests/{rid}"),
+        None => format!("/f/{file_id}"),
+    }
+}
+
 pub(crate) async fn notify_reviewer(db: &sqlx::PgPool, reviewer_id: &str, note: &Option<String>, file_id: Uuid) {
+    let link = subject_link(db, file_id).await;
     let _ = sqlx::query(
         r#"INSERT INTO notifications (id, user_id, kind, title, body, link)
            VALUES ($1, $2, 'review_requested', $3, $4, $5)"#,
@@ -361,14 +374,14 @@ pub(crate) async fn notify_reviewer(db: &sqlx::PgPool, reviewer_id: &str, note: 
     .bind(Uuid::now_v7()).bind(reviewer_id)
     .bind("Review requested")
     .bind(note.clone().unwrap_or_default())
-    .bind(format!("/f/{file_id}"))
+    .bind(&link)
     .execute(db).await;
 
     if crate::mailer::enabled() {
         if let Ok(Some((email,))) = sqlx::query_as::<_, (String,)>("SELECT email FROM users WHERE id = $1")
             .bind(reviewer_id).fetch_optional(db).await
         {
-            let body = format!("A document needs your review.\n\nOpen: {}/f/{file_id}", crate::mailer::base_url());
+            let body = format!("A document needs your review.\n\nOpen: {}{link}", crate::mailer::base_url());
             tokio::spawn(async move { let _ = crate::mailer::send(&email, "Review requested", &body).await; });
         }
     }
@@ -576,13 +589,14 @@ pub async fn decide_step(
             "SELECT created_by, file_id FROM file_workflows WHERE id = $1"
         ).bind(wf_id).fetch_optional(&s.db).await?;
         if let Some((Some(uid), file_id)) = creator {
+            let link = subject_link(&s.db, file_id).await;
             let _ = sqlx::query(
                 r#"INSERT INTO notifications (id, user_id, kind, title, link)
                    VALUES ($1, $2, $3, $4, $5)"#,
             )
             .bind(Uuid::now_v7()).bind(uid).bind(state.to_lowercase())
             .bind(format!("Workflow {state}"))
-            .bind(format!("/files/{file_id}"))
+            .bind(&link)
             .execute(&s.db).await;
         }
     }
