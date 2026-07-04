@@ -9,6 +9,8 @@ to get a dev environment running, and [CLAUDE.md](CLAUDE.md) for architecture.
 
 ## Recently shipped
 
+- **Folder navigation** in `/files` — breadcrumb + drill-in child folders + `folder_id`
+  scoping (`frontend/app/files/page.tsx`, `GET /api/files?folder_id=`). (Was P1 #3.)
 - **Requests — AI-first form/document approvals** (`backend/src/requests.rs`, migrations
   `0022`–`0024`, `frontend/app/(everyday)/requests/*`). Chat-first or manual intake,
   admin-authored forms + routes (**Form Designer** `/settings/forms`, **Workflow Designer**
@@ -44,15 +46,6 @@ to get a dev environment running, and [CLAUDE.md](CLAUDE.md) for architecture.
 ---
 
 ## P1 — correctness & UX at scale
-
-### 3. Folder hierarchy navigation
-- **What:** let users drill into folders in `/files` (breadcrumb + folder rows +
-  `folder_id` filter), not just create them.
-- **Why:** folders exist (`folders` table + `files.folder_id`) but the list is flat —
-  there's no way to browse into a folder.
-- **Where:** `frontend/app/files/*` + `GET /api/files?folder_id=` (the param exists on the
-  upload path; ensure list honours it).
-- **Effort:** M.
 
 ### 4. Bulk move + bulk share; inline rename
 - **What:** extend the multi-select bulk bar (Download/Delete done) with Move-to-folder and
