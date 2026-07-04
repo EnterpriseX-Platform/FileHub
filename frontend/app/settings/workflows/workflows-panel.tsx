@@ -7,6 +7,7 @@ import { Modal } from "@/components/modal";
 import { Pill } from "@/components/primitives";
 import type { Member, WorkflowTemplate, WorkflowTemplateStep } from "@/lib/api";
 import { fmtAgo } from "@/lib/format";
+import { useI18n } from "@/lib/i18n";
 
 /// Template list + builder over GET/POST/DELETE /api/workflow-templates.
 /// Steps are built as ordered rows (reviewer + optional step label) with
@@ -16,6 +17,7 @@ export function WorkflowsPanel({ initial, members, canMutate }: {
   members: Member[];
   canMutate: boolean;
 }) {
+  const { t } = useI18n();
   const [templates, setTemplates] = React.useState(initial);
   const [creating, setCreating] = React.useState(false);
   const [editing, setEditing] = React.useState<WorkflowTemplate | null>(null);
@@ -69,10 +71,7 @@ export function WorkflowsPanel({ initial, members, canMutate }: {
 
       {templates.length === 0 && !creating && (
         <div className="card" style={{ padding: 20, marginBottom: 16 }}>
-          <div className="t-sm t-muted">
-            No templates yet. A template is a saved approval route — e.g. section head → division director → deputy governor —
-            that editors reuse from any file&apos;s workflow panel.
-          </div>
+          <div className="t-sm t-muted">{t("des.noTemplates")}</div>
         </div>
       )}
 
@@ -84,7 +83,7 @@ export function WorkflowsPanel({ initial, members, canMutate }: {
               <Pill sm>{tp.order_mode === "parallel" ? "any order" : "in order"}</Pill>
               <span className="t-xs t-subtle">{fmtAgo(tp.created_at)}</span>
               {canMutate && (
-                <button className="btn xs" disabled={busy} onClick={() => { setCreating(false); setEditing(tp); }}>Edit</button>
+                <button className="btn xs" disabled={busy} onClick={() => { setCreating(false); setEditing(tp); }}>{t("des.edit")}</button>
               )}
               {canMutate && (
                 <button className="btn xs ghost" disabled={busy} onClick={() => remove(tp.id)}
@@ -109,12 +108,12 @@ export function WorkflowsPanel({ initial, members, canMutate }: {
 
       {canMutate && (
         <button className="btn" onClick={() => { setEditing(null); setCreating(true); }}>
-          <Ico.plus className="icon sm" /> New template
+          <Ico.plus className="icon sm" /> {t("des.newTemplate")}
         </button>
       )}
       {canMutate && (creating || editing) && (
         <Modal
-          title={editing ? "Edit template" : "New template"}
+          title={editing ? t("des.editTemplate") : t("des.newTemplate")}
           wide
           onClose={() => { setCreating(false); setEditing(null); setErr(null); }}
         >
@@ -147,6 +146,7 @@ function TemplateForm({ initial, members, busy, onSubmit, onCancel }: {
   onSubmit: (body: { name: string; description?: string; order_mode: string; steps: WorkflowTemplateStep[] }) => void;
   onCancel: () => void;
 }) {
+  const { t } = useI18n();
   const [name, setName] = React.useState(initial?.name ?? "");
   const [description, setDescription] = React.useState(initial?.description ?? "");
   const [mode, setMode] = React.useState<"sequential" | "parallel">(initial?.order_mode === "parallel" ? "parallel" : "sequential");
@@ -204,7 +204,7 @@ function TemplateForm({ initial, members, busy, onSubmit, onCancel }: {
         </select>
         <input className="field" style={{ height: 30, width: "100%" }} value={st.name}
           onChange={(e) => setStep(i, { name: e.target.value })}
-          placeholder="Step label (e.g. Section head)" />
+          placeholder={t("des.stepLabelPh")} />
       </div>
       <button className="btn xs ghost" onClick={() => removeAt(i)} disabled={steps.length === 1}
         title="Remove step" aria-label={`Remove step ${i + 1}`}>
@@ -217,20 +217,20 @@ function TemplateForm({ initial, members, busy, onSubmit, onCancel }: {
     <div>
       <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
         <input className="field" style={{ flex: "2 1 200px" }} value={name}
-          onChange={(e) => setName(e.target.value)} placeholder="Template name (e.g. Contract approval)" />
+          onChange={(e) => setName(e.target.value)} placeholder={t("des.templateNamePh")} />
         <input className="field" style={{ flex: "3 1 240px" }} value={description}
-          onChange={(e) => setDescription(e.target.value)} placeholder="Description (optional)" />
+          onChange={(e) => setDescription(e.target.value)} placeholder={t("des.templateDescPh")} />
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
         <label className="t-xs" style={{ display: "flex", gap: 4, alignItems: "center" }}>
-          <input type="radio" checked={mode === "sequential"} onChange={() => setMode("sequential")} /> In order
+          <input type="radio" checked={mode === "sequential"} onChange={() => setMode("sequential")} /> {t("des.inOrder")}
         </label>
         <label className="t-xs" style={{ display: "flex", gap: 4, alignItems: "center" }}>
-          <input type="radio" checked={mode === "parallel"} onChange={() => setMode("parallel")} /> Any order
+          <input type="radio" checked={mode === "parallel"} onChange={() => setMode("parallel")} /> {t("des.anyOrder")}
         </label>
         {mode === "sequential" && (
-          <span className="t-xs t-subtle" style={{ marginLeft: "auto" }}>drag steps to reorder</span>
+          <span className="t-xs t-subtle" style={{ marginLeft: "auto" }}>{t("des.dragReorder")}</span>
         )}
       </div>
 
@@ -238,8 +238,8 @@ function TemplateForm({ initial, members, busy, onSubmit, onCancel }: {
         <div className="flow-node terminal" style={{ padding: "9px 14px" }}>
           <span className="fn-ic start"><Ico.bolt className="icon sm" /></span>
           <div className="fn-body">
-            <span className="fn-kind">Trigger</span>
-            <span className="t-sm">A document is sent for approval</span>
+            <span className="fn-kind">{t("des.trigger")}</span>
+            <span className="t-sm">{t("des.triggerDesc")}</span>
           </div>
         </div>
         <div className="flow-line" />
@@ -269,15 +269,15 @@ function TemplateForm({ initial, members, busy, onSubmit, onCancel }: {
         <div className="flow-node terminal" style={{ padding: "9px 14px" }}>
           <span className="fn-ic end"><Ico.check className="icon sm" /></span>
           <div className="fn-body">
-            <span className="fn-kind">Done</span>
-            <span className="t-sm">All approved → document is Approved</span>
+            <span className="fn-kind">{t("des.done")}</span>
+            <span className="t-sm">{t("des.doneDesc")}</span>
           </div>
         </div>
       </div>
 
       <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
-        <button className="btn primary sm" disabled={busy || !valid} onClick={submit}>{initial ? "Save changes" : "Create template"}</button>
-        <button className="btn sm" disabled={busy} onClick={onCancel}>Cancel</button>
+        <button className="btn primary sm" disabled={busy || !valid} onClick={submit}>{initial ? t("des.saveChanges") : t("des.createTemplate")}</button>
+        <button className="btn sm" disabled={busy} onClick={onCancel}>{t("des.cancel")}</button>
       </div>
     </div>
   );
