@@ -455,10 +455,12 @@ pub fn sanitize_filename(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
     let mut leading = true;
     for ch in input.chars() {
+        // Strip path separators, control chars, and every character reserved on
+        // Windows filesystems (< > : " | ? *) so a user-supplied name (e.g. a
+        // request title used for the generated anchor doc) can't produce an
+        // un-creatable object key on the fs backend (os error 123).
         let bad = (ch as u32) < 0x20
-            || ch == '/'
-            || ch == '\\'
-            || ch == '"'
+            || matches!(ch, '/' | '\\' | '"' | '<' | '>' | ':' | '|' | '?' | '*')
             || (leading && ch == '.');
         if bad {
             out.push('_');
