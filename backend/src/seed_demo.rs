@@ -132,10 +132,10 @@ pub async fn bootstrap_demo_data(db: &PgPool) -> anyhow::Result<()> {
         .execute(&mut *tx).await?;
     sqlx::query(r#"
         INSERT INTO notifications (id, user_id, kind, title, body, link, read_at, created_at) VALUES
-          ('00000000-0000-7000-8000-000000008101'::uuid, 'usr_admin', 'review_requested',  'Review requested: contract-A12.pdf', 'Anong K. routed contract-A12.pdf for your review.',          '/files/00000000-0000-7000-8000-000000002001', NULL,                       now() - interval '3 hours'),
+          ('00000000-0000-7000-8000-000000008101'::uuid, 'usr_admin', 'review_requested',  'Review requested: contract-A12.pdf', 'Anong K. routed contract-A12.pdf for your review.',          '/requests/00000000-0000-7000-8000-00000000a101', NULL,                       now() - interval '3 hours'),
           ('00000000-0000-7000-8000-000000008102'::uuid, 'usr_admin', 'comment_mentioned', 'Pat S. mentioned you',               'Pat S. mentioned you in a comment on budget-q1-2026.xlsx.',   '/files/00000000-0000-7000-8000-000000002007', NULL,                       now() - interval '25 minutes'),
-          ('00000000-0000-7000-8000-000000008103'::uuid, 'usr_admin', 'workflow_approved', 'Budget approved',                    'budget-q1-2026.xlsx completed its approval workflow.',       '/files/00000000-0000-7000-8000-000000002007', now() - interval '1 hour', now() - interval '1 hour'),
-          ('00000000-0000-7000-8000-000000008104'::uuid, 'usr_anong', 'review_approved',   'Wisanu T. approved your file',       'Legal review passed on contract-A12.pdf.',                   '/files/00000000-0000-7000-8000-000000002001', NULL,                       now() - interval '2 hours')
+          ('00000000-0000-7000-8000-000000008103'::uuid, 'usr_admin', 'workflow_approved', 'Budget approved',                    'budget-q1-2026.xlsx completed its approval workflow.',       '/requests/00000000-0000-7000-8000-00000000a102', now() - interval '1 hour', now() - interval '1 hour'),
+          ('00000000-0000-7000-8000-000000008104'::uuid, 'usr_anong', 'review_approved',   'Wisanu T. approved your file',       'Legal review passed on contract-A12.pdf.',                   '/requests/00000000-0000-7000-8000-00000000a101', NULL,                       now() - interval '2 hours')
     "#).execute(&mut *tx).await?;
 
     // ---- Version history ---------------------------------------------------
