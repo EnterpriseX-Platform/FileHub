@@ -310,6 +310,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/reports/status.csv",     get(reports::status_csv))
         // AI usage / token metering for billing (admin-only).
         .route("/api/reports/ai-usage",       get(reports::ai_usage_report))
+        .route("/api/reports/requests",       get(reports::requests_report))
         .route("/api/activity/export.csv",    get(reports::audit_csv))
         .route("/api/activity",               get(handlers::list_activity))
         .route("/api/views",                  get(handlers::list_views).post(handlers::create_view))
