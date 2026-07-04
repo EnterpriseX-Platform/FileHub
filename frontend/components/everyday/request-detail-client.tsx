@@ -8,6 +8,7 @@ import { Ico } from "@/components/icons";
 import { KindTile, StatusPill, money } from "@/components/everyday/request-bits";
 import { WorkflowPanel } from "@/components/workflow-panel";
 import { Ft } from "@/components/primitives";
+import { useAuth } from "@/lib/auth-context";
 import type { RequestDetail } from "@/lib/api";
 import { fmtAgo, fmtBytes } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
@@ -18,8 +19,25 @@ import { useI18n } from "@/lib/i18n";
 /// pointed at the request's anchor document).
 export function RequestDetailClient({ req }: { req: RequestDetail }) {
   const { t } = useI18n();
+  const { user } = useAuth();
   const router = useRouter();
+  const [withdrawing, setWithdrawing] = React.useState(false);
+  const [confirm, setConfirm] = React.useState(false);
   const entries = Object.entries(req.form_data || {}).filter(([, v]) => v != null && String(v).trim() !== "");
+
+  // The requester may withdraw while the request is still open (not decided/withdrawn).
+  const canWithdraw = !!user && req.requester_id === user.id && (req.status === "in_review" || req.status === "submitted");
+
+  async function withdraw() {
+    setWithdrawing(true);
+    try {
+      const r = await fetch(`/filehub/api/requests/${encodeURIComponent(req.id)}/cancel`, { method: "POST", credentials: "include" });
+      if (r.ok) router.refresh();
+    } finally {
+      setWithdrawing(false);
+      setConfirm(false);
+    }
+  }
 
   return (
     <div className="page">
@@ -37,7 +55,18 @@ export function RequestDetailClient({ req }: { req: RequestDetail }) {
             </div>
           </div>
         </div>
-        <div style={{ marginTop: 4 }}><StatusPill status={req.status} t={t} /></div>
+        <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 10 }}>
+          <StatusPill status={req.status} t={t} />
+          {canWithdraw && !confirm && (
+            <button className="btn ghost xs" onClick={() => setConfirm(true)}>{t("req.withdraw")}</button>
+          )}
+          {canWithdraw && confirm && (
+            <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+              <button className="btn danger xs" disabled={withdrawing} onClick={withdraw}>{withdrawing ? "…" : t("req.withdrawConfirm")}</button>
+              <button className="btn ghost xs" disabled={withdrawing} onClick={() => setConfirm(false)}>{t("req.cancel")}</button>
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="req-detail-grid">

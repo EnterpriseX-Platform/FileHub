@@ -70,6 +70,7 @@ export function StatusPill({ status, myTurn, t }: {
     rejected:  { tone: "rose",    key: "req.st.rejected" },
     in_review: { tone: "indigo",  key: "req.st.in_review" },
     submitted: { tone: "slate",   key: "req.st.submitted" },
+    cancelled: { tone: "slate",   key: "req.st.cancelled" },
   };
   const m = map[status] ?? map.submitted;
   return (<Pill tone={m.tone} sm><span className="dot" />{t(m.key)}</Pill>);

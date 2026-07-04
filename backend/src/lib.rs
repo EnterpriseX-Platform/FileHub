@@ -265,6 +265,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/requests",
             get(requests::list).post(requests::create))
         .route("/api/requests/:id",           get(requests::detail))
+        .route("/api/requests/:id/cancel",    axum::routing::post(requests::cancel))
         .route("/api/files/:id/comments",
             get(p1::list_comments).post(p1::create_comment))
         .route("/api/files/:id/comments/:comment_id",

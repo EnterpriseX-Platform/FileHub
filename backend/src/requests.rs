@@ -568,6 +568,7 @@ struct ListRow {
     icon: Option<String>,
     color: Option<String>,
     kind_label: Option<String>,
+    cancelled_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Serialize)]
@@ -596,13 +597,15 @@ fn status_of(wf_state: Option<&str>) -> String {
 }
 
 fn to_item(r: ListRow, me: &str) -> RequestListItem {
-    let my_turn = r.next_reviewer.as_deref() == Some(me);
+    let cancelled = r.cancelled_at.is_some();
+    let my_turn = !cancelled && r.next_reviewer.as_deref() == Some(me);
+    let status = if cancelled { "cancelled".to_string() } else { status_of(r.wf_state.as_deref()) };
     RequestListItem {
         kind_label: r.kind_label.unwrap_or_else(|| r.kind.clone()),
         icon: r.icon.unwrap_or_else(|| "generic".into()),
         color: r.color.unwrap_or_else(|| "slate".into()),
         id: r.id, kind: r.kind, title: r.title, amount: r.amount,
-        status: status_of(r.wf_state.as_deref()), my_turn,
+        status, my_turn,
         requester_id: r.created_by,
         requester_name: r.requester_name.unwrap_or_else(|| "Unknown".into()),
         created_at: r.created_at,
@@ -620,7 +623,7 @@ pub async fn list(
 
     const BASE: &str = "SELECT r.id, r.kind, r.title, r.amount, r.created_by, \
         u.display_name AS requester_name, r.created_at, wf.state AS wf_state, \
-        rf.icon AS icon, rf.color AS color, rf.name_en AS kind_label, \
+        rf.icon AS icon, rf.color AS color, rf.name_en AS kind_label, r.cancelled_at, \
         (SELECT s.reviewer_id FROM workflow_steps s \
            WHERE s.workflow_id = wf.id AND s.decision = 'pending' \
            ORDER BY s.sequence LIMIT 1) AS next_reviewer \
@@ -628,9 +631,10 @@ pub async fn list(
         LEFT JOIN users u ON u.id = r.created_by \
         LEFT JOIN request_forms rf ON rf.id = r.kind \
         LEFT JOIN file_workflows wf ON wf.file_id = r.file_id";
-    const INBOX: &str = "EXISTS (SELECT 1 FROM file_workflows wf2 \
+    // A withdrawn request drops out of reviewers' inboxes.
+    const INBOX: &str = "(r.cancelled_at IS NULL AND EXISTS (SELECT 1 FROM file_workflows wf2 \
         JOIN workflow_steps s2 ON s2.workflow_id = wf2.id \
-        WHERE wf2.file_id = r.file_id AND s2.reviewer_id = $1 AND s2.decision = 'pending')";
+        WHERE wf2.file_id = r.file_id AND s2.reviewer_id = $1 AND s2.decision = 'pending'))";
 
     let rows: Vec<ListRow> = match boxsel {
         "inbox" => sqlx::query_as(&format!("{BASE} WHERE {INBOX} ORDER BY r.created_at DESC")).bind(&me).fetch_all(&s.db).await?,
@@ -683,11 +687,12 @@ struct RequestRow {
     ai_summary: Option<String>,
     created_by: Option<String>,
     created_at: DateTime<Utc>,
+    cancelled_at: Option<DateTime<Utc>>,
 }
 
 async fn detail_inner(s: &AppState, user: &crate::auth::User, req_id: Uuid) -> ApiResult<RequestDetail> {
     let r: RequestRow = sqlx::query_as(
-        "SELECT id, kind, title, form_data, amount, file_id, ai_summary, created_by, created_at \
+        "SELECT id, kind, title, form_data, amount, file_id, ai_summary, created_by, created_at, cancelled_at \
            FROM requests WHERE id = $1",
     ).bind(req_id).fetch_optional(&s.db).await?.ok_or(ApiError::NotFound)?;
 
@@ -743,7 +748,11 @@ async fn detail_inner(s: &AppState, user: &crate::auth::User, req_id: Uuid) -> A
         None => (None, vec![]),
     };
 
-    let status = status_of(wf.as_ref().map(|w| w.state.as_str()));
+    let status = if r.cancelled_at.is_some() {
+        "cancelled".to_string()
+    } else {
+        status_of(wf.as_ref().map(|w| w.state.as_str()))
+    };
     let order_mode = wf.as_ref().map(|w| w.order_mode.clone()).unwrap_or_else(|| "sequential".into());
 
     Ok(RequestDetail {
@@ -759,5 +768,50 @@ pub async fn detail(
     user: AuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<RequestDetail>> {
+    detail_inner(&s, &user.0, id).await.map(Json)
+}
+
+/// POST /api/requests/:id/cancel — the requester (or an admin) withdraws a
+/// request that hasn't been decided yet. The anchor workflow moves to a terminal
+/// 'Cancelled' state so it drops out of reviewers' inboxes.
+pub async fn cancel(
+    State(s): State<Arc<AppState>>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<RequestDetail>> {
+    let row: Option<(Option<String>, Option<Uuid>, Option<chrono::DateTime<Utc>>)> = sqlx::query_as(
+        "SELECT created_by, file_id, cancelled_at FROM requests WHERE id = $1",
+    ).bind(id).fetch_optional(&s.db).await?;
+    let (created_by, file_id, cancelled_at) = row.ok_or(ApiError::NotFound)?;
+
+    // Only the requester or an admin. 404 (not 403) for anyone else, matching reads.
+    if created_by.as_deref() != Some(user.0.id.as_str()) && user.0.role != "admin" {
+        return Err(ApiError::NotFound);
+    }
+    if cancelled_at.is_some() {
+        return Err(ApiError::BadRequest("request is already withdrawn".into()));
+    }
+    // Can't withdraw a request that has already been fully decided.
+    if let Some(fid) = file_id {
+        let state: Option<(String,)> = sqlx::query_as(
+            "SELECT state FROM file_workflows WHERE file_id = $1 ORDER BY created_at DESC LIMIT 1",
+        ).bind(fid).fetch_optional(&s.db).await?;
+        if matches!(state.as_ref().map(|s| s.0.as_str()), Some("Approved") | Some("Rejected")) {
+            return Err(ApiError::BadRequest("request has already been decided".into()));
+        }
+        sqlx::query("UPDATE file_workflows SET state = 'Cancelled' WHERE file_id = $1")
+            .bind(fid).execute(&s.db).await?;
+        sqlx::query("UPDATE files SET status = 'Draft', modified_at = now() WHERE id = $1")
+            .bind(fid).execute(&s.db).await?;
+    }
+    sqlx::query("UPDATE requests SET cancelled_at = now() WHERE id = $1").bind(id).execute(&s.db).await?;
+
+    let _ = sqlx::query(
+        "INSERT INTO activity (id, actor, actor_tone, action, target_type, file_id, system_id, org_id, created_at, actor_id) \
+         VALUES ($1,$2,'slate','withdrew a request','request',$3,$4,NULL,now(),$5)",
+    )
+    .bind(Uuid::now_v7()).bind(&user.0.display_name).bind(file_id).bind(REQ_SYSTEM).bind(&user.0.id)
+    .execute(&s.db).await;
+
     detail_inner(&s, &user.0, id).await.map(Json)
 }
