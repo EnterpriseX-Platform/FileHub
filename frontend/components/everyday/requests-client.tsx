@@ -17,13 +17,18 @@ type Box = "inbox" | "mine" | "all";
 export function RequestsClient({ inbox, mine }: { inbox: RequestListItem[]; mine: RequestListItem[] }) {
   const { t } = useI18n();
   const [box, setBox] = React.useState<Box>(inbox.length ? "inbox" : "mine");
+  const [q, setQ] = React.useState("");
 
   const all = React.useMemo(() => {
     const seen = new Set<string>();
     return [...inbox, ...mine].filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)));
   }, [inbox, mine]);
 
-  const rows = box === "inbox" ? inbox : box === "mine" ? mine : all;
+  const base = box === "inbox" ? inbox : box === "mine" ? mine : all;
+  const needle = q.trim().toLowerCase();
+  const rows = needle
+    ? base.filter((r) => (r.title + " " + r.requester_name + " " + r.kind_label).toLowerCase().includes(needle))
+    : base;
 
   const tabs: { key: Box; label: string; count: number }[] = [
     { key: "inbox", label: t("req.inbox"), count: inbox.length },
@@ -43,19 +48,23 @@ export function RequestsClient({ inbox, mine }: { inbox: RequestListItem[]; mine
         </Link>
       </div>
 
-      <div className="req-tabs" role="tablist">
-        {tabs.map((tb) => (
-          <button
-            key={tb.key}
-            role="tab"
-            aria-selected={box === tb.key}
-            className={"req-tab" + (box === tb.key ? " on" : "")}
-            onClick={() => setBox(tb.key)}
-          >
-            {tb.label}
-            {tb.count > 0 && <span className="req-tabcount">{tb.count}</span>}
-          </button>
-        ))}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div className="req-tabs" role="tablist">
+          {tabs.map((tb) => (
+            <button
+              key={tb.key}
+              role="tab"
+              aria-selected={box === tb.key}
+              className={"req-tab" + (box === tb.key ? " on" : "")}
+              onClick={() => setBox(tb.key)}
+            >
+              {tb.label}
+              {tb.count > 0 && <span className="req-tabcount">{tb.count}</span>}
+            </button>
+          ))}
+        </div>
+        <div style={{ flex: 1 }} />
+        <input className="req-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("req.searchPh")} />
       </div>
 
       <div style={{ marginTop: 16 }}>
