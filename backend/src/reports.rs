@@ -263,3 +263,54 @@ fn csv(filename: &str, body: String) -> Response {
     // BOM so Excel detects UTF-8 and renders Thai correctly.
     (StatusCode::OK, h, format!("\u{FEFF}{body}")).into_response()
 }
+
+// ---------------------------------------------------------------------------
+// Requests report — a workspace-level summary of form/document requests by
+// status and by type. Admin/editor only (console-level metric).
+// ---------------------------------------------------------------------------
+#[derive(Serialize, sqlx::FromRow)]
+pub struct KindCount {
+    pub label: String,
+    pub count: i64,
+}
+
+#[derive(Serialize)]
+pub struct RequestsReport {
+    pub total: i64,
+    pub in_review: i64,
+    pub approved: i64,
+    pub rejected: i64,
+    pub withdrawn: i64,
+    pub by_kind: Vec<KindCount>,
+}
+
+/// GET /fh/api/reports/requests — counts by status + by request type.
+pub async fn requests_report(
+    State(s): State<Arc<AppState>>,
+    user: AuthUser,
+) -> ApiResult<Json<RequestsReport>> {
+    require_role(&user.0, &["admin", "editor"])?;
+    // A request's status = withdrawn (cancelled_at) else the anchor workflow's
+    // state; no workflow / Draft / Review all read as "in review".
+    let (total, withdrawn, approved, rejected, in_review): (i64, i64, i64, i64, i64) = sqlx::query_as(
+        "SELECT count(*)::bigint, \
+                count(*) FILTER (WHERE r.cancelled_at IS NOT NULL)::bigint, \
+                count(*) FILTER (WHERE r.cancelled_at IS NULL AND wf.state = 'Approved')::bigint, \
+                count(*) FILTER (WHERE r.cancelled_at IS NULL AND wf.state = 'Rejected')::bigint, \
+                count(*) FILTER (WHERE r.cancelled_at IS NULL AND (wf.state IS NULL OR wf.state IN ('Review','Draft')))::bigint \
+           FROM requests r \
+           LEFT JOIN file_workflows wf ON wf.file_id = r.file_id",
+    )
+    .fetch_one(&s.db)
+    .await?;
+
+    let by_kind: Vec<KindCount> = sqlx::query_as(
+        "SELECT COALESCE(rf.name_en, r.kind) AS label, count(*)::bigint AS count \
+           FROM requests r LEFT JOIN request_forms rf ON rf.id = r.kind \
+          GROUP BY COALESCE(rf.name_en, r.kind) ORDER BY count(*) DESC",
+    )
+    .fetch_all(&s.db)
+    .await?;
+
+    Ok(Json(RequestsReport { total, in_review, approved, rejected, withdrawn, by_kind }))
+}

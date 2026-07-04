@@ -20,6 +20,7 @@ type Item = {
 type Report = { active: number; inactive: number; retention: number; deleted: number; items: Item[] };
 type AiBucket = { key: string; ops: number; input_tokens: number; output_tokens: number };
 type AiUsage = { total_ops: number; total_input_tokens: number; total_output_tokens: number; by_op: AiBucket[]; by_model: AiBucket[] };
+type ReqReport = { total: number; in_review: number; approved: number; rejected: number; withdrawn: number; by_kind: { label: string; count: number }[] };
 
 const fmtTok = (n: number) => (n >= 1_000_000 ? (n / 1_000_000).toFixed(1) + "M" : n >= 1_000 ? (n / 1_000).toFixed(1) + "k" : String(n));
 
@@ -34,6 +35,7 @@ export function ReportsClient() {
   const { t } = useI18n();
   const [rep, setRep] = React.useState<Report | null>(null);
   const [ai, setAi] = React.useState<AiUsage | null>(null);
+  const [reqRep, setReqRep] = React.useState<ReqReport | null>(null);
   const [page, setPage] = React.useState(0);
   const PAGE_SIZE = 15;
 
@@ -47,6 +49,10 @@ export function ReportsClient() {
         // Admin-only metering; non-admins get 403 and the panel stays hidden.
         const r = await fetch("/filehub/api/reports/ai-usage", { credentials: "include", cache: "no-store" });
         if (r.ok) setAi(await r.json());
+      } catch { /* hidden */ }
+      try {
+        const r = await fetch("/filehub/api/reports/requests", { credentials: "include", cache: "no-store" });
+        if (r.ok) setReqRep(await r.json());
       } catch { /* hidden */ }
     })();
   }, []);
@@ -103,6 +109,42 @@ export function ReportsClient() {
               <div className="t-xs t-subtle">{fmtTok(ai.total_input_tokens + ai.total_output_tokens)} tokens</div>
             </div>
           </div>
+        </>
+      )}
+
+      {/* Requests summary — status + type breakdown of form/document requests. */}
+      {reqRep && reqRep.total > 0 && (
+        <>
+          <div className="t-xs t-subtle t-medium" style={{ letterSpacing: "0.04em", textTransform: "uppercase", margin: "6px 0 8px" }}>
+            {t("rep.requests")}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 12 }}>
+            {([
+              [t("rep.reqTotal"), reqRep.total, "slate"],
+              [t("req.st.in_review"), reqRep.in_review, "indigo"],
+              [t("req.st.approved"), reqRep.approved, "emerald"],
+              [t("req.st.rejected"), reqRep.rejected, "rose"],
+              [t("req.st.cancelled"), reqRep.withdrawn, "slate"],
+            ] as [string, number, string][]).map(([label, n, tone]) => (
+              <div key={label} className="card" style={{ padding: "16px 18px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                  <span className="dot" style={{ background: `var(--c-${tone})` }} />
+                  <span className="t-sm t-muted">{label}</span>
+                </div>
+                <div className="t-3xl t-semibold t-tabular" style={{ marginTop: 4 }}>{n.toLocaleString()}</div>
+              </div>
+            ))}
+          </div>
+          {reqRep.by_kind.length > 0 && (
+            <div className="card" style={{ padding: "12px 16px", marginBottom: "var(--sp-5)", display: "flex", flexWrap: "wrap", gap: 16 }}>
+              {reqRep.by_kind.map((k) => (
+                <span key={k.label} className="t-sm" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <span className="t-semibold t-tabular">{k.count}</span>
+                  <span className="t-muted">{k.label}</span>
+                </span>
+              ))}
+            </div>
+          )}
         </>
       )}
 
