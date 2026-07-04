@@ -7,6 +7,20 @@ to get a dev environment running, and [CLAUDE.md](CLAUDE.md) for architecture.
 
 ---
 
+## Recently shipped
+
+- **Requests — AI-first form/document approvals** (`backend/src/requests.rs`, migrations
+  `0022`–`0024`, `frontend/app/(everyday)/requests/*`). Chat-first or manual intake,
+  admin-authored forms + routes (**Form Designer** `/settings/forms`, **Workflow Designer**
+  `/settings/workflows`, both create+edit), riding the existing `file_workflows` engine.
+  Fields: text · textarea · number · money · date · select. Withdraw, list search,
+  activity trail, required-field highlighting, request-scoped notifications, EN/TH.
+  Test docs: `REQUESTS-TEST-RESULTS.md`, `FORM-DESIGNER-TEST-RESULTS.md`,
+  `REQUESTS-REGRESSION-RESULTS.md`. **Follow-up:** surface requests in the admin
+  Reports/metrics (`reports.rs` + `/settings` report page) — S–M.
+
+---
+
 ## P0 — unblocks integration & production
 
 ### 1. Shared login throttle for multi-pod deployments
