@@ -75,6 +75,8 @@ export function RequestDetailClient({ req }: { req: RequestDetail }) {
               </div>
             )}
           </div>
+
+          <ActivityTrail req={req} t={t} />
         </div>
 
         <div>
@@ -82,6 +84,56 @@ export function RequestDetailClient({ req }: { req: RequestDetail }) {
             ? <WorkflowPanel fileId={req.file.id} hideStart />
             : <div className="card pad t-sm t-subtle">No approval route.</div>}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/// A chronological narrative of the request's life — submitted, each decision,
+/// and who's up next. Derived from the request + its workflow steps (no extra
+/// fetch); complements the WorkflowPanel's status view with a plain history.
+function ActivityTrail({ req, t }: {
+  req: RequestDetail;
+  t: (k: string, p?: Record<string, string | number>) => string;
+}) {
+  type Ev = { when: string; who: string; text: string; note?: string; tone: string };
+  const events: Ev[] = [
+    { when: req.created_at, who: req.requester_name, text: t("req.evSubmitted"), tone: "slate" },
+  ];
+  for (const s of req.steps) {
+    if ((s.decision === "approved" || s.decision === "rejected") && s.decided_at) {
+      events.push({
+        when: s.decided_at,
+        who: s.reviewer_name ?? "Reviewer",
+        text: s.decision === "approved" ? t("req.evApproved", { step: s.name ?? "" }) : t("req.evRejected", { step: s.name ?? "" }),
+        note: s.note ?? undefined,
+        tone: s.decision === "approved" ? "emerald" : "rose",
+      });
+    }
+  }
+  events.sort((a, b) => a.when.localeCompare(b.when));
+  const pending = req.steps.find((s) => s.decision === "pending");
+
+  return (
+    <div className="card" style={{ marginTop: 18, overflow: "hidden" }}>
+      <div className="req-cardhd">{t("req.activity")}</div>
+      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 14 }}>
+        {events.map((e, i) => (
+          <div key={i} style={{ display: "flex", gap: 11 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 999, marginTop: 6, flexShrink: 0, background: `var(--c-${e.tone})` }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="t-sm"><b className="t-semibold">{e.who}</b> {e.text}</div>
+              {e.note && <div className="t-xs t-muted" style={{ marginTop: 2 }}>&ldquo;{e.note}&rdquo;</div>}
+            </div>
+            <span className="t-xs t-subtle" style={{ flexShrink: 0 }}>{fmtAgo(e.when)}</span>
+          </div>
+        ))}
+        {pending && (
+          <div style={{ display: "flex", gap: 11 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 999, marginTop: 6, flexShrink: 0, border: "2px solid var(--c-amber)" }} />
+            <div className="t-sm t-muted" style={{ flex: 1 }}>{t("req.evWaiting", { name: pending.reviewer_name ?? "a reviewer" })}</div>
+          </div>
+        )}
       </div>
     </div>
   );

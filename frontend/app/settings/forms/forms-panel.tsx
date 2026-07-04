@@ -8,6 +8,7 @@ import { Modal } from "@/components/modal";
 import { Pill } from "@/components/primitives";
 import { KindGlyph, KindTile, colorVar, FORM_COLORS, GLYPHS } from "@/components/everyday/request-bits";
 import type { FormAdmin, FormField, WorkflowTemplate } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 /// The Form Designer — list + builder over GET/POST/PATCH/DELETE /api/forms.
 /// A form is a request type: metadata (name, icon, color), an ordered set of
@@ -20,6 +21,7 @@ export function FormsPanel({ initial, templates, canMutate }: {
   templates: WorkflowTemplate[];
   canMutate: boolean;
 }) {
+  const { t } = useI18n();
   const [forms, setForms] = React.useState(initial);
   const [editing, setEditing] = React.useState<FormAdmin | "new" | null>(null);
   const [busy, setBusy] = React.useState(false);
@@ -66,7 +68,7 @@ export function FormsPanel({ initial, templates, canMutate }: {
     <div>
       {editing && (
         <Modal
-          title={editing === "new" ? "New form" : "Edit form"}
+          title={editing === "new" ? t("des.newForm") : t("des.editForm")}
           wide
           onClose={() => { setEditing(null); setErr(null); }}
         >
@@ -89,15 +91,15 @@ export function FormsPanel({ initial, templates, canMutate }: {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span className="t-md t-semibold t-trunc">{f.name_en}</span>
-                {!f.active && <Pill sm tone="slate">hidden</Pill>}
+                {!f.active && <Pill sm tone="slate">{t("des.hidden")}</Pill>}
               </div>
               <div className="t-xs t-subtle" style={{ marginTop: 2 }}>
-                {f.fields.length} field{f.fields.length === 1 ? "" : "s"} · route: {templateName(f.template_id)}
+                {t("des.fieldsRoute", { n: f.fields.length, route: templateName(f.template_id) })}
               </div>
             </div>
             {canMutate && (
               <>
-                <button className="btn xs" onClick={() => setEditing(f)}>Edit</button>
+                <button className="btn xs" onClick={() => setEditing(f)}>{t("des.edit")}</button>
                 <button className="btn xs ghost" disabled={busy} onClick={() => remove(f.id)}
                   title={`Delete ${f.name_en}`} aria-label={`Delete ${f.name_en}`}>
                   <Ico.trash className="icon sm" />
@@ -108,7 +110,7 @@ export function FormsPanel({ initial, templates, canMutate }: {
         ))}
         {forms.length === 0 && (
           <div className="card" style={{ padding: 20 }}>
-            <div className="t-sm t-muted">No request forms yet. Create one to let people submit that kind of request.</div>
+            <div className="t-sm t-muted">{t("des.noForms")}</div>
           </div>
         )}
       </div>
@@ -116,10 +118,10 @@ export function FormsPanel({ initial, templates, canMutate }: {
       {canMutate && (
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button className="btn primary" onClick={() => setEditing("new")}>
-            <Ico.plus className="icon sm" /> New form
+            <Ico.plus className="icon sm" /> {t("des.newForm")}
           </button>
           <Link href="/settings/workflows" className="btn ghost">
-            <Ico.layers className="icon sm" /> Design approval routes
+            <Ico.layers className="icon sm" /> {t("des.designRoutes")}
           </Link>
         </div>
       )}
@@ -150,6 +152,7 @@ function FormBuilder({ initial, templates, busy, err, onSave, onCancel }: {
   onSave: (body: FormBody) => void;
   onCancel: () => void;
 }) {
+  const { t } = useI18n();
   const [nameEn, setNameEn] = React.useState(initial?.name_en ?? "");
   const [nameTh, setNameTh] = React.useState(initial?.name_th ?? "");
   const [description, setDescription] = React.useState(initial?.description ?? "");
@@ -207,10 +210,10 @@ function FormBuilder({ initial, templates, busy, err, onSave, onCancel }: {
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
         <KindTile icon={icon} color={color} />
-        <div className="t-sm t-subtle">Live preview</div>
+        <div className="t-sm t-subtle">{t("des.livePreview")}</div>
         <div style={{ flex: 1 }} />
         <label className="t-xs" style={{ display: "flex", gap: 5, alignItems: "center" }}>
-          <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> Visible in everyday
+          <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> {t("des.visibleEveryday")}
         </label>
       </div>
 
@@ -218,17 +221,17 @@ function FormBuilder({ initial, templates, busy, err, onSave, onCancel }: {
 
       <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
         <input className="field" style={{ flex: "2 1 220px" }} value={nameEn}
-          onChange={(e) => setNameEn(e.target.value)} placeholder="Form name (e.g. Travel request)" />
+          onChange={(e) => setNameEn(e.target.value)} placeholder={t("des.formNamePh")} />
         <input className="field" style={{ flex: "2 1 200px" }} value={nameTh}
-          onChange={(e) => setNameTh(e.target.value)} placeholder="ชื่อฟอร์ม (Thai, optional)" />
+          onChange={(e) => setNameTh(e.target.value)} placeholder={t("des.labelThPh")} />
       </div>
       <input className="field" style={{ width: "100%", marginBottom: 12 }} value={description}
-        onChange={(e) => setDescription(e.target.value)} placeholder="Short description (optional)" />
+        onChange={(e) => setDescription(e.target.value)} placeholder={t("des.descPh")} />
 
       {/* Icon + color */}
       <div style={{ display: "flex", gap: 24, marginBottom: 14, flexWrap: "wrap" }}>
         <div>
-          <div className="req-flabel" style={{ marginBottom: 6 }}>Icon</div>
+          <div className="req-flabel" style={{ marginBottom: 6 }}>{t("des.icon")}</div>
           <div style={{ display: "flex", gap: 6 }}>
             {GLYPHS.map((g) => (
               <button key={g} onClick={() => setIcon(g)} title={g} aria-label={`Icon ${g}`}
@@ -239,7 +242,7 @@ function FormBuilder({ initial, templates, busy, err, onSave, onCancel }: {
           </div>
         </div>
         <div>
-          <div className="req-flabel" style={{ marginBottom: 6 }}>Color</div>
+          <div className="req-flabel" style={{ marginBottom: 6 }}>{t("des.color")}</div>
           <div style={{ display: "flex", gap: 6 }}>
             {FORM_COLORS.map((c) => (
               <button key={c} onClick={() => setColor(c)} title={c} aria-label={`Color ${c}`}
@@ -252,7 +255,7 @@ function FormBuilder({ initial, templates, busy, err, onSave, onCancel }: {
       </div>
 
       {/* Fields */}
-      <div className="req-flabel" style={{ marginBottom: 6 }}>Fields</div>
+      <div className="req-flabel" style={{ marginBottom: 6 }}>{t("des.fields")}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
         {fields.map((f, i) => (
           <div key={i} className="card" style={{ padding: 8, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
@@ -261,15 +264,15 @@ function FormBuilder({ initial, templates, busy, err, onSave, onCancel }: {
               <button className="btn xs ghost" style={{ height: 16, padding: "0 4px" }} onClick={() => move(i, 1)} disabled={i === fields.length - 1} aria-label="Move down"><Ico.down className="icon sm" /></button>
             </div>
             <input className="field" style={{ flex: "2 1 140px", height: 32 }} value={f.label_en}
-              onChange={(e) => setField(i, { label_en: e.target.value })} placeholder="Label (e.g. Amount)" />
+              onChange={(e) => setField(i, { label_en: e.target.value })} placeholder={t("des.labelPh")} />
             <input className="field" style={{ flex: "2 1 120px", height: 32 }} value={f.label_th}
-              onChange={(e) => setField(i, { label_th: e.target.value })} placeholder="ป้ายกำกับ (Thai)" />
+              onChange={(e) => setField(i, { label_th: e.target.value })} placeholder={t("des.labelThPh")} />
             <select className="field" style={{ height: 32, flex: "1 1 100px" }} value={f.kind}
               onChange={(e) => setField(i, { kind: e.target.value })} aria-label="Field type">
               {FIELD_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
             </select>
             <label className="t-xs" style={{ display: "flex", gap: 4, alignItems: "center" }}>
-              <input type="checkbox" checked={f.required} onChange={(e) => setField(i, { required: e.target.checked })} /> req.
+              <input type="checkbox" checked={f.required} onChange={(e) => setField(i, { required: e.target.checked })} /> {t("des.reqShort")}
             </label>
             <button className="btn xs ghost" onClick={() => removeField(i)} disabled={fields.length === 1} aria-label="Remove field">
               <Ico.x className="icon sm" />
@@ -277,30 +280,30 @@ function FormBuilder({ initial, templates, busy, err, onSave, onCancel }: {
             {f.kind === "select" && (
               <input className="field" style={{ flex: "1 1 100%", height: 32 }} value={f.options}
                 onChange={(e) => setField(i, { options: e.target.value })}
-                placeholder="Choices, comma-separated (e.g. Low, Medium, High)" />
+                placeholder={t("des.choicesPh")} />
             )}
           </div>
         ))}
       </div>
-      <button className="btn sm" onClick={addField}><Ico.plus className="icon sm" /> Add field</button>
+      <button className="btn sm" onClick={addField}><Ico.plus className="icon sm" /> {t("des.addField")}</button>
 
       {/* Approval route */}
       <div style={{ marginTop: 16 }}>
-        <div className="req-flabel" style={{ marginBottom: 6 }}>Approval route</div>
+        <div className="req-flabel" style={{ marginBottom: 6 }}>{t("des.approvalRoute")}</div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <select className="field" style={{ flex: "1 1 220px" }} value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
-            <option value="">— No route (choose approvers at submit) —</option>
+            <option value="">{t("des.noRoute")}</option>
             {templates.map((tp) => (
               <option key={tp.id} value={tp.id}>{tp.name} · {tp.steps.length} step{tp.steps.length === 1 ? "" : "s"}</option>
             ))}
           </select>
-          <Link href="/settings/workflows" className="btn sm ghost"><Ico.layers className="icon sm" /> Design routes</Link>
+          <Link href="/settings/workflows" className="btn sm ghost"><Ico.layers className="icon sm" /> {t("des.designRoutesShort")}</Link>
         </div>
       </div>
 
       <div style={{ display: "flex", gap: 6, marginTop: 16 }}>
-        <button className="btn primary sm" disabled={busy || !valid} onClick={submit}>{initial ? "Save changes" : "Create form"}</button>
-        <button className="btn sm" disabled={busy} onClick={onCancel}>Cancel</button>
+        <button className="btn primary sm" disabled={busy || !valid} onClick={submit}>{initial ? t("des.saveChanges") : t("des.createForm")}</button>
+        <button className="btn sm" disabled={busy} onClick={onCancel}>{t("des.cancel")}</button>
       </div>
     </div>
   );

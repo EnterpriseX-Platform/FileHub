@@ -42,6 +42,7 @@ export function NewRequestClient({ forms, members, role }: {
   const [route, setRoute] = React.useState<RouteStep[]>([]);
   const [attach, setAttach] = React.useState<{ id: string; name: string } | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
+  const [invalid, setInvalid] = React.useState<Set<string>>(new Set());
 
   const formById = React.useCallback((id: string) => forms.find((f) => f.id === id), [forms]);
   const curForm = formById(kind) ?? forms[0];
@@ -96,9 +97,11 @@ export function NewRequestClient({ forms, members, role }: {
     // Client-side required-field check (the form defines which fields are required).
     const missing = curForm.fields.filter((f) => f.required && !(values[f.key] ?? "").trim());
     if (missing.length) {
+      setInvalid(new Set(missing.map((f) => f.key)));
       setError(t("req.fillRequired", { fields: missing.map((f) => label(f)).join(", ") }));
       return;
     }
+    setInvalid(new Set());
     setSubmitting(true);
     setError(null);
     const amountStr = values.amount;
@@ -193,7 +196,8 @@ export function NewRequestClient({ forms, members, role }: {
                 <div className="t-xs t-subtle">{formName(curForm)} · fields extracted from your message — edit anything.</div>
               </div>
             </div>
-            <FormGrid form={curForm} values={values} setValues={setValues} label={label} />
+            <FormGrid form={curForm} values={values} setValues={setValues} label={label}
+              invalid={invalid} clearInvalid={(k) => setInvalid((s) => { const n = new Set(s); n.delete(k); return n; })} />
           </div>
 
           <RouteEditor route={route} setRoute={setRoute} members={members} t={t} />
@@ -230,7 +234,8 @@ export function NewRequestClient({ forms, members, role }: {
           <input className="req-titleinput" style={{ fontSize: 16, marginBottom: 10 }}
             value={title} onChange={(e) => setTitle(e.target.value)} placeholder={`${formName(curForm)} title`} />
           <div className="card" style={{ overflow: "hidden" }}>
-            <FormGrid form={curForm} values={values} setValues={setValues} label={label} />
+            <FormGrid form={curForm} values={values} setValues={setValues} label={label}
+              invalid={invalid} clearInvalid={(k) => setInvalid((s) => { const n = new Set(s); n.delete(k); return n; })} />
           </div>
           <RouteEditor route={route} setRoute={setRoute} members={members} t={t} />
           <AttachRow role={role} attach={attach} setAttach={setAttach} t={t} />
@@ -245,32 +250,39 @@ export function NewRequestClient({ forms, members, role }: {
   );
 }
 
-function FormGrid({ form, values, setValues, label }: {
+function FormGrid({ form, values, setValues, label, invalid, clearInvalid }: {
   form: RequestForm;
   values: Record<string, string>;
   setValues: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   label: (f: { label_en: string; label_th: string }) => string;
+  invalid: Set<string>;
+  clearInvalid: (key: string) => void;
 }) {
+  const change = (key: string, value: string) => {
+    setValues((v) => ({ ...v, [key]: value }));
+    if (value.trim() && invalid.has(key)) clearInvalid(key);
+  };
   return (
     <div className="req-formgrid">
       {form.fields.map((f) => {
         const full = f.kind === "textarea";
+        const cls = "req-finput" + (invalid.has(f.key) ? " invalid" : "");
         return (
           <div key={f.key} className={"req-fld" + (full ? " full" : "")}>
             <div className="req-flabel">{label(f)}{f.required && <span style={{ color: "var(--c-rose)" }}> *</span>}</div>
             {f.kind === "textarea" ? (
-              <textarea className="req-finput" rows={2} value={values[f.key] ?? ""} onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))} />
+              <textarea className={cls} rows={2} value={values[f.key] ?? ""} onChange={(e) => change(f.key, e.target.value)} />
             ) : f.kind === "select" ? (
-              <select className="req-finput" value={values[f.key] ?? ""} onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}>
+              <select className={cls} value={values[f.key] ?? ""} onChange={(e) => change(f.key, e.target.value)}>
                 <option value="">—</option>
                 {(f.options ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
             ) : (
               <input
-                className="req-finput"
+                className={cls}
                 type={f.kind === "money" || f.kind === "number" ? "number" : "text"}
                 value={values[f.key] ?? ""}
-                onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                onChange={(e) => change(f.key, e.target.value)}
               />
             )}
           </div>
