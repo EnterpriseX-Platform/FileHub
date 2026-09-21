@@ -1,5 +1,7 @@
 import { cookies } from "next/headers";
 
+import { svrHeaders } from "@/lib/api";
+
 // IPv4 default — see lib/api.ts for the macOS `::1` story.
 const BACKEND = process.env.BACKEND_URL || "http://127.0.0.1:8090";
 
@@ -10,8 +12,10 @@ const BACKEND = process.env.BACKEND_URL || "http://127.0.0.1:8090";
 /// gets a 401 and the helpers swallow it as an empty result.
 export async function loadServerCtx(): Promise<{ cookieHeader: string; role: string | null }> {
   const cookieHeader = (await cookies()).getAll().map((c) => `${c.name}=${c.value}`).join("; ");
+  // ส่งต่อเฮดเดอร์ตัวตนของขอบนอกด้วย ไม่งั้นผู้ใช้ที่ล็อกอิน NEB มาแล้วจะกลายเป็น
+  // "ไม่รู้จัก" ในสายตาหลังบ้าน แล้วหน้าจอถูกเด้งไป /login ของ FileHub เอง
   const meRes = await fetch(`${BACKEND}/fh/api/auth/me`, {
-    headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+    headers: await svrHeaders(cookieHeader),
     cache: "no-store",
   }).catch(() => null);
   const me: { role?: string } | null = meRes && meRes.ok ? await meRes.json() : null;

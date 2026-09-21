@@ -8,6 +8,40 @@ import type { Tone } from "@/components/primitives";
 // fetch from a Next.js page would hit `ECONNREFUSED ::1:8090`.
 const BASE = (process.env.BACKEND_URL || "http://127.0.0.1:8090") + "/fh";
 
+// ─── ตัวตนจากขอบนอก (NEB) ────────────────────────────────────────────────
+// หน้าที่ render ฝั่ง server จะ fetch ไปหลังบ้านเอง ซึ่ง "ไม่ได้พกเฮดเดอร์ของ
+// คำขอต้นทางไปด้วย" โดยอัตโนมัติ ⇒ หลังบ้านมองว่าไม่รู้จักผู้ใช้ แล้วตอบ 401
+// ทั้งที่ผู้ใช้ล็อกอิน NEB มาแล้ว (จอจะว่างหรือถูกเด้งไปหน้า login ของตัวเอง)
+// จึงต้องส่งต่อเฮดเดอร์ตัวตนของขอบนอกไปให้หลังบ้านทุกครั้ง
+const EDGE_HEADERS = [
+  "x-filehub-edge",
+  "x-forwarded-access-token",
+  "x-auth-request-email",
+  "x-auth-request-preferred-username",
+  "x-filehub-system",
+  "x-filehub-org",
+];
+
+/// รวม cookie ของ session เดิมเข้ากับเฮดเดอร์ตัวตนของขอบนอก
+/// นำเข้า next/headers แบบ dynamic เพื่อไม่ให้ไฟล์นี้ลากโมดูลฝั่ง server
+/// เข้าไปในบันเดิลของเบราว์เซอร์
+export async function svrHeaders(cookieHeader?: string): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  if (cookieHeader) out.cookie = cookieHeader;
+  if (typeof window !== "undefined") return out;
+  try {
+    const { headers } = await import("next/headers");
+    const h = await headers();
+    for (const k of EDGE_HEADERS) {
+      const v = h.get(k);
+      if (v) out[k] = v;
+    }
+  } catch {
+    // ไม่ได้อยู่ในขอบเขตของ request (เช่นตอน build) — ข้ามไป
+  }
+  return out;
+}
+
 async function get<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { cache: "no-store", ...init });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} at ${path}`);
@@ -218,7 +252,7 @@ export async function safeViews(cookieHeader?: string): Promise<View[]> {
   try {
     const r = await fetch(`${BASE}/api/views`, {
       cache: "no-store",
-      headers: { cookie: cookieHeader },
+      headers: await svrHeaders(cookieHeader),
     });
     if (!r.ok) return [];
     return (await r.json()) as View[];
@@ -242,7 +276,7 @@ export async function safeFolders(system_id?: string, cookieHeader?: string): Pr
     const qs = system_id ? `?system_id=${encodeURIComponent(system_id)}` : "";
     const res = await fetch(`${BASE}/api/folders${qs}`, {
       cache: "no-store",
-      headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+      headers: await svrHeaders(cookieHeader),
     });
     if (!res.ok) return [];
     return (await res.json()) as Folder[];
@@ -258,7 +292,7 @@ export async function safeStats(cookieHeader?: string): Promise<DashboardStats |
   try {
     const r = await fetch(`${BASE}/api/stats`, {
       cache: "no-store",
-      headers: { cookie: cookieHeader },
+      headers: await svrHeaders(cookieHeader),
     });
     if (!r.ok) return null;
     return (await r.json()) as DashboardStats;
@@ -273,7 +307,7 @@ export async function safeFiles(q: Record<string, string> = {}, cookieHeader?: s
     const params = new URLSearchParams(q).toString();
     const r = await fetch(`${BASE}/api/files${params ? `?${params}` : ""}`, {
       cache: "no-store",
-      headers: { cookie: cookieHeader },
+      headers: await svrHeaders(cookieHeader),
     });
     if (!r.ok) return [];
     return (await r.json()) as FileRow[];
@@ -288,7 +322,7 @@ export async function safeOrgs(system_id?: string, cookieHeader?: string): Promi
     const qs = system_id ? `?system_id=${encodeURIComponent(system_id)}` : "";
     const r = await fetch(`${BASE}/api/orgs${qs}`, {
       cache: "no-store",
-      headers: { cookie: cookieHeader },
+      headers: await svrHeaders(cookieHeader),
     });
     if (!r.ok) return [];
     return (await r.json()) as Org[];
@@ -305,7 +339,7 @@ export async function safeSystems(cookieHeader?: string): Promise<System[]> {
   try {
     const r = await fetch(`${BASE}/api/systems`, {
       cache: "no-store",
-      headers: { cookie: cookieHeader },
+      headers: await svrHeaders(cookieHeader),
     });
     if (!r.ok) return [];
     return (await r.json()) as System[];
@@ -322,7 +356,7 @@ export async function safeActivity(limit = 20, cookieHeader?: string): Promise<A
   try {
     const r = await fetch(`${BASE}/api/activity?limit=${limit}`, {
       cache: "no-store",
-      headers: { cookie: cookieHeader },
+      headers: await svrHeaders(cookieHeader),
     });
     if (!r.ok) return [];
     return (await r.json()) as Activity[];
@@ -336,7 +370,7 @@ export async function safePermissions(file_id: string, cookieHeader?: string): P
   try {
     const r = await fetch(`${BASE}/api/permissions/${encodeURIComponent(file_id)}`, {
       cache: "no-store",
-      headers: { cookie: cookieHeader },
+      headers: await svrHeaders(cookieHeader),
     });
     if (!r.ok) return [];
     return (await r.json()) as Permission[];
@@ -350,7 +384,7 @@ export async function safeFile(id: string, cookieHeader?: string): Promise<FileR
   try {
     const r = await fetch(`${BASE}/api/files/${encodeURIComponent(id)}`, {
       cache: "no-store",
-      headers: { cookie: cookieHeader },
+      headers: await svrHeaders(cookieHeader),
     });
     if (!r.ok) return null;
     return (await r.json()) as FileRow;
@@ -363,7 +397,7 @@ export async function safeSystemsWithPersonal(cookieHeader?: string): Promise<Sy
   try {
     const r = await fetch(`${BASE}/api/systems?include_personal=true`, {
       cache: "no-store",
-      headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+      headers: await svrHeaders(cookieHeader),
     });
     if (!r.ok) return [];
     return (await r.json()) as System[];
@@ -374,7 +408,7 @@ export async function safeRotationPolicies(cookieHeader?: string): Promise<Rotat
   try {
     const r = await fetch(`${BASE}/api/rotation/policies`, {
       cache: "no-store",
-      headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+      headers: await svrHeaders(cookieHeader),
     });
     if (!r.ok) return [];
     return (await r.json()) as RotationPolicy[];
@@ -385,7 +419,7 @@ export async function safeRotationRuns(cookieHeader?: string): Promise<RotationR
   try {
     const r = await fetch(`${BASE}/api/rotation/runs`, {
       cache: "no-store",
-      headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+      headers: await svrHeaders(cookieHeader),
     });
     if (!r.ok) return [];
     return (await r.json()) as RotationRun[];
@@ -396,7 +430,7 @@ export async function safeWorkspaceConfig(cookieHeader?: string): Promise<Worksp
   try {
     const r = await fetch(`${BASE}/api/workspace`, {
       cache: "no-store",
-      headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+      headers: await svrHeaders(cookieHeader),
     });
     if (!r.ok) return {};
     return (await r.json()) as WorkspaceConfig;
@@ -407,7 +441,7 @@ export async function safeMembers(cookieHeader?: string): Promise<Member[]> {
   try {
     const r = await fetch(`${BASE}/api/users`, {
       cache: "no-store",
-      headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+      headers: await svrHeaders(cookieHeader),
     });
     if (!r.ok) return [];
     return (await r.json()) as Member[];
@@ -422,7 +456,7 @@ export async function safeSearch(q: string, cookieHeader?: string): Promise<File
   try {
     const r = await fetch(`${BASE}/api/search?q=${encodeURIComponent(q)}`, {
       cache: "no-store",
-      headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+      headers: await svrHeaders(cookieHeader),
     });
     if (!r.ok) return [];
     return (await r.json()) as FileRow[];
