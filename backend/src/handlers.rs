@@ -8,7 +8,7 @@ use axum::{
 use axum::http::{header, HeaderMap, StatusCode};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use bytes::BytesMut;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Datelike, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use rand::RngCore;
@@ -637,7 +637,57 @@ pub(crate) async fn enforce_quota(
     Ok(())
 }
 
-async fn persist_upload(s: &AppState, actor: Option<&str>, f: UploadFields) -> ApiResult<File> {
+/// แท็กอัตโนมัติ: ระบบ / หน่วยงาน / ปีงบประมาณ (พ.ศ.) / ผู้อัปโหลด
+async fn auto_tags(s: &AppState, system: &System, org_id: Option<&str>, owner: &str) -> String {
+    let mut tags: Vec<String> = vec![format!("ระบบ:{}", system.name)];
+    if let Some(oid) = org_id {
+        if let Ok(Some((name,))) = sqlx::query_as::<_, (String,)>("SELECT name FROM orgs WHERE id = $1")
+            .bind(oid)
+            .fetch_optional(&s.db)
+            .await
+        {
+            tags.push(format!("หน่วยงาน:{name}"));
+        }
+    }
+    // ปีงบประมาณไทย: เริ่ม 1 ต.ค. ⇒ ต.ค.-ธ.ค. นับเป็นปีถัดไป
+    let now = Utc::now().with_timezone(&chrono::FixedOffset::east_opt(7 * 3600).unwrap());
+    let y = now.year() + 543 + if now.month() >= 10 { 1 } else { 0 };
+    tags.push(format!("ปีงบ:{y}"));
+    if owner != "Anonymous" {
+        tags.push(format!("ผู้อัปโหลด:{owner}"));
+    }
+    serde_json::to_string(&tags).unwrap_or_else(|_| "[]".into())
+}
+
+/// 22 ก.ย. 2569 (NEB): อัปโหลดโดยไม่ต้องกรอก system_id/org_id และติดแท็กให้อัตโนมัติ
+///
+/// ถ้าไม่ได้ส่ง system_id/org_id มา ให้ใช้ค่าตั้งต้นของผู้ใช้ที่ระบบจำไว้ตอนเข้าใช้งาน
+/// ผ่านขอบนอก (users.default_system_id / default_org_id) — ผู้ใช้จึงอัปโหลดเข้า
+/// หน่วยงานตัวเองได้เลย ไม่ต้องรู้จักรหัสระบบ/หน่วยงาน
+async fn persist_upload_for(
+    s: &AppState,
+    actor: Option<&str>,
+    mut f: UploadFields,
+    user: Option<&crate::auth::User>,
+) -> ApiResult<File> {
+    if let Some(u) = user {
+        if f.system_id.is_none() || f.org_id.is_none() {
+            let d: Option<(Option<String>, Option<String>)> = sqlx::query_as(
+                "SELECT default_system_id, default_org_id FROM users WHERE id = $1",
+            )
+            .bind(&u.id)
+            .fetch_optional(&s.db)
+            .await?;
+            if let Some((dsys, dorg)) = d {
+                if f.system_id.is_none() { f.system_id = dsys; }
+                if f.org_id.is_none() { f.org_id = dorg; }
+            }
+        }
+        if f.owner.is_none() {
+            f.owner = Some(u.display_name.clone());
+        }
+    }
+
     let name = f.name.ok_or_else(|| ApiError::BadRequest("missing file".into()))?;
     let body = f.body.ok_or_else(|| ApiError::BadRequest("missing file body".into()))?;
     let system_id = f.system_id.ok_or_else(|| ApiError::BadRequest("missing system_id".into()))?;
@@ -665,7 +715,12 @@ async fn persist_upload(s: &AppState, actor: Option<&str>, f: UploadFields) -> A
 
     let owner = f.owner.unwrap_or_else(|| "Anonymous".into());
     let status = f.status.unwrap_or_else(|| "Draft".into());
-    let tags_json = f.tags.unwrap_or_else(|| "[]".into());
+    // ไม่ได้ส่งแท็กมา = ติดให้อัตโนมัติจากสิ่งที่ระบบรู้อยู่แล้ว
+    // (ระบบต้นทาง · หน่วยงาน · ปีงบประมาณไทย · ผู้อัปโหลด) จะได้ค้นหาย้อนหลังได้
+    let tags_json = match f.tags {
+        Some(t) if t.trim() != "" && t.trim() != "[]" => t,
+        _ => auto_tags(s, &system, f.org_id.as_deref(), &owner).await,
+    };
     let now = Utc::now();
 
     sqlx::query(
@@ -718,7 +773,7 @@ pub async fn upload_file(
     if let Some(ref sid) = fields.system_id {
         crate::auth::ensure_system_access(&s.db, &user.0, sid).await?;
     }
-    Ok(Json(persist_upload(&s, Some(user.0.id.as_str()), fields).await?))
+    Ok(Json(persist_upload_for(&s, Some(user.0.id.as_str()), fields, Some(&user.0)).await?))
 }
 
 /// Batch upload — TOR 4.15.9.
@@ -761,7 +816,7 @@ pub async fn upload_batch(
                 // tokens, matching the per-file cap (charging once per request
                 // would let a single token persist unlimited files).
                 crate::auth::upload_rate_limit(&user.0.id).await?;
-                out.push(persist_upload(&s, Some(user.0.id.as_str()), one).await?);
+                out.push(persist_upload_for(&s, Some(user.0.id.as_str()), one, Some(&user.0)).await?);
             }
             "system_id" => shared.system_id = Some(field.text().await.map_err(|e| ApiError::BadRequest(e.to_string()))?),
             "org_id"    => shared.org_id    = Some(field.text().await.map_err(|e| ApiError::BadRequest(e.to_string()))?),

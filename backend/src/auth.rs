@@ -310,6 +310,118 @@ pub async fn me(user: AuthUser) -> Json<User> {
 // -----------------------------------------------------------------------------
 /// Required-auth extractor — request fails with 401 when the cookie is missing
 /// or the session has expired/been revoked.
+/// ตัวตนจาก "ขอบนอก" (oauth2-proxy ของ NEB) — เข้าใช้งานได้เลยโดยไม่ต้องล็อกอิน
+/// ซ้ำและไม่ต้องขอ API token
+///
+/// เปิดใช้เมื่อกำหนด `EDGE_AUTH_SECRET` เท่านั้น และคำขอต้องมีเฮดเดอร์ลับ
+/// `x-filehub-edge` ตรงกับค่านั้น — เฮดเดอร์นี้ใส่ที่ VirtualServer ของขอบนอก
+/// ⇒ คำขอที่ยิงตรงเข้ามาในคลัสเตอร์ปลอมตัวตนไม่ได้ (เฮดเดอร์ x-auth-request-*
+///   ใครก็ตั้งได้ ถ้าไม่มีของลับคู่กันจะเชื่อไม่ได้เลย)
+///
+/// ผู้ใช้ที่ยังไม่มีในระบบจะถูกสร้างให้อัตโนมัติ พร้อมจำระบบ/หน่วยงานต้นทาง
+/// (`x-filehub-system` / `x-filehub-org`) ไว้ใช้เป็นค่าตั้งต้นตอนอัปโหลด
+async fn edge_identity(
+    state: &Arc<AppState>,
+    headers: &axum::http::HeaderMap,
+) -> Result<Option<User>, ApiError> {
+    let Ok(secret) = std::env::var("EDGE_AUTH_SECRET") else { return Ok(None) };
+    if secret.trim().is_empty() {
+        return Ok(None);
+    }
+    let presented = headers.get("x-filehub-edge").and_then(|v| v.to_str().ok()).unwrap_or("");
+    if presented != secret {
+        return Ok(None);
+    }
+    let email = headers
+        .get("x-auth-request-email")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.trim().to_lowercase())
+        .filter(|v| !v.is_empty());
+    let Some(email) = email else { return Ok(None) };
+
+    if let Some(u) = sqlx::query_as::<_, User>(
+        "SELECT * FROM users WHERE email = $1 AND status = 'active'",
+    )
+    .bind(&email)
+    .fetch_optional(&state.db)
+    .await?
+    {
+        return Ok(Some(u));
+    }
+
+    // สร้างบัญชีให้อัตโนมัติ — ไม่มีรหัสผ่าน (เข้าได้ทางขอบนอกเท่านั้น)
+    let display = headers
+        .get("x-auth-request-preferred-username")
+        .and_then(|v| v.to_str().ok())
+        .filter(|v| !v.trim().is_empty())
+        .map(|v| v.to_string())
+        .unwrap_or_else(|| email.split('@').next().unwrap_or("user").to_string());
+    let role = std::env::var("EDGE_AUTH_ROLE").unwrap_or_else(|_| "editor".into());
+    let system_id = header_str(headers, "x-filehub-system")
+        .or_else(|| std::env::var("EDGE_DEFAULT_SYSTEM").ok());
+    let org_id = resolve_org(state, system_id.as_deref(), header_str(headers, "x-filehub-org")).await?;
+    let id = format!("usr_edge_{}", uuid::Uuid::now_v7().simple());
+
+    sqlx::query(
+        r#"INSERT INTO users (id, email, display_name, avatar_tone, password_hash, role, status,
+                              default_system_id, default_org_id, source)
+           VALUES ($1, $2, $3, 'slate', '', $4, 'active', $5, $6, 'edge')"#,
+    )
+    .bind(&id)
+    .bind(&email)
+    .bind(&display)
+    .bind(&role)
+    .bind(&system_id)
+    .bind(&org_id)
+    .execute(&state.db)
+    .await?;
+
+    let u: User = sqlx::query_as("SELECT * FROM users WHERE id = $1")
+        .bind(&id)
+        .fetch_one(&state.db)
+        .await?;
+    tracing::info!(email = %u.email, role = %u.role, "edge identity: provisioned user");
+    Ok(Some(u))
+}
+
+fn header_str(headers: &axum::http::HeaderMap, name: &str) -> Option<String> {
+    headers
+        .get(name)
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+}
+
+/// หา org จากรหัสหน่วยงานที่ส่งมา ถ้ายังไม่มีก็สร้างให้ (ชื่อ = รหัส จนกว่าจะมีใครแก้)
+/// คืน None เมื่อไม่ได้ระบุหน่วยงานหรือยังไม่รู้ว่าอยู่ระบบไหน
+async fn resolve_org(
+    state: &Arc<AppState>,
+    system_id: Option<&str>,
+    org_code: Option<String>,
+) -> Result<Option<String>, ApiError> {
+    let (Some(system_id), Some(code)) = (system_id, org_code) else { return Ok(None) };
+    if let Some((id,)) = sqlx::query_as::<_, (String,)>("SELECT id FROM orgs WHERE code = $1")
+        .bind(&code)
+        .fetch_optional(&state.db)
+        .await?
+    {
+        return Ok(Some(id));
+    }
+    let id = format!("org_{}", code.to_lowercase().replace(|c: char| !c.is_alphanumeric(), "_"));
+    sqlx::query(
+        r#"INSERT INTO orgs (id, system_id, name, code, tier, owner, status)
+           VALUES ($1, $2, $3, $4, 'standard', 'auto', 'Active')
+           ON CONFLICT (code) DO NOTHING"#,
+    )
+    .bind(&id)
+    .bind(system_id)
+    .bind(&code)
+    .bind(&code)
+    .execute(&state.db)
+    .await?;
+    Ok(Some(id))
+}
+
 pub struct AuthUser(pub User);
 
 #[async_trait]
@@ -324,6 +436,10 @@ impl FromRequestParts<Arc<AppState>> for AuthUser {
         // without a browser session (see resolve_api_key).
         if let Some(key) = bearer_token(&parts.headers) {
             return Ok(AuthUser(resolve_api_key(&state.db, &key).await?));
+        }
+        // ตัวตนจากขอบนอกของ NEB — ไม่ต้องล็อกอินซ้ำ ไม่ต้องขอ token
+        if let Some(u) = edge_identity(state, &parts.headers).await? {
+            return Ok(AuthUser(u));
         }
         let jar = CookieJar::from_headers(&parts.headers);
         let token = jar
