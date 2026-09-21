@@ -45,11 +45,17 @@ export function middleware(req: NextRequest) {
   if (isPublic) return NextResponse.next();
 
   const hasSession = req.cookies.get("filehub_session")?.value;
-  // ผู้ใช้ที่เข้ามาทางขอบนอกของ NEB ไม่มีคุกกี้ของ FileHub เพราะไม่เคยล็อกอินที่นี่
-  // ถ้าด่านนี้ดูแต่คุกกี้ คนที่ล็อกอิน NEB มาแล้วจะถูกเด้งไปหน้า login ของ FileHub
-  // ทุกครั้ง (ทั้งที่หลังบ้านรู้จักเขาแล้ว) — เป็น "จอ login ซ้อน" แบบเดียวกับที่ UPM โดนท้วง
-  // ที่นี่เป็นแค่ด่าน UX เท่านั้น ตัวตนจริงหลังบ้านตรวจเองทุกคำขอ
+  // ── หน้าจอ (console) กับ API แยกทางเข้ากัน ────────────────────────────
+  // ค่าเริ่มต้น: **หน้าจอต้องล็อกอินของ FileHub เอง** (บัญชีผู้ดูแลแยกต่างหาก)
+  // ส่วน API (`/api/*` ซึ่งปล่อยผ่านด่านนี้อยู่แล้ว) รับตัวตนที่มาจาก IAM-X ได้
+  // ⇒ ระบบงาน NEB และผู้ใช้ในพอร์ทัลอัปโหลดไฟล์ได้โดยไม่ต้องล็อกอินซ้ำ
+  //    แต่ "หน้าจอผู้ดูแล" ไม่ได้เปิดให้คนทั่วไปที่ล็อกอิน NEB เดินเข้ามา
+  //
+  // ถ้า environment ไหนอยากให้หน้าจอใช้ SSO ของ NEB ด้วย ให้ VirtualServer
+  // แนบเฮดเดอร์ `x-filehub-ui-sso: 1` ที่ route ของ /filehub — สลับได้โดยไม่ต้อง build ใหม่
+  const uiSso = req.headers.get("x-filehub-ui-sso");
   const hasEdge =
+    Boolean(uiSso) &&
     Boolean(req.headers.get("x-filehub-edge")) &&
     Boolean(req.headers.get("x-forwarded-access-token") || req.headers.get("x-auth-request-email"));
   if (hasSession || hasEdge) return NextResponse.next();

@@ -598,15 +598,16 @@ impl FromRequestParts<Arc<AppState>> for AuthUser {
         if let Some(key) = bearer_token(&parts.headers) {
             return Ok(AuthUser(resolve_api_key(&state.db, &key).await?));
         }
-        // ตัวตนจากขอบนอกของ NEB — ไม่ต้องล็อกอินซ้ำ ไม่ต้องขอ token
-        if let Some(u) = edge_identity(state, &parts.headers).await? {
-            return Ok(AuthUser(u));
-        }
+        // คุกกี้ของ FileHub มาก่อนตัวตนจากขอบนอก — ผู้ดูแลที่ล็อกอินหน้าจอ console
+        // เองต้องทำงานในนามบัญชีผู้ดูแล ไม่ใช่ถูกทับด้วยตัวตน NEB ของเบราว์เซอร์เดียวกัน
         let jar = CookieJar::from_headers(&parts.headers);
-        let token = jar
-            .get(COOKIE_NAME)
-            .map(|c| c.value().to_string())
-            .ok_or(ApiError::Unauthorized)?;
+        let Some(token) = jar.get(COOKIE_NAME).map(|c| c.value().to_string()) else {
+            // ไม่มีคุกกี้ = เป็นการเรียก API จากระบบงาน/จอของโมดูล ⇒ ใช้ตัวตนจาก IAM-X
+            if let Some(u) = edge_identity(state, &parts.headers).await? {
+                return Ok(AuthUser(u));
+            }
+            return Err(ApiError::Unauthorized);
+        };
 
         let row: Option<(String, DateTime<Utc>)> = sqlx::query_as(
             "SELECT user_id, expires_at FROM sessions WHERE token = $1",
@@ -739,17 +740,16 @@ pub async fn require_session(
         resolve_api_key(&state.db, &key).await?;
         return Ok(next.run(req).await);
     }
-    // ตัวตนจากขอบนอกของ NEB ต้องผ่านด่านนี้ด้วย ไม่งั้นทุก endpoint หลังด่าน
-    // จะตอบ 401 ทั้งที่ `/api/auth/me` (อยู่นอกด่าน) บอกว่ารู้จักผู้ใช้แล้ว
-    // — จอจะว่างทั้งระบบโดยไม่มีอะไรฟ้องว่าเพราะอะไร
-    if edge_identity(&state, req.headers()).await?.is_some() {
-        return Ok(next.run(req).await);
-    }
+    // เรียงเหมือน AuthUser: คุกกี้ของ FileHub ก่อน แล้วค่อยตัวตนจาก IAM-X
+    // (ถ้าไม่ให้ตัวตนจากขอบนอกผ่านด่านนี้ ทุก endpoint หลังด่านจะตอบ 401
+    //  ทั้งที่ `/api/auth/me` ซึ่งอยู่นอกด่านบอกว่ารู้จักผู้ใช้แล้ว — จอว่างทั้งระบบ)
     let jar = CookieJar::from_headers(req.headers());
-    let token = jar
-        .get(COOKIE_NAME)
-        .map(|c| c.value().to_string())
-        .ok_or(ApiError::Unauthorized)?;
+    let Some(token) = jar.get(COOKIE_NAME).map(|c| c.value().to_string()) else {
+        if edge_identity(&state, req.headers()).await?.is_some() {
+            return Ok(next.run(req).await);
+        }
+        return Err(ApiError::Unauthorized);
+    };
 
     let row: Option<(String, DateTime<Utc>)> = sqlx::query_as(
         "SELECT user_id, expires_at FROM sessions WHERE token = $1",

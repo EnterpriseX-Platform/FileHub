@@ -35,6 +35,41 @@ async fn main() -> anyhow::Result<()> {
         None
     };
 
+    // บัญชีผู้ดูแลของหน้าจอ console — ตั้งจาก Secret ของ environment นั้น
+    // (แอปมาพร้อมบัญชีตัวอย่างที่รหัสผ่านอยู่ใน README สาธารณะ จึงต้องมีบัญชีจริง
+    //  ที่ตั้งรหัสเองได้ และตั้งซ้ำได้เรื่อย ๆ เวลาเปลี่ยนรหัส)
+    if let (Ok(email), Ok(pass)) = (
+        std::env::var("CONSOLE_ADMIN_EMAIL"),
+        std::env::var("CONSOLE_ADMIN_PASSWORD"),
+    ) {
+        let email = email.trim().to_lowercase();
+        if !email.is_empty() && pass.len() >= 12 {
+            match filehub_backend::auth::hash_password(&pass) {
+                Ok(hash) => {
+                    let r = sqlx::query(
+                        r#"INSERT INTO users (id, email, display_name, avatar_tone, password_hash, role, status)
+                           VALUES ($1, $2, 'ผู้ดูแลคลังไฟล์', 'slate', $3, 'admin', 'active')
+                           ON CONFLICT (email) DO UPDATE
+                             SET password_hash = EXCLUDED.password_hash,
+                                 role = 'admin', status = 'active'"#,
+                    )
+                    .bind(format!("usr_console_{}", email.replace(|c: char| !c.is_alphanumeric(), "_")))
+                    .bind(&email)
+                    .bind(&hash)
+                    .execute(&state.db)
+                    .await;
+                    match r {
+                        Ok(_) => tracing::info!(email = %email, "ตั้งบัญชีผู้ดูแลหน้าจอเรียบร้อย"),
+                        Err(e) => tracing::error!("ตั้งบัญชีผู้ดูแลไม่สำเร็จ: {e}"),
+                    }
+                }
+                Err(e) => tracing::error!("เข้ารหัสรหัสผ่านผู้ดูแลไม่สำเร็จ: {e:?}"),
+            }
+        } else {
+            tracing::warn!("ข้ามการตั้งบัญชีผู้ดูแล — อีเมลว่างหรือรหัสผ่านสั้นกว่า 12 ตัว");
+        }
+    }
+
     // ชั้นแปลงเมธอดต้องอยู่ "นอกสุด" ก่อน Router จับคู่เส้นทาง ไม่งั้นได้ 405 ไปแล้ว
     // (ขอบนอกของ NEB ปล่อยเฉพาะ GET/POST — ดู method_override ใน lib.rs)
     let app = tower::ServiceBuilder::new()

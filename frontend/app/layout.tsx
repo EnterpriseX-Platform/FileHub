@@ -27,6 +27,9 @@ async function edgeAccess(): Promise<{ denied: boolean; email?: string }> {
   const backend = process.env.BACKEND_URL || "http://127.0.0.1:8090";
   try {
     const h = await headers();
+    // จอผู้ดูแลใช้ล็อกอินของตัวเอง ⇒ ไม่ต้องเช็คสิทธิ์ฝั่ง NEB
+    // ยกเว้น environment ที่เปิดให้หน้าจอใช้ SSO (VirtualServer แนบเฮดเดอร์นี้มา)
+    if (!h.get("x-filehub-ui-sso")) return { denied: false };
     const fwd: Record<string, string> = {};
     for (const k of [
       "cookie",
