@@ -71,6 +71,16 @@ fn legacy_upstream() -> Option<String> {
     env_opt("LEGACY_FILEHUB_URL").map(|v| v.trim_end_matches('/').to_string())
 }
 
+/// เพดานขนาดไฟล์ของเส้นเก่า (ค่าเริ่มต้น 256 MB)
+fn legacy_max_upload_bytes() -> usize {
+    env_opt("LEGACY_MAX_UPLOAD_MB")
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|v| *v > 0)
+        .unwrap_or(256)
+        * 1024
+        * 1024
+}
+
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/FileService/upload", post(upload))
@@ -81,8 +91,11 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/FileService/getFiles", get(get_files))
         .route("/FileService/rename", post(rename))
         .route("/FileService/moveFileToTrash", post(move_to_trash))
-        // ของเดิมรับไฟล์ใหญ่ได้ ตัวแปลงจึงต้องรับได้เท่ากับเส้นทางใหม่
-        .layer(DefaultBodyLimit::max(64 * 1024 * 1024))
+        // ขอบนอกของเดิมตั้ง client-max-body-size ไว้ 2048m ⇒ ถ้าตั้งต่ำกว่านั้นมาก
+        // ไฟล์ใหญ่ที่เคยอัปได้จะเริ่มล้มหลังสลับปลายทาง (regression ที่คนจะโทษ FileHub ใหม่)
+        // ตัวเลขนี้กินแรมจริงต่อคำขอ เพราะอ่านทั้งก้อนก่อนเขียน จึงตั้งค่าได้ด้วย
+        // LEGACY_MAX_UPLOAD_MB แล้วปรับ memory limit ของพ็อดให้สัมพันธ์กัน
+        .layer(DefaultBodyLimit::max(legacy_max_upload_bytes()))
 }
 
 // ────────────────────────── ตัวตนของผู้เรียก ──────────────────────────
