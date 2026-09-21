@@ -21,7 +21,7 @@ use crate::state::AppState;
 
 /// Column list shared by every `files` read.  Keeps `search_tsv` (added in
 /// migration 0004) out so sqlx::FromRow has nothing to map it to.
-const FILE_COLS: &str = "id, name, file_type, size_bytes, system_id, org_id, bucket, object_key, project, status, owner, tags, version, metadata, etag, created_at, modified_at, folder_id, encrypted, deleted_at, created_by";
+pub(crate) const FILE_COLS: &str = "id, name, file_type, size_bytes, system_id, org_id, bucket, object_key, project, status, owner, tags, version, metadata, etag, created_at, modified_at, folder_id, encrypted, deleted_at, created_by";
 
 pub async fn health() -> &'static str { "ok" }
 
@@ -514,17 +514,17 @@ pub fn is_image_type(t: &str) -> bool {
 }
 
 #[derive(Default)]
-struct UploadFields {
-    name: Option<String>,
-    system_id: Option<String>,
-    org_id: Option<String>,
-    folder_id: Option<String>,
-    project: Option<String>,
-    status: Option<String>,
-    owner: Option<String>,
-    tags: Option<String>,
-    content_type: Option<String>,
-    body: Option<bytes::Bytes>,
+pub(crate) struct UploadFields {
+    pub(crate) name: Option<String>,
+    pub(crate) system_id: Option<String>,
+    pub(crate) org_id: Option<String>,
+    pub(crate) folder_id: Option<String>,
+    pub(crate) project: Option<String>,
+    pub(crate) status: Option<String>,
+    pub(crate) owner: Option<String>,
+    pub(crate) tags: Option<String>,
+    pub(crate) content_type: Option<String>,
+    pub(crate) body: Option<bytes::Bytes>,
 }
 
 fn parse_uuid(s: &str) -> Result<Uuid, ApiError> {
@@ -664,7 +664,7 @@ async fn auto_tags(s: &AppState, system: &System, org_id: Option<&str>, owner: &
 /// ถ้าไม่ได้ส่ง system_id/org_id มา ให้ใช้ค่าตั้งต้นของผู้ใช้ที่ระบบจำไว้ตอนเข้าใช้งาน
 /// ผ่านขอบนอก (users.default_system_id / default_org_id) — ผู้ใช้จึงอัปโหลดเข้า
 /// หน่วยงานตัวเองได้เลย ไม่ต้องรู้จักรหัสระบบ/หน่วยงาน
-async fn persist_upload_for(
+pub(crate) async fn persist_upload_for(
     s: &AppState,
     actor: Option<&str>,
     mut f: UploadFields,
