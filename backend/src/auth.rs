@@ -208,6 +208,16 @@ pub async fn login(
     jar: CookieJar,
     Json(creds): Json<Credentials>,
 ) -> ApiResult<(CookieJar, Json<LoginResponse>)> {
+    // ปิดการล็อกอินด้วยบัญชีของแอปเอง เมื่อ NEB ใช้ตัวตนจากขอบนอกแล้ว
+    // ⇒ "ใครเข้าได้" ถูกตัดสินที่ IAM-X ที่เดียว ไม่มีประตูหลังให้เดารหัสผ่าน
+    // (แอปนี้มาพร้อมบัญชีตัวอย่างที่รหัสผ่านอยู่ใน README สาธารณะ)
+    if matches!(
+        std::env::var("LOCAL_LOGIN").unwrap_or_default().trim(),
+        "0" | "off" | "false" | "no"
+    ) {
+        tracing::warn!(email = %creds.email, "ปฏิเสธการล็อกอินด้วยบัญชีของแอป — ระบบตั้งให้เข้าผ่าน NEB เท่านั้น");
+        return Err(ApiError::Forbidden);
+    }
     // Crude in-process throttle: cap failed-login attempts per (email, IP)
     // at ~10/min so an online bruteforce takes years instead of minutes.
     // For multi-pod deploys swap this for a Redis-backed counter, but the

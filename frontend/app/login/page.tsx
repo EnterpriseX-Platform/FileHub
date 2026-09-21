@@ -8,9 +8,9 @@ import { useAuth } from "@/lib/auth-context";
 export const dynamic = "force-dynamic";
 
 const DEMO_ACCOUNTS = [
-  ["admin@acme.go.th",  "Admin · hard-delete + full RBAC"],
-  ["anong@acme.go.th",  "Editor · upload, edit, share"],
-  ["viewer@acme.go.th", "Viewer · read-only"],
+  
+  
+  
 ];
 
 // The test-account panel prefills the email so you can pick a role quickly; the
@@ -33,7 +33,7 @@ function LoginInner() {
   const router  = useRouter();
   const params  = useSearchParams();
   const { reload, user, loading } = useAuth();
-  const [email, setEmail]       = React.useState(SHOW_DEMO_ACCOUNTS ? "anong@acme.go.th" : "");
+  const [email, setEmail]       = React.useState("");
   const [password, setPassword] = React.useState("");
   const [busy, setBusy]         = React.useState(false);
   const [error, setError]       = React.useState<string>("");
@@ -87,7 +87,7 @@ function LoginInner() {
             <span style={{ width: 44, height: 44, borderRadius: "var(--r-5)", background: "var(--accent)", color: "var(--on-accent)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 20 }}>F</span>
             <div>
               <div className="t-2xl t-semibold">File Hub</div>
-              <div className="t-sm t-muted">acme.go.th · Digital Content Platform</div>
+              <div className="t-sm t-muted">คลังไฟล์กลาง · สำนักงบประมาณ</div>
             </div>
           </div>
 
@@ -99,7 +99,7 @@ function LoginInner() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@acme.go.th"
+                placeholder="you@bb.go.th"
                 style={{ width: "100%" }}
                 autoFocus
                 required
