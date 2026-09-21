@@ -8,6 +8,7 @@ import { Ico } from "@/components/icons";
 import { Av, Ft, Pill, Tag } from "@/components/primitives";
 import { fmtAgo, fmtBytes, parseJsonArray, statusTone } from "@/lib/format";
 import { canMutate } from "@/lib/roles";
+import { mutate } from "@/lib/mutate";
 import type { FileRow, Folder } from "@/lib/api";
 
 export type FileGroup = { key: string; label: string; rows: FileRow[] };
@@ -64,7 +65,7 @@ export function FilesTable({ groups, cols, role, folders = [] }: { groups: FileG
     setBusy(true);
     try {
       await Promise.all(ids.map((id) =>
-        fetch(`/filehub/api/files/${encodeURIComponent(id)}`, { method: "DELETE", credentials: "include" })));
+        mutate(`/filehub/api/files/${encodeURIComponent(id)}`, "DELETE", { credentials: "include" })));
       setSelected(new Set());
       router.refresh();
     } finally { setBusy(false); }
@@ -72,9 +73,7 @@ export function FilesTable({ groups, cols, role, folders = [] }: { groups: FileG
 
   // PATCH a JSON body onto one file. `folder_id: null` moves to the system root.
   const patchFile = (id: string, body: Record<string, unknown>) =>
-    fetch(`/filehub/api/files/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      credentials: "include",
+    mutate(`/filehub/api/files/${encodeURIComponent(id)}`, "PATCH", { credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });

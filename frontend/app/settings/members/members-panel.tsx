@@ -5,6 +5,7 @@ import * as React from "react";
 import { Ico } from "@/components/icons";
 import { Pager } from "@/components/pager";
 import { Av, Pill, type Tone } from "@/components/primitives";
+import { mutate } from "@/lib/mutate";
 import type { Member } from "@/lib/api";
 import { fmtAgo, fmtBytes } from "@/lib/format";
 
@@ -97,8 +98,7 @@ function MemberRow({ member: m, canMutate, onChanged, onError }: {
     onError(null);
     setLoading(true);
     try {
-      const r = await fetch(`/filehub/api/users/${encodeURIComponent(m.id)}`, {
-        method: "PATCH", credentials: "include",
+      const r = await mutate(`/filehub/api/users/${encodeURIComponent(m.id)}`, "PATCH", { credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role, status, quota_bytes: Number(quota) || 0 }),
       });

@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { Ico } from "@/components/icons";
 import { Pill } from "@/components/primitives";
+import { mutate } from "@/lib/mutate";
 import type { System } from "@/lib/api";
 import { fmtBytes } from "@/lib/format";
 
@@ -86,8 +87,7 @@ function SystemRow({ row, canMutate, onChanged, onError }: {
     onError(null);
     setSaving(true);
     try {
-      const r = await fetch(`/filehub/api/systems/${encodeURIComponent(row.id)}`, {
-        method: "PATCH", credentials: "include",
+      const r = await mutate(`/filehub/api/systems/${encodeURIComponent(row.id)}`, "PATCH", { credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, quota_bytes: Number(quota) || 0 }),
       });
@@ -102,8 +102,7 @@ function SystemRow({ row, canMutate, onChanged, onError }: {
   const del = async () => {
     onError(null);
     if (!confirm(`Delete bucket "${row.name}"?  This is irreversible.`)) return;
-    const r = await fetch(`/filehub/api/systems/${encodeURIComponent(row.id)}`, {
-      method: "DELETE", credentials: "include",
+    const r = await mutate(`/filehub/api/systems/${encodeURIComponent(row.id)}`, "DELETE", { credentials: "include",
     });
     if (!r.ok) { onError((await r.json().catch(() => ({ error: r.statusText }))).error ?? r.statusText); return; }
     await onChanged();
