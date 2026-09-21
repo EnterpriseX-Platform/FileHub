@@ -5,6 +5,7 @@
 pub mod auth;
 pub mod error;
 pub mod handlers;
+pub mod legacy;
 pub mod models;
 pub mod p1;
 pub mod rotation;
@@ -18,7 +19,7 @@ pub mod wopi;
 use std::sync::Arc;
 
 use axum::{extract::DefaultBodyLimit, middleware, routing::get, Router};
-use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use tower_http::{cors::{Any, CorsLayer}, trace::TraceLayer};
 use tracing::Span;
 
 pub use state::AppState;
@@ -260,11 +261,33 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             );
         });
 
+    let legacy_state = state.clone();
     let inner = public
         .merge(private)
         .with_state(state)
         .layer(cors)
-        .layer(trace);
+        .layer(trace.clone());
 
-    Router::new().nest("/fh", inner)
+    let app = Router::new().nest("/fh", inner);
+
+    // ชั้นรองรับ API เดิม `/FileService/*` — ปิดไว้เป็นค่าเริ่มต้น เปิดด้วย
+    // LEGACY_FILESERVICE=1 เฉพาะที่ต้องรับระบบเดิมของ NEB (ดู legacy.rs)
+    // อยู่นอก `/fh` เพราะผู้เรียกเดิมใช้ path นี้ที่ราก และเราไม่แก้โค้ดฝั่งนั้น
+    if legacy::enabled() {
+        // ของเดิมตอบ `Access-Control-Allow-Origin: *` ⇒ เบราว์เซอร์ของระบบเดิม
+        // ที่ยิงข้ามโดเมนอยู่แล้วต้องยังทำงานได้เหมือนเดิม (ไม่ใช้คุกกี้)
+        let legacy_cors = CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any);
+        tracing::info!("เปิดชั้นรองรับ API เดิม /FileService/* (LEGACY_FILESERVICE=1)");
+        return app.merge(
+            legacy::router()
+                .with_state(legacy_state)
+                .layer(legacy_cors)
+                .layer(trace),
+        );
+    }
+
+    app
 }
