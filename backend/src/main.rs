@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use filehub_backend::{build_router, AppState};
+use filehub_backend::{build_router, method_override, AppState};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -35,12 +35,19 @@ async fn main() -> anyhow::Result<()> {
         None
     };
 
-    let app = build_router(state);
+    // ชั้นแปลงเมธอดต้องอยู่ "นอกสุด" ก่อน Router จับคู่เส้นทาง ไม่งั้นได้ 405 ไปแล้ว
+    // (ขอบนอกของ NEB ปล่อยเฉพาะ GET/POST — ดู method_override ใน lib.rs)
+    let app = tower::ServiceBuilder::new()
+        .layer(axum::middleware::from_fn(method_override))
+        .service(build_router(state));
 
     let port: u16 = std::env::var("PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(8090);
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     tracing::info!("File Hub backend listening on http://0.0.0.0:{port}");
-    axum::serve(listener, app)
+    axum::serve(
+        listener,
+        axum::ServiceExt::<axum::extract::Request>::into_make_service(app),
+    )
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 

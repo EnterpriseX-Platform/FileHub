@@ -48,6 +48,10 @@ pub use state::AppState;
 ///     the credential — share-link recipients aren't logged in)
 ///   - `/wopi/*`                                              (Collabora
 ///     authenticates via the `access_token` query param we mint per file)
+/// 🪤 ต้องครอบชั้นนี้ "นอก" Router ที่ `main.rs` เท่านั้น — `Router::layer` ของ axum
+/// ทำงาน **หลัง** จับคู่เส้นทางแล้ว ⇒ ถ้าใส่ตรงนี้จะได้ 405 ก่อนที่เราจะได้แก้เมธอด
+/// (เสียเวลาไล่มาแล้วรอบหนึ่ง — อย่าย้ายกลับมา)
+///
 /// ขอบนอกของ NEB (Cloudflare) ปล่อยเฉพาะ GET กับ POST — PATCH/PUT/DELETE/HEAD/OPTIONS
 /// โดนตอบ 403 เป็นหน้า HTML ตั้งแต่ยังไม่ถึงแอป (ตรวจจริงบน UAT 22 ก.ย. 2569)
 /// ⇒ ฟังก์ชันลบไฟล์ · แก้ข้อมูลไฟล์ · จัดการผู้ใช้ · โควตา ใช้งานผ่านหน้าเว็บไม่ได้เลย
@@ -56,7 +60,7 @@ pub use state::AppState;
 /// จึงรับคำสั่งเป็น POST แล้วบอกเมธอดจริงมาทางเฮดเดอร์ `X-HTTP-Method-Override`
 /// ชั้นนี้ครอบทั้ง router และทำงาน "ก่อน" การจับคู่เส้นทาง ⇒ ทุก endpoint เดิมใช้ได้ตามเดิม
 /// ไม่ต้องเพิ่มเส้นทางซ้ำ และของเดิมที่ยิงเมธอดตรง ๆ (เช่นจากในคลัสเตอร์) ก็ยังทำงานปกติ
-async fn method_override(
+pub async fn method_override(
     mut req: axum::extract::Request,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
@@ -317,15 +321,13 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             .allow_methods(Any)
             .allow_headers(Any);
         tracing::info!("เปิดชั้นรองรับ API เดิม /FileService/* (LEGACY_FILESERVICE=1)");
-        return app
-            .merge(
-                legacy::router()
-                    .with_state(legacy_state)
-                    .layer(legacy_cors)
-                    .layer(trace),
-            )
-            .layer(middleware::from_fn(method_override));
+        return app.merge(
+            legacy::router()
+                .with_state(legacy_state)
+                .layer(legacy_cors)
+                .layer(trace),
+        );
     }
 
-    app.layer(middleware::from_fn(method_override))
+    app
 }
