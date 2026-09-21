@@ -1,6 +1,6 @@
-import { mutate } from "@/lib/mutate";
 "use client";
 
+import { mutate } from "@/lib/mutate";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
