@@ -39,30 +39,30 @@ export default async function DashboardPage() {
 
   const cards: Array<[string, string, string, "indigo" | "emerald" | "amber" | "rose", React.ComponentType<React.SVGProps<SVGSVGElement>>]> = [
     [
-      "Total files",
+      "ไฟล์ทั้งหมด",
       stats ? fmtCount(stats.total_files) : "—",
-      stats ? `${fmtBytes(stats.total_size_bytes)} on disk` : "backend offline",
+      stats ? `${fmtBytes(stats.total_size_bytes)} บนดิสก์` : "ต่อหลังบ้านไม่ได้",
       "indigo",
       Ico.files,
     ],
     [
-      "Storage used",
+      "พื้นที่ที่ใช้",
       stats ? fmtBytes(usedBytes) : "—",
-      quotaBytes > 0 ? `${quotaPct}% of ${fmtBytes(quotaBytes)} quota` : "no quota set",
+      quotaBytes > 0 ? `${quotaPct}% ของโควตา ${fmtBytes(quotaBytes)}` : "ไม่ได้ตั้งโควตา",
       "emerald",
       Ico.database,
     ],
     [
-      "Active orgs",
+      "หน่วยงานที่ใช้งาน",
       stats ? fmtCount(stats.active_orgs) : "—",
-      `${(stats?.connected_systems ?? []).length} systems connected`,
+      `เชื่อมอยู่ ${(stats?.connected_systems ?? []).length} ระบบ`,
       "amber",
       Ico.users,
     ],
     [
-      "Awaiting review",
+      "รอตรวจสอบ",
       stats ? fmtCount(stats.awaiting_review) : "—",
-      orgsWithReview ? `across ${orgsWithReview} org${orgsWithReview === 1 ? "" : "s"}` : "no pending reviews",
+      orgsWithReview ? `${orgsWithReview} หน่วยงาน` : "ไม่มีรายการรอตรวจ",
       "rose",
       Ico.warning,
     ],
@@ -125,7 +125,7 @@ export default async function DashboardPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div className="card" style={{ padding: 16 }}>
               <SectionHd
-                title="Storage by system"
+                title="พื้นที่แยกตามระบบ"
                 sub={`${fmtBytes(totalStorage)} used`}
                 action={<a className="btn sm ghost" href="/orgs">View details <Ico.chevron className="icon sm" /></a>}
               />
@@ -232,7 +232,7 @@ export default async function DashboardPage() {
                 </div>
               ))}
               {(stats?.connected_systems ?? []).length === 0 && (
-                <div className="t-sm t-muted" style={{ padding: "8px 0" }}>No storage systems connected. Admins can add one in Settings.</div>
+                <div className="t-sm t-muted" style={{ padding: "8px 0" }}>ยังไม่มีระบบต้นทางเชื่อมเข้ามา ผู้ดูแลเพิ่มได้ที่หน้าตั้งค่า</div>
               )}
             </div>
           </div>

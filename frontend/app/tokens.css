@@ -15,11 +15,11 @@
   --text-subtle: #a8a29e;
   --text-faint: #d6d3d1;
 
-  --accent: #4f46e5;
-  --accent-hover: #4338ca;
-  --accent-soft: #eef2ff;
-  --accent-border: #c7d2fe;
-  --accent-text: #4338ca;
+  --accent: #1d4c80;            /* NEB: ชุดสีพอร์ทัลสำนักงบประมาณ */
+  --accent-hover: #003d60;
+  --accent-soft: #eaf1f8;
+  --accent-border: #b9d0e6;
+  --accent-text: #003d60;
   --on-accent: #ffffff;
 
   --success: #16a34a;

@@ -199,7 +199,13 @@ pub async fn import_from_legacy(
                 tags.push(t);
             }
         }
-        let owner = s(&row, "owner_user_id").unwrap_or_else(|| "ฮับเดิม".into());
+        // ของเดิมเก็บ "เจ้าของ" เป็นรหัสผู้ใช้ดิบ ๆ ถ้ายกมาตรง ๆ หน้าจอจะโชว์ UUID
+        // ยาวเหยียดซึ่งอ่านไม่รู้เรื่อง — เก็บรหัสเดิมไว้เป็นแท็กเพื่อสืบกลับได้
+        // แล้วแสดงชื่อที่คนอ่านออกแทน
+        let owner = "นำเข้าจากฮับเดิม".to_string();
+        if let Some(uid) = s(&row, "owner_user_id") {
+            tags.push(format!("ผู้ใช้เดิม:{uid}"));
+        }
 
         let res = sqlx::query(
             r#"INSERT INTO files

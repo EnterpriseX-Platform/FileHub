@@ -54,7 +54,7 @@ export default async function FileDetailPage({ params }: { params: Promise<{ id:
             <div style={{ flex: 1, minWidth: 0 }}>
               <div className="t-md t-semibold t-trunc">{file.name}</div>
               <div className="t-xs t-muted">
-                {fmtBytes(file.size_bytes)} · v{file.version} · uploaded {fmtAgo(file.created_at)}
+                {fmtBytes(file.size_bytes)} · v{file.version} · อัปโหลดเมื่อ {fmtAgo(file.created_at)}
               </div>
             </div>
           </div>
@@ -62,42 +62,42 @@ export default async function FileDetailPage({ params }: { params: Promise<{ id:
         </div>
 
         <div style={{ padding: "12px 16px", flex: 1, overflow: "auto" }}>
-          <Label>System fields</Label>
-          <Prop label="Status" icon={<span style={{ width: 6, height: 6, background: `var(--c-${statusTone(file.status)})`, borderRadius: "50%" }} />}>
+          <Label>ข้อมูลไฟล์</Label>
+          <Prop label="สถานะ" icon={<span style={{ width: 6, height: 6, background: `var(--c-${statusTone(file.status)})`, borderRadius: "50%" }} />}>
             <Pill tone={statusTone(file.status)}><span className="dot" />{file.status}</Pill>
           </Prop>
           {file.project && (
-            <Prop label="Project" icon={<Ico.tag className="icon sm" />}>
+            <Prop label="โครงการ" icon={<Ico.tag className="icon sm" />}>
               <Pill tone="indigo">{file.project}</Pill>
             </Prop>
           )}
-          <Prop label="Owner" icon={<Ico.user className="icon sm" />}>
+          <Prop label="เจ้าของ" icon={<Ico.user className="icon sm" />}>
             <Av name={file.owner} tone="rose" /><span>{file.owner}</span>
           </Prop>
-          <Prop label="Type" icon={<Ico.layers className="icon sm" />}>
+          <Prop label="ชนิดไฟล์" icon={<Ico.layers className="icon sm" />}>
             <Pill>{file.file_type}</Pill>
           </Prop>
-          <Prop label="Tags" icon={<Ico.tag className="icon sm" />}>
+          <Prop label="แท็ก" icon={<Ico.tag className="icon sm" />}>
             {tags.length > 0 ? tags.map((t) => <Tag key={t}>{t}</Tag>) : <span className="t-subtle">—</span>}
           </Prop>
-          <Prop label="Modified" icon={<Ico.clock className="icon sm" />}>
+          <Prop label="แก้ไขล่าสุด" icon={<Ico.clock className="icon sm" />}>
             <span>{fmtAgo(file.modified_at)}</span>
           </Prop>
-          <Prop label="Created" icon={<Ico.clock className="icon sm" />}>
+          <Prop label="สร้างเมื่อ" icon={<Ico.clock className="icon sm" />}>
             <span>{fmtAgo(file.created_at)}</span>
           </Prop>
 
           <div className="divider" />
 
-          <Label>Storage</Label>
-          <Prop label="System" icon={<Ico.database className="icon sm" />}>
+          <Label>ที่จัดเก็บ</Label>
+          <Prop label="ระบบต้นทาง" icon={<Ico.database className="icon sm" />}>
             {sys ? <Pill tone={sys.tone}><span className="dot" />{sys.name}</Pill> : <span className="t-mono">{file.system_id}</span>}
           </Prop>
           {/* Bucket/path/ETag are operator detail, not user metadata — folded
               away by default. Native <details> keeps this a server component. */}
           <details className="disclosure">
-            <summary>Technical details</summary>
-            <Prop label="Storage location" icon={<Ico.bucket className="icon sm" />}><span className="t-mono t-sm">{file.bucket}</span></Prop>
+            <summary>รายละเอียดทางเทคนิค</summary>
+            <Prop label="ที่เก็บจริง" icon={<Ico.bucket className="icon sm" />}><span className="t-mono t-sm">{file.bucket}</span></Prop>
             <Prop label="Object path"      icon={<Ico.folder className="icon sm" />}><span className="t-mono t-sm t-trunc">{file.object_key}</span></Prop>
             {file.etag && <Prop label="Checksum" icon={<Ico.tag className="icon sm" />}><span className="t-mono t-xs t-trunc">{file.etag}</span></Prop>}
             <Prop label="Encryption" icon={<Ico.shield className="icon sm" />}>
@@ -107,7 +107,7 @@ export default async function FileDetailPage({ params }: { params: Promise<{ id:
 
           <div className="divider" />
           <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
-            <Label>Permissions</Label>
+            <Label>สิทธิ์การเข้าถึง</Label>
             <span className="t-xs t-muted" style={{ marginLeft: "auto" }}>{perms.length}</span>
           </div>
           {perms.length === 0 ? (

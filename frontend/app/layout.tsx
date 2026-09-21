@@ -15,7 +15,9 @@ export const metadata: Metadata = {
 // Inline (not next/script) — external scripts load too late and interact
 // badly with basePath. Mirrors lib/theme-context.tsx, which reads the class
 // this sets.
-const THEME_BOOT = `try{var t=localStorage.getItem("fh-theme");var d=t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches;if(d)document.documentElement.classList.add("dark")}catch(e){}`;
+// NEB: จอของระบบอื่นในพอร์ทัลเป็นโทนสว่างทั้งหมด ถ้าปล่อยตามค่าเครื่องผู้ใช้
+// จะเปิดมาเจอจอดำที่ดูหลุดจากระบบ ⇒ เริ่มต้นสว่างเสมอ แล้วให้สลับเองได้
+const THEME_BOOT = `try{if(localStorage.getItem("fh-theme")==="dark")document.documentElement.classList.add("dark")}catch(e){}`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

@@ -33,7 +33,7 @@ export function MyDriveLink() {
     <SideRow
       href={`/files?system_id=${encodeURIComponent(driveId)}`}
       icon={<Ico.home className="icon sm" />}
-      label="My Drive"
+      label="ไดรฟ์ของฉัน"
     />
   );
 }
