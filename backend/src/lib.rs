@@ -6,6 +6,7 @@ pub mod auth;
 pub mod error;
 pub mod handlers;
 pub mod legacy;
+pub mod legacy_import;
 pub mod models;
 pub mod p1;
 pub mod rotation;
@@ -209,6 +210,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             "/api/rotation/policies/:id",
             axum::routing::delete(handlers::delete_rotation_policy),
         )
+        .route("/api/legacy-import", axum::routing::post(legacy_import::import_from_legacy))
         .route("/api/rotation/run",  axum::routing::post(handlers::run_rotation_now))
         .route("/api/rotation/runs", get(handlers::list_rotation_runs))
         // Phase U — Collabora Online: the *minter* needs a session (we issue
