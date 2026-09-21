@@ -318,8 +318,10 @@ async fn upload(
         tags: None,
     };
     let file = persist_upload_for(&s, Some(user.id.as_str()), fields, Some(&user)).await?;
-    // ต่อแท็กของเส้นเก่าเข้าไปกับแท็กอัตโนมัติที่เพิ่งติดให้
+    // ต่อแท็กของเส้นเก่าเข้าไปกับแท็กอัตโนมัติที่เพิ่งติดให้ แล้วอ่านกลับมาใหม่
+    // เพื่อให้ `tag_name` ในคำตอบตรงกับที่บันทึกจริง (ผู้เรียกบางตัวเก็บค่านี้ไว้)
     append_tags(&s, &file, &extra).await?;
+    let file = find_file(&s, &file.id.to_string()).await?.unwrap_or(file);
 
     Ok(Json(json!({
         "success": true,
@@ -658,4 +660,40 @@ async fn move_to_trash(
         "success": true,
         "message": format!("move file to trash:{} successfully", b.file_id),
     })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stem_strips_only_the_last_extension() {
+        // ของเดิมคืน file_name แบบไม่มีนามสกุล และคืนชื่อเต็มที่ fileName
+        assert_eq!(stem("probe-compat.txt"), "probe-compat");
+        assert_eq!(stem("รายงาน.งบ.2570.pdf"), "รายงาน.งบ.2570");
+        assert_eq!(stem("no-extension"), "no-extension");
+        // ไฟล์ซ่อนของยูนิกซ์ไม่ใช่ "นามสกุลล้วน" — ต้องไม่เหลือชื่อว่าง
+        assert_eq!(stem(".env"), ".env");
+    }
+
+    #[test]
+    fn download_link_uses_the_legacy_shape() {
+        std::env::remove_var("PUBLIC_BASE_URL");
+        let id = Uuid::nil();
+        assert_eq!(
+            download_link(&id),
+            format!("/FileService/downloadFile?fileId={id}")
+        );
+    }
+
+    #[test]
+    fn enabled_only_on_explicit_opt_in() {
+        std::env::remove_var("LEGACY_FILESERVICE");
+        assert!(!enabled());
+        std::env::set_var("LEGACY_FILESERVICE", "1");
+        assert!(enabled());
+        std::env::set_var("LEGACY_FILESERVICE", "0");
+        assert!(!enabled());
+        std::env::remove_var("LEGACY_FILESERVICE");
+    }
 }
