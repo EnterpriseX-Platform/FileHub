@@ -653,6 +653,12 @@ pub async fn require_session(
         resolve_api_key(&state.db, &key).await?;
         return Ok(next.run(req).await);
     }
+    // ตัวตนจากขอบนอกของ NEB ต้องผ่านด่านนี้ด้วย ไม่งั้นทุก endpoint หลังด่าน
+    // จะตอบ 401 ทั้งที่ `/api/auth/me` (อยู่นอกด่าน) บอกว่ารู้จักผู้ใช้แล้ว
+    // — จอจะว่างทั้งระบบโดยไม่มีอะไรฟ้องว่าเพราะอะไร
+    if edge_identity(&state, req.headers()).await?.is_some() {
+        return Ok(next.run(req).await);
+    }
     let jar = CookieJar::from_headers(req.headers());
     let token = jar
         .get(COOKIE_NAME)
