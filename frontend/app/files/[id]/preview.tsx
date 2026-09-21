@@ -41,7 +41,7 @@ function TextPreview({ download, fileName }: { download: string; fileName: strin
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: "1px solid var(--border)" }}>
         <span className="t-sm t-semibold t-trunc" style={{ flex: 1 }}>{fileName}</span>
         {state && !("error" in state) && state.truncated && <span className="t-xs t-subtle">first 64 KB</span>}
-        <a href={download} className="btn xs ghost">Download</a>
+        <a href={download} className="btn xs ghost">ดาวน์โหลด</a>
       </div>
       <pre className="t-mono t-sm" style={{ margin: 0, padding: "var(--sp-4)", maxHeight: "62vh", overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word", color: "var(--text)" }}>
         {state === null ? "Loading…" : state.text || "(empty file)"}

@@ -91,7 +91,7 @@ export function FileActions({ fileId, currentStatus }: { fileId: string; current
             disabled={busy !== ""}
             onClick={() => patch("review", { status: "Review" })}
           >
-            {busy === "review" ? "Submitting…" : "Submit for review"}
+            {busy === "review" ? "กำลังส่ง…" : "ส่งให้ตรวจสอบ"}
           </button>
         )}
         <button

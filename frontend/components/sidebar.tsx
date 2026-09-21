@@ -56,12 +56,12 @@ export function Sidebar({
       <GlobalSearch />
 
       <div className="side-section">
-        <SideRow href="/"          icon={<Ico.home />}     label="Dashboard" active={nav === "dashboard"} />
-        <SideRow href="/files"     icon={<Ico.files />}    label="All files" active={nav === "files"} count={stats ? fmtCount(stats.total_files) : undefined} />
-        <SideRow href="/activity"  icon={<Ico.activity />} label="Activity"  active={nav === "activity"} />
-        <SideRow href="/views/new" icon={<Ico.views />}    label="Views"     active={nav === "views"} />
-        <SideRow href="/share"     icon={<Ico.share />}    label="Shared"    active={nav === "share"} />
-        <SideRow href="/archive"   icon={<Ico.archive />}  label="Archive"   active={nav === "archive"} />
+        <SideRow href="/"          icon={<Ico.home />}     label="ภาพรวม" active={nav === "dashboard"} />
+        <SideRow href="/files"     icon={<Ico.files />}    label="ไฟล์ทั้งหมด" active={nav === "files"} count={stats ? fmtCount(stats.total_files) : undefined} />
+        <SideRow href="/activity"  icon={<Ico.activity />} label="ความเคลื่อนไหว"  active={nav === "activity"} />
+        <SideRow href="/views/new" icon={<Ico.views />}    label="มุมมองที่บันทึก" active={nav === "views"} />
+        <SideRow href="/share"     icon={<Ico.share />}    label="แชร์" active={nav === "share"} />
+        <SideRow href="/archive"   icon={<Ico.archive />}  label="คลังเก็บ" active={nav === "archive"} />
         {/* My Drive — only renders for signed-in users; reads the personal
             drive id from the backend on mount. */}
         <MyDriveLink />
@@ -70,7 +70,7 @@ export function Sidebar({
       <div className="divider" style={{ margin: "4px 12px" }} />
 
       <div className="side-section">
-        <SideLabel action={<Link href="/views/new" title="Create a saved view" aria-label="Create a saved view" style={{ display: "inline-flex", color: "inherit" }}><Ico.plus className="icon sm" /></Link>}>Saved views</SideLabel>
+        <SideLabel action={<Link href="/views/new" title="สร้างมุมมองใหม่" aria-label="สร้างมุมมองใหม่" style={{ display: "inline-flex", color: "inherit" }}><Ico.plus className="icon sm" /></Link>}>มุมมองที่บันทึก</SideLabel>
         {/* Pulled live from /api/views (pinned rows).  Each click derives a
             `/files?field=value` URL from the first equality filter so the
             sidebar actually narrows the file table instead of being a dead
@@ -80,7 +80,7 @@ export function Sidebar({
 
       <div className="side-section" style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
         <SideLabel>
-          Systems · {systems.length}
+          ระบบต้นทาง · {systems.length}
         </SideLabel>
 
         {systems.length === 0 && (
@@ -126,8 +126,8 @@ export function Sidebar({
       </div>
 
       <div style={{ borderTop: "1px solid var(--border)", padding: "8px 8px" }}>
-        <SideRow href="/trash"    icon={<Ico.trash />}    label="Trash" active={nav === "trash"} />
-        <SideRow href="/settings" icon={<Ico.cog />}      label="Settings" active={nav === "settings"} />
+        <SideRow href="/trash"    icon={<Ico.trash />}    label="ถังขยะ" active={nav === "trash"} />
+        <SideRow href="/settings" icon={<Ico.cog />}      label="ตั้งค่า" active={nav === "settings"} />
         <UserMenu />
       </div>
     </div>

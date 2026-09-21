@@ -14,9 +14,9 @@ export function UserGreeting() {
 
   const hour = new Date().getHours();
   const part =
-    hour < 12 ? "Good morning" :
-    hour < 18 ? "Good afternoon" :
-                "Good evening";
+    hour < 12 ? "สวัสดีตอนเช้า" :
+    hour < 18 ? "สวัสดีตอนบ่าย" :
+                "สวัสดีตอนเย็น";
 
   // Just the first name keeps the heading short and matches the previous look.
   const name = user?.display_name?.split(/\s+/)[0] ?? "";
