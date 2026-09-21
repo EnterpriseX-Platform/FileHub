@@ -1,3 +1,4 @@
+import { mutate } from "@/lib/mutate";
 "use client";
 
 import { useRouter } from "next/navigation";
@@ -32,9 +33,7 @@ export function TrashRowActions({ fileId, fileName, role }: { fileId: string; fi
     if (!confirm(`Permanently delete "${fileName}"? Admin role required. This cannot be undone.`)) return;
     setBusy("purge"); setError("");
     try {
-      const r = await fetch(`/filehub/api/files/${encodeURIComponent(fileId)}?hard=true`, {
-        method: "DELETE",
-        credentials: "include",
+      const r = await mutate(`/filehub/api/files/${encodeURIComponent(fileId)}?hard=true`, "DELETE", { credentials: "include",
       });
       if (r.status === 401) { window.location.href = "/login?next=/trash"; return; }
       if (r.status === 403) { setError("Admin role required to permanently delete. Contact your workspace admin."); return; }

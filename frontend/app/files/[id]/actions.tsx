@@ -1,3 +1,4 @@
+import { mutate } from "@/lib/mutate";
 "use client";
 
 import { useRouter } from "next/navigation";
@@ -14,9 +15,7 @@ export function FileActions({ fileId, currentStatus }: { fileId: string; current
     setBusy(which);
     setError("");
     try {
-      const res = await fetch(`/filehub/api/files/${encodeURIComponent(fileId)}`, {
-        method: "PATCH",
-        credentials: "include",
+      const res = await mutate(`/filehub/api/files/${encodeURIComponent(fileId)}`, "PATCH", { credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
@@ -35,9 +34,7 @@ export function FileActions({ fileId, currentStatus }: { fileId: string; current
     setBusy("delete");
     setError("");
     try {
-      const res = await fetch(`/filehub/api/files/${encodeURIComponent(fileId)}`, {
-        method: "DELETE",
-        credentials: "include",
+      const res = await mutate(`/filehub/api/files/${encodeURIComponent(fileId)}`, "DELETE", { credentials: "include",
       });
       if (res.status === 401) { window.location.href = `/login?next=/files/${fileId}`; return; }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

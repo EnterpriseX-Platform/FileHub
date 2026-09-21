@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { Ico } from "@/components/icons";
 import { Pill } from "@/components/primitives";
+import { mutate } from "@/lib/mutate";
 import type { RotationPolicy, RotationRun, System } from "@/lib/api";
 import { fmtAgo } from "@/lib/format";
 
@@ -163,8 +164,7 @@ function PolicyRow({
       return;
     }
     if (!confirm("Delete this rotation policy?")) return;
-    const r = await fetch(`/filehub/api/rotation/policies/${encodeURIComponent(policy.id)}`, {
-      method: "DELETE", credentials: "include",
+    const r = await mutate(`/filehub/api/rotation/policies/${encodeURIComponent(policy.id)}`, "DELETE", { credentials: "include",
     });
     if (!r.ok) { onError((await r.json().catch(() => ({ error: r.statusText }))).error ?? r.statusText); return; }
     await onChanged();

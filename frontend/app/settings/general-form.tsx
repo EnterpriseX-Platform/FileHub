@@ -1,3 +1,4 @@
+import { mutate } from "@/lib/mutate";
 "use client";
 
 import * as React from "react";
@@ -37,8 +38,7 @@ export function GeneralForm({ initial, canMutate }: { initial: WorkspaceConfig; 
   const save = async () => {
     setBusy(true); setErr(null); setOk(null);
     try {
-      const r = await fetch("/filehub/api/workspace", {
-        method: "PATCH", credentials: "include",
+      const r = await mutate("/filehub/api/workspace", "PATCH", { credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ values: cfg }),
       });

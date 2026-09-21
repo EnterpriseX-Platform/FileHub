@@ -47,6 +47,40 @@ pub use state::AppState;
 ///     the credential — share-link recipients aren't logged in)
 ///   - `/wopi/*`                                              (Collabora
 ///     authenticates via the `access_token` query param we mint per file)
+/// ขอบนอกของ NEB (Cloudflare) ปล่อยเฉพาะ GET กับ POST — PATCH/PUT/DELETE/HEAD/OPTIONS
+/// โดนตอบ 403 เป็นหน้า HTML ตั้งแต่ยังไม่ถึงแอป (ตรวจจริงบน UAT 22 ก.ย. 2569)
+/// ⇒ ฟังก์ชันลบไฟล์ · แก้ข้อมูลไฟล์ · จัดการผู้ใช้ · โควตา ใช้งานผ่านหน้าเว็บไม่ได้เลย
+///
+/// และกติกาของโครงการคือ **ห้ามไปขอทีม WAF เปิดเมธอดให้** ต้องแก้ด้วยโค้ดเราเอง
+/// จึงรับคำสั่งเป็น POST แล้วบอกเมธอดจริงมาทางเฮดเดอร์ `X-HTTP-Method-Override`
+/// ชั้นนี้ครอบทั้ง router และทำงาน "ก่อน" การจับคู่เส้นทาง ⇒ ทุก endpoint เดิมใช้ได้ตามเดิม
+/// ไม่ต้องเพิ่มเส้นทางซ้ำ และของเดิมที่ยิงเมธอดตรง ๆ (เช่นจากในคลัสเตอร์) ก็ยังทำงานปกติ
+async fn method_override(
+    mut req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    if req.method() == axum::http::Method::POST {
+        let want = req
+            .headers()
+            .get("x-http-method-override")
+            .and_then(|v| v.to_str().ok())
+            .map(|v| v.trim().to_ascii_uppercase());
+        if let Some(w) = want {
+            // อนุญาตเฉพาะเมธอดที่ขอบนอกบล็อก — ไม่เปิดให้เปลี่ยนเป็นอะไรก็ได้
+            let m = match w.as_str() {
+                "DELETE" => Some(axum::http::Method::DELETE),
+                "PATCH" => Some(axum::http::Method::PATCH),
+                "PUT" => Some(axum::http::Method::PUT),
+                _ => None,
+            };
+            if let Some(m) = m {
+                *req.method_mut() = m;
+            }
+        }
+    }
+    next.run(req).await
+}
+
 pub fn build_router(state: Arc<AppState>) -> Router {
     // `CORS_ORIGIN` is the single browser-facing origin that may call this
     // API.  We refuse to silently fall back to `localhost:3001` in release
@@ -281,13 +315,15 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             .allow_methods(Any)
             .allow_headers(Any);
         tracing::info!("เปิดชั้นรองรับ API เดิม /FileService/* (LEGACY_FILESERVICE=1)");
-        return app.merge(
-            legacy::router()
-                .with_state(legacy_state)
-                .layer(legacy_cors)
-                .layer(trace),
-        );
+        return app
+            .merge(
+                legacy::router()
+                    .with_state(legacy_state)
+                    .layer(legacy_cors)
+                    .layer(trace),
+            )
+            .layer(middleware::from_fn(method_override));
     }
 
-    app
+    app.layer(middleware::from_fn(method_override))
 }
