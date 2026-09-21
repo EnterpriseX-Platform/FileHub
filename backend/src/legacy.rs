@@ -298,13 +298,12 @@ async fn upload(
     let name = up.name.clone().ok_or_else(|| ApiError::BadRequest("missing file".into()))?;
     let body = up.body.clone().ok_or_else(|| ApiError::BadRequest("missing file body".into()))?;
 
-    // โฟลเดอร์ของเดิมเป็นคนละชุดรหัสกับของใหม่ ⇒ ใช้ได้เฉพาะที่มีจริงในฐานนี้
-    // ไม่งั้น FK พัง และผู้เรียกเดิมจะได้ error ทั้งที่ไฟล์ควรอัปได้
+    // โฟลเดอร์: ของเดิมส่งรหัสโฟลเดอร์ของตัวเองมา (เช่น parentFolderId ของ owdropzone)
+    // ถ้าไม่รับไว้ ไฟล์จะไปกองที่ราก แล้วผู้เรียกที่ list ด้วย parentFolderId จะหาไม่เจอ
+    // จึง "จองรหัสเดิมไว้" — สร้างโฟลเดอร์ที่ใช้ id เดียวกับของเดิม (id เป็น text)
+    // ⇒ getFiles?parentFolderId=<รหัสเดิม> ยังคืนไฟล์ได้เหมือนเดิม
     let folder_id = match up.parent_folder_id.as_deref() {
-        Some(v) => sqlx::query_scalar::<_, String>("SELECT id FROM folders WHERE id = $1")
-            .bind(v)
-            .fetch_optional(&s.db)
-            .await?,
+        Some(v) => Some(ensure_legacy_folder(&s, v, &user).await?),
         None => None,
     };
 
@@ -342,6 +341,43 @@ async fn upload(
         "message": "Upload file success.",
         "data": legacy_file(&file),
     })))
+}
+
+/// จองรหัสโฟลเดอร์ของระบบเดิมไว้ในฐานใหม่ (ใช้ id เดิมตรง ๆ) ถ้ายังไม่มี
+async fn ensure_legacy_folder(
+    s: &Arc<AppState>,
+    legacy_id: &str,
+    user: &User,
+) -> ApiResult<String> {
+    if let Some(id) = sqlx::query_scalar::<_, String>("SELECT id FROM folders WHERE id = $1")
+        .bind(legacy_id)
+        .fetch_optional(&s.db)
+        .await?
+    {
+        return Ok(id);
+    }
+    let system_id: Option<String> =
+        sqlx::query_scalar("SELECT default_system_id FROM users WHERE id = $1")
+            .bind(&user.id)
+            .fetch_optional(&s.db)
+            .await?
+            .flatten();
+    let system_id = system_id
+        .or_else(|| env_opt("LEGACY_DEFAULT_SYSTEM"))
+        .or_else(|| env_opt("EDGE_DEFAULT_SYSTEM"))
+        .ok_or_else(|| ApiError::BadRequest("missing system for folder".into()))?;
+    sqlx::query(
+        r#"INSERT INTO folders (id, system_id, name, owner, created_by)
+           VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING"#,
+    )
+    .bind(legacy_id)
+    .bind(&system_id)
+    .bind(format!("โฟลเดอร์เดิม {legacy_id}"))
+    .bind(&user.display_name)
+    .bind(&user.id)
+    .execute(&s.db)
+    .await?;
+    Ok(legacy_id.to_string())
 }
 
 async fn append_tags(s: &Arc<AppState>, f: &File, extra: &[String]) -> ApiResult<()> {
