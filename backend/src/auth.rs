@@ -343,6 +343,23 @@ async fn edge_identity(
         .or_else(|| ui.as_ref().and_then(|u| u.email.clone()).map(|e| e.to_lowercase()));
     let Some(email) = email else { return Ok(None) };
 
+    // ── ด่านสิทธิ์: ใครเข้าคลังไฟล์ได้บ้าง ────────────────────────────────
+    // EDGE_REQUIRED_ROLES = รหัสสิทธิ์ของ IAM-X ที่ยอมให้เข้า (คั่นด้วย ,)
+    // ไม่ตั้ง = เปิดให้ทุกคนที่ล็อกอิน NEB (พฤติกรรมเดิม)
+    // คนที่ไม่มีสิทธิ์จะได้ 403 ชัด ๆ ไม่ใช่จอว่างหรือถูกเด้งไปหน้า login ให้งง
+    let user_roles: Vec<String> = ui.as_ref().map(|u| u.roles.clone()).unwrap_or_default();
+    let required = role_list("EDGE_REQUIRED_ROLES");
+    if !required.is_empty() && !has_any(&user_roles, &required) {
+        tracing::warn!(
+            email = %email, roles = ?user_roles,
+            "ปฏิเสธการเข้าคลังไฟล์ — ไม่มีสิทธิ์ตามที่ตั้งใน EDGE_REQUIRED_ROLES"
+        );
+        return Err(ApiError::Forbidden);
+    }
+    // สิทธิ์ผู้ดูแลผูกกับรหัสสิทธิ์ใน IAM-X ด้วย จะได้ไม่ต้องตั้งซ้ำสองที่
+    let admin_roles = role_list("EDGE_ADMIN_ROLES");
+    let is_admin = !admin_roles.is_empty() && has_any(&user_roles, &admin_roles);
+
     let system_id = header_str(headers, "x-filehub-system")
         .or_else(|| std::env::var("EDGE_DEFAULT_SYSTEM").ok());
     // หน่วยงานของผู้ใช้ — จาก claim ของ IAM-X ก่อน ถ้าไม่มีค่อยดูเฮดเดอร์
@@ -375,6 +392,19 @@ async fn edge_identity(
             .execute(&state.db)
             .await?;
         }
+        // สิทธิ์เปลี่ยนที่ IAM-X แล้วต้องมีผลที่นี่ทันที ไม่ต้องมาแก้มือซ้ำสองที่
+        if u.password_hash.is_empty() && ((is_admin && u.role != "admin") || (!is_admin && !admin_roles.is_empty() && u.role == "admin")) {
+            let want: String = if is_admin { "admin".into() } else { std::env::var("EDGE_AUTH_ROLE").unwrap_or_else(|_| "editor".into()) };
+            sqlx::query("UPDATE users SET role = $1 WHERE id = $2")
+                .bind(&want)
+                .bind(&u.id)
+                .execute(&state.db)
+                .await?;
+            return Ok(sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+                .bind(&u.id)
+                .fetch_optional(&state.db)
+                .await?);
+        }
         return Ok(Some(u));
     }
 
@@ -384,7 +414,11 @@ async fn edge_identity(
         .and_then(|u| u.full_name.clone())
         .or_else(|| header_str(headers, "x-auth-request-preferred-username"))
         .unwrap_or_else(|| email.split('@').next().unwrap_or("user").to_string());
-    let role = std::env::var("EDGE_AUTH_ROLE").unwrap_or_else(|_| "editor".into());
+    let role = if is_admin {
+        "admin".to_string()
+    } else {
+        std::env::var("EDGE_AUTH_ROLE").unwrap_or_else(|_| "editor".into())
+    };
     let id = format!("usr_edge_{}", uuid::Uuid::now_v7().simple());
 
     sqlx::query(
@@ -464,6 +498,9 @@ pub(crate) struct EdgeUserInfo {
     pub full_name: Option<String>,
     pub agency_code: Option<String>,
     pub agency_name: Option<String>,
+    /// รหัสสิทธิ์ทั้งหมดของผู้ใช้ — มาจาก claim `USERROLE` ที่ IAM-X ฝังไว้ในโทเคน
+    /// (ของ Keycloak เองอยู่ที่ realm_access.roles เก็บรวมไว้ด้วยกันที่นี่)
+    pub roles: Vec<String>,
 }
 
 fn json_str(v: &serde_json::Value, key: &str) -> Option<String> {
@@ -487,6 +524,30 @@ pub(crate) fn edge_userinfo(headers: &axum::http::HeaderMap) -> Option<EdgeUserI
         Some(v) => v.clone(),
         None => claims.clone(),
     };
+    // สิทธิ์: USERROLE ของ IAM-X มาได้ทั้ง array และสตริง JSON
+    let mut roles: Vec<String> = Vec::new();
+    match claims.get("USERROLE") {
+        Some(serde_json::Value::Array(a)) => {
+            for v in a { if let Some(x) = v.as_str() { roles.push(x.trim().to_string()); } }
+        }
+        Some(serde_json::Value::String(raw)) => {
+            if let Ok(serde_json::Value::Array(a)) = serde_json::from_str::<serde_json::Value>(raw) {
+                for v in a { if let Some(x) = v.as_str() { roles.push(x.trim().to_string()); } }
+            } else {
+                roles.push(raw.trim().to_string());
+            }
+        }
+        _ => {}
+    }
+    if let Some(a) = claims
+        .get("realm_access")
+        .and_then(|r| r.get("roles"))
+        .and_then(|r| r.as_array())
+    {
+        for v in a { if let Some(x) = v.as_str() { roles.push(x.trim().to_string()); } }
+    }
+    roles.retain(|r| !r.is_empty());
+
     Some(EdgeUserInfo {
         email: json_str(&ui, "EMAIL").or_else(|| json_str(&claims, "email")),
         full_name: json_str(&ui, "FULL_NAME")
@@ -494,7 +555,22 @@ pub(crate) fn edge_userinfo(headers: &axum::http::HeaderMap) -> Option<EdgeUserI
             .or_else(|| json_str(&claims, "preferred_username")),
         agency_code: json_str(&ui, "AGENCY_CODE"),
         agency_name: json_str(&ui, "AGENCY_NAME"),
+        roles,
     })
+}
+
+/// รายชื่อรหัสสิทธิ์ที่ยอมให้เข้าใช้งาน (คั่นด้วย , ) — ไม่ตั้ง = เปิดให้ทุกคนที่ล็อกอิน NEB
+fn role_list(key: &str) -> Vec<String> {
+    std::env::var(key)
+        .unwrap_or_default()
+        .split(',')
+        .map(|v| v.trim().to_lowercase())
+        .filter(|v| !v.is_empty())
+        .collect()
+}
+
+fn has_any(user_roles: &[String], wanted: &[String]) -> bool {
+    user_roles.iter().any(|r| wanted.contains(&r.to_lowercase()))
 }
 
 pub struct AuthUser(pub User);
