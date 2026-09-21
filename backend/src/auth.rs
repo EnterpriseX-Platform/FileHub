@@ -332,12 +332,29 @@ async fn edge_identity(
     if presented != secret {
         return Ok(None);
     }
+    // ตัวตนมาได้ 2 ทาง: เฮดเดอร์ตรง ๆ ของ oauth2-proxy (auth_request mode)
+    // หรือ claim USERINFO ในโทเคนที่ gateway ส่งมา (เส้นที่ NEB ใช้จริง)
+    let ui = edge_userinfo(headers);
     let email = headers
         .get("x-auth-request-email")
         .and_then(|v| v.to_str().ok())
         .map(|v| v.trim().to_lowercase())
-        .filter(|v| !v.is_empty());
+        .filter(|v| !v.is_empty())
+        .or_else(|| ui.as_ref().and_then(|u| u.email.clone()).map(|e| e.to_lowercase()));
     let Some(email) = email else { return Ok(None) };
+
+    let system_id = header_str(headers, "x-filehub-system")
+        .or_else(|| std::env::var("EDGE_DEFAULT_SYSTEM").ok());
+    // หน่วยงานของผู้ใช้ — จาก claim ของ IAM-X ก่อน ถ้าไม่มีค่อยดูเฮดเดอร์
+    let org_id = resolve_org(
+        state,
+        system_id.as_deref(),
+        ui.as_ref()
+            .and_then(|u| u.agency_code.clone())
+            .or_else(|| header_str(headers, "x-filehub-org")),
+        ui.as_ref().and_then(|u| u.agency_name.clone()),
+    )
+    .await?;
 
     if let Some(u) = sqlx::query_as::<_, User>(
         "SELECT * FROM users WHERE email = $1 AND status = 'active'",
@@ -346,20 +363,28 @@ async fn edge_identity(
     .fetch_optional(&state.db)
     .await?
     {
+        // คนเดิมที่ย้ายหน่วยงาน (หรือบัญชีที่สร้างไว้ก่อนรู้จักหน่วยงาน)
+        // ต้องได้หน่วยงานปัจจุบันเสมอ ไม่งั้นไฟล์จะไปลงหน่วยงานเก่า
+        if org_id.is_some() {
+            sqlx::query(
+                "UPDATE users SET default_org_id = $1, default_system_id = COALESCE(default_system_id, $2)                  WHERE id = $3 AND default_org_id IS DISTINCT FROM $1",
+            )
+            .bind(&org_id)
+            .bind(&system_id)
+            .bind(&u.id)
+            .execute(&state.db)
+            .await?;
+        }
         return Ok(Some(u));
     }
 
     // สร้างบัญชีให้อัตโนมัติ — ไม่มีรหัสผ่าน (เข้าได้ทางขอบนอกเท่านั้น)
-    let display = headers
-        .get("x-auth-request-preferred-username")
-        .and_then(|v| v.to_str().ok())
-        .filter(|v| !v.trim().is_empty())
-        .map(|v| v.to_string())
+    let display = ui
+        .as_ref()
+        .and_then(|u| u.full_name.clone())
+        .or_else(|| header_str(headers, "x-auth-request-preferred-username"))
         .unwrap_or_else(|| email.split('@').next().unwrap_or("user").to_string());
     let role = std::env::var("EDGE_AUTH_ROLE").unwrap_or_else(|_| "editor".into());
-    let system_id = header_str(headers, "x-filehub-system")
-        .or_else(|| std::env::var("EDGE_DEFAULT_SYSTEM").ok());
-    let org_id = resolve_org(state, system_id.as_deref(), header_str(headers, "x-filehub-org")).await?;
     let id = format!("usr_edge_{}", uuid::Uuid::now_v7().simple());
 
     sqlx::query(
@@ -398,8 +423,10 @@ async fn resolve_org(
     state: &Arc<AppState>,
     system_id: Option<&str>,
     org_code: Option<String>,
+    org_name: Option<String>,
 ) -> Result<Option<String>, ApiError> {
     let (Some(system_id), Some(code)) = (system_id, org_code) else { return Ok(None) };
+    let name = org_name.unwrap_or_else(|| code.clone());
     if let Some((id,)) = sqlx::query_as::<_, (String,)>("SELECT id FROM orgs WHERE code = $1")
         .bind(&code)
         .fetch_optional(&state.db)
@@ -415,11 +442,59 @@ async fn resolve_org(
     )
     .bind(&id)
     .bind(system_id)
-    .bind(&code)
+    .bind(&name)
     .bind(&code)
     .execute(&state.db)
     .await?;
     Ok(Some(id))
+}
+
+/// ตัวตนที่ขอบนอกของ NEB ส่งมาให้ — ถอดจาก `X-Forwarded-Access-Token`
+///
+/// gateway (oauth2-proxy) ส่ง access token ของ Keycloak มาในเฮดเดอร์นี้ และ
+/// IAM-X ฝัง claim `USERINFO` ไว้ในโทเคน (ตัวเดียวกับที่ DTS ใช้) ซึ่งมีทั้ง
+/// อีเมล ชื่อเต็ม และ**หน่วยงานต้นสังกัด** ⇒ FileHub จึงรู้ได้เองว่าคนอัปโหลด
+/// เป็นใครและอยู่หน่วยงานไหน โดยไม่ต้องให้ใครกรอก
+///
+/// ไม่ตรวจลายเซ็นโทเคนที่นี่ เพราะประตูคือเฮดเดอร์ลับ `x-filehub-edge` ที่
+/// VirtualServer เป็นคนใส่ — คำขอที่ไม่ได้ผ่านขอบนอกจะไม่มีของลับคู่กัน
+/// (ตรวจซ้ำที่นี่ก็ได้ แต่ต้องดึง JWKS ของ Keycloak มาเก็บ ซึ่งยังไม่จำเป็น)
+pub(crate) struct EdgeUserInfo {
+    pub email: Option<String>,
+    pub full_name: Option<String>,
+    pub agency_code: Option<String>,
+    pub agency_name: Option<String>,
+}
+
+fn json_str(v: &serde_json::Value, key: &str) -> Option<String> {
+    v.get(key)
+        .and_then(|x| x.as_str())
+        .map(|x| x.trim().to_string())
+        .filter(|x| !x.is_empty())
+}
+
+pub(crate) fn edge_userinfo(headers: &axum::http::HeaderMap) -> Option<EdgeUserInfo> {
+    let token = header_str(headers, "x-forwarded-access-token")?;
+    let payload = token.split('.').nth(1)?;
+    use base64::Engine as _;
+    let raw = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(payload)
+        .ok()?;
+    let claims: serde_json::Value = serde_json::from_slice(&raw).ok()?;
+    // USERINFO มาได้ทั้งแบบ object และแบบสตริง JSON แล้วแต่ตัว mapper
+    let ui = match claims.get("USERINFO") {
+        Some(serde_json::Value::String(s)) => serde_json::from_str(s).ok()?,
+        Some(v) => v.clone(),
+        None => claims.clone(),
+    };
+    Some(EdgeUserInfo {
+        email: json_str(&ui, "EMAIL").or_else(|| json_str(&claims, "email")),
+        full_name: json_str(&ui, "FULL_NAME")
+            .or_else(|| json_str(&claims, "name"))
+            .or_else(|| json_str(&claims, "preferred_username")),
+        agency_code: json_str(&ui, "AGENCY_CODE"),
+        agency_name: json_str(&ui, "AGENCY_NAME"),
+    })
 }
 
 pub struct AuthUser(pub User);
