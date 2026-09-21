@@ -7,19 +7,15 @@ import { useAuth } from "@/lib/auth-context";
 
 export const dynamic = "force-dynamic";
 
-const DEMO_ACCOUNTS = [
-  
-  
-  
-];
+// NEB: เอารายชื่อบัญชีตัวอย่างออก — เป็นบัญชีที่รหัสผ่านอยู่ใน README สาธารณะ
+// การโชว์รายชื่อไว้บนหน้า login ของระบบจริงเท่ากับชี้ทางให้ลองรหัส
+const DEMO_ACCOUNTS: Array<[string, string]> = [];
 
 // The test-account panel prefills the email so you can pick a role quickly; the
 // password is never shown or autofilled (that plaintext-credential display is
 // what made the login read like a mockup). It's a DEV convenience, shown only
 // outside production builds. Override with NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=1/0.
-const SHOW_DEMO_ACCOUNTS =
-  (process.env.NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS ??
-    (process.env.NODE_ENV !== "production" ? "1" : "0")) === "1";
+const SHOW_DEMO_ACCOUNTS = DEMO_ACCOUNTS.length > 0;
 
 export default function LoginPage() {
   return (
