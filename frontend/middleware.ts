@@ -45,7 +45,14 @@ export function middleware(req: NextRequest) {
   if (isPublic) return NextResponse.next();
 
   const hasSession = req.cookies.get("filehub_session")?.value;
-  if (hasSession) return NextResponse.next();
+  // ผู้ใช้ที่เข้ามาทางขอบนอกของ NEB ไม่มีคุกกี้ของ FileHub เพราะไม่เคยล็อกอินที่นี่
+  // ถ้าด่านนี้ดูแต่คุกกี้ คนที่ล็อกอิน NEB มาแล้วจะถูกเด้งไปหน้า login ของ FileHub
+  // ทุกครั้ง (ทั้งที่หลังบ้านรู้จักเขาแล้ว) — เป็น "จอ login ซ้อน" แบบเดียวกับที่ UPM โดนท้วง
+  // ที่นี่เป็นแค่ด่าน UX เท่านั้น ตัวตนจริงหลังบ้านตรวจเองทุกคำขอ
+  const hasEdge =
+    Boolean(req.headers.get("x-filehub-edge")) &&
+    Boolean(req.headers.get("x-forwarded-access-token") || req.headers.get("x-auth-request-email"));
+  if (hasSession || hasEdge) return NextResponse.next();
 
   // Bounce to login.  `next=` preserves the deep link so a click on a
   // file URL from an email lands the user back on the file after
