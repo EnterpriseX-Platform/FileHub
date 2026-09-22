@@ -98,6 +98,47 @@ pub fn router() -> Router<Arc<AppState>> {
         .layer(DefaultBodyLimit::max(legacy_max_upload_bytes()))
 }
 
+/// ระบบปลายทางของไฟล์ที่เข้ามาทางเส้นเดิม — "ถัง" ที่ไฟล์จะไปวาง
+///
+/// ของเดิมเทไฟล์ทุกระบบรวมกองเดียว ทำให้แยกโควตา/อายุเก็บ/สิทธิ์รายระบบไม่ได้
+/// ตัวนี้เดาระบบต้นทางให้เองโดยที่ผู้เรียก **ไม่ต้องแก้โค้ด**:
+///   1. เฮดเดอร์ `x-filehub-system` (ถ้าใครอยากระบุตรง ๆ)
+///   2. `Referer` ของจอที่กดอัปโหลด — จอของ NEB อยู่ใต้ path ของโมดูลตัวเอง
+///      เช่น /neb-upm/... ⇒ ถังของ UPM   (ครอบการอัปโหลดจากเบราว์เซอร์เกือบทั้งหมด)
+///   3. ค่าตั้งต้น `LEGACY_DEFAULT_SYSTEM`
+///
+/// แม็ปตั้งใน `LEGACY_SYSTEM_MAP` เช่น "neb-upm=sys_upm,digital-signature=sys_dts"
+/// (คั่นด้วย , ) — เพิ่มโมดูลใหม่ทีหลังได้โดยไม่ต้อง build ใหม่
+fn system_from_request(headers: &HeaderMap) -> Option<String> {
+    if let Some(v) = headers.get("x-filehub-system").and_then(|v| v.to_str().ok()) {
+        let v = v.trim();
+        if !v.is_empty() {
+            return Some(v.to_string());
+        }
+    }
+    let referer = headers
+        .get(header::REFERER)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_lowercase();
+    if !referer.is_empty() {
+        for pair in env_opt("LEGACY_SYSTEM_MAP").unwrap_or_default().split(',') {
+            let (prefix, system) = match pair.split_once('=') {
+                Some((a, b)) => (a.trim().to_lowercase(), b.trim().to_string()),
+                None => continue,
+            };
+            if prefix.is_empty() || system.is_empty() {
+                continue;
+            }
+            // เทียบเฉพาะส่วน path ไม่ให้ชื่อโฮสต์มาชนโดยบังเอิญ
+            if referer.contains(&format!("/{prefix}/")) || referer.ends_with(&format!("/{prefix}")) {
+                return Some(system);
+            }
+        }
+    }
+    None
+}
+
 // ────────────────────────── ตัวตนของผู้เรียก ──────────────────────────
 
 /// บัญชีบริการสำหรับระบบเดิม — สร้างครั้งเดียวแล้วใช้ซ้ำ
@@ -288,6 +329,7 @@ async fn read_legacy_upload(mp: &mut Multipart) -> ApiResult<LegacyUpload> {
 async fn upload(
     State(s): State<Arc<AppState>>,
     MaybeAuthUser(who): MaybeAuthUser,
+    headers: HeaderMap,
     mut mp: Multipart,
 ) -> ApiResult<Json<Value>> {
     let user = caller(&s, who).await?;
@@ -303,7 +345,7 @@ async fn upload(
     // จึง "จองรหัสเดิมไว้" — สร้างโฟลเดอร์ที่ใช้ id เดียวกับของเดิม (id เป็น text)
     // ⇒ getFiles?parentFolderId=<รหัสเดิม> ยังคืนไฟล์ได้เหมือนเดิม
     let folder_id = match up.parent_folder_id.as_deref() {
-        Some(v) => Some(ensure_legacy_folder(&s, v, &user).await?),
+        Some(v) => Some(ensure_legacy_folder(&s, v, &user, system_from_request(&headers).as_deref()).await?),
         None => None,
     };
 
@@ -322,7 +364,7 @@ async fn upload(
         body: Some(body),
         content_type: up.content_type,
         folder_id,
-        system_id: None,
+        system_id: system_from_request(&headers),
         org_id: None,
         project: None,
         status: None,
@@ -348,6 +390,7 @@ async fn ensure_legacy_folder(
     s: &Arc<AppState>,
     legacy_id: &str,
     user: &User,
+    want_system: Option<&str>,
 ) -> ApiResult<String> {
     if let Some(id) = sqlx::query_scalar::<_, String>("SELECT id FROM folders WHERE id = $1")
         .bind(legacy_id)
@@ -362,7 +405,9 @@ async fn ensure_legacy_folder(
             .fetch_optional(&s.db)
             .await?
             .flatten();
-    let system_id = system_id
+    let system_id = want_system
+        .map(|v| v.to_string())
+        .or(system_id)
         .or_else(|| env_opt("LEGACY_DEFAULT_SYSTEM"))
         .or_else(|| env_opt("EDGE_DEFAULT_SYSTEM"))
         .ok_or_else(|| ApiError::BadRequest("missing system for folder".into()))?;
