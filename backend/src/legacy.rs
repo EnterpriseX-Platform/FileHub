@@ -50,7 +50,7 @@ use uuid::Uuid;
 
 use crate::auth::{MaybeAuthUser, User};
 use crate::error::{ApiError, ApiResult};
-use crate::handlers::{persist_upload_for, sanitize_filename, UploadFields, FILE_COLS};
+use crate::handlers::{persist_upload_for, UploadFields, FILE_COLS};
 use crate::models::File;
 use crate::AppState;
 
@@ -67,6 +67,9 @@ fn env_opt(key: &str) -> Option<String> {
 }
 
 /// ปลายทางไฟล์ฮับตัวเดิม ใช้ส่งต่อคำขอของไฟล์เก่าที่ยังไม่ได้ย้ายมา
+/// บัญชีบริการที่เส้นเดิมใช้แทนผู้เรียกที่ไม่มีตัวตน
+const LEGACY_SERVICE_USER_ID: &str = "usr_legacy_fileservice";
+
 fn legacy_upstream() -> Option<String> {
     env_opt("LEGACY_FILEHUB_URL").map(|v| v.trim_end_matches('/').to_string())
 }
@@ -76,7 +79,7 @@ fn legacy_max_upload_bytes() -> usize {
     env_opt("LEGACY_MAX_UPLOAD_MB")
         .and_then(|v| v.parse::<usize>().ok())
         .filter(|v| *v > 0)
-        .unwrap_or(256)
+        .unwrap_or(2048)
         * 1024
         * 1024
 }
@@ -148,7 +151,7 @@ fn system_from_request(headers: &HeaderMap) -> Option<String> {
 /// จึงยอมรับคำขอที่เข้ามาถึงเส้นทางนี้ว่าเป็น "ระบบเดิม" และบันทึกเป็นบัญชีนี้
 /// ให้ตรวจสอบย้อนหลังได้ว่าไฟล์ไหนมาทางเส้นเก่า
 async fn legacy_service_user(s: &Arc<AppState>) -> ApiResult<User> {
-    const ID: &str = "usr_legacy_fileservice";
+    const ID: &str = LEGACY_SERVICE_USER_ID;
     if let Some(u) = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
         .bind(ID)
         .fetch_optional(&s.db)
@@ -276,7 +279,7 @@ fn legacy_file(f: &File) -> Value {
 #[derive(Default)]
 struct LegacyUpload {
     name: Option<String>,
-    body: Option<bytes::Bytes>,
+    staged: Option<crate::storage::Staged>,
     content_type: Option<String>,
     parent_folder_id: Option<String>,
     file_type: Option<String>,
@@ -288,27 +291,20 @@ struct LegacyUpload {
 /// ชื่อฟิลด์ไฟล์ไม่แน่นอน: ฝั่ง Angular ส่ง `file`, ฝั่ง Java บางตัวส่งชื่อว่างเปล่า
 /// และ 598-app ส่งชื่อฟิลด์ตามที่ผู้เรียกกำหนดเอง ⇒ ถือว่า "ฟิลด์ไหนที่มีชื่อไฟล์
 /// ติดมาด้วย คือไฟล์" ไม่ยึดชื่อฟิลด์
-async fn read_legacy_upload(mp: &mut Multipart) -> ApiResult<LegacyUpload> {
+async fn read_legacy_upload(s: &AppState, mp: &mut Multipart) -> ApiResult<LegacyUpload> {
     let mut out = LegacyUpload::default();
     while let Some(mut field) = mp
         .next_field()
         .await
-        .map_err(|e| ApiError::BadRequest(e.to_string()))?
+        .map_err(|e| crate::handlers::multipart_error(e, legacy_max_upload_bytes() as u64))?
     {
         let fname = field.file_name().map(str::to_string);
         let key = field.name().unwrap_or("").to_string();
-        if fname.is_some() && out.body.is_none() {
+        if fname.is_some() && out.staged.is_none() {
             out.name = fname;
             out.content_type = field.content_type().map(str::to_string);
-            let mut buf = bytes::BytesMut::new();
-            while let Some(chunk) = field
-                .chunk()
-                .await
-                .map_err(|e| ApiError::BadRequest(e.to_string()))?
-            {
-                buf.extend_from_slice(&chunk);
-            }
-            out.body = Some(buf.freeze());
+            // stream ลงพื้นที่พัก (เข้ารหัสไปด้วย) — ไม่อ่านทั้งไฟล์ลงหน่วยความจำ
+            out.staged = Some(crate::handlers::stage_field(s, &mut field, legacy_max_upload_bytes() as u64).await?);
             continue;
         }
         let val = field.text().await.unwrap_or_default();
@@ -334,11 +330,22 @@ async fn upload(
 ) -> ApiResult<Json<Value>> {
     let user = caller(&s, who).await?;
     crate::auth::require_role(&user, &["admin", "editor"])?;
-    crate::auth::upload_rate_limit(&user.id).await?;
+    if user.id == LEGACY_SERVICE_USER_ID {
+        // ทุกโมดูลใช้บัญชีบริการเดียวกัน ⇒ นับแยกตามระบบต้นทาง ไม่งั้นทั้ง NEB
+        // อัปได้รวมกันแค่ 60 ครั้ง/นาที/pod (วัดจริงบน UAT: 150 ครั้ง ผ่าน 60)
+        let key = format!("legacy:{}", system_from_request(&headers).unwrap_or_else(|| "default".into()));
+        let per_min = env_opt("LEGACY_UPLOAD_RATE_PER_MIN").and_then(|v| v.parse().ok()).unwrap_or(1200);
+        crate::auth::upload_rate_limit_keyed(&key, per_min).await?;
+    } else {
+        crate::auth::upload_rate_limit(&user.id).await?;
+    }
 
-    let up = read_legacy_upload(&mut mp).await?;
-    let name = up.name.clone().ok_or_else(|| ApiError::BadRequest("missing file".into()))?;
-    let body = up.body.clone().ok_or_else(|| ApiError::BadRequest("missing file body".into()))?;
+    let mut up = read_legacy_upload(&s, &mut mp).await?;
+    let Some(name) = up.name.clone() else {
+        if let Some(st) = up.staged.take() { s.storage.discard(st).await; }
+        return Err(ApiError::BadRequest("missing file".into()));
+    };
+    let staged = up.staged.take().ok_or_else(|| ApiError::BadRequest("missing file body".into()))?;
 
     // โฟลเดอร์: ของเดิมส่งรหัสโฟลเดอร์ของตัวเองมา (เช่น parentFolderId ของ owdropzone)
     // ถ้าไม่รับไว้ ไฟล์จะไปกองที่ราก แล้วผู้เรียกที่ list ด้วย parentFolderId จะหาไม่เจอ
@@ -361,7 +368,8 @@ async fn upload(
 
     let fields = UploadFields {
         name: Some(name),
-        body: Some(body),
+        body: None,
+        staged: Some(staged),
         content_type: up.content_type,
         folder_id,
         system_id: system_from_request(&headers),
@@ -463,12 +471,18 @@ async fn find_file(s: &Arc<AppState>, file_id: &str) -> ApiResult<Option<File>> 
 }
 
 /// ส่งต่อคำขอไปไฟล์ฮับตัวเดิม สำหรับไฟล์ที่อัปโหลดไว้ก่อนย้ายระบบ
+///
+/// ส่งต่อแบบ stream (ไม่เก็บทั้งไฟล์ไว้ในหน่วยความจำ) · ส่ง `Range`/`If-Range`
+/// ต่อให้ฮับเดิม และคืน 206/Content-Range/Accept-Ranges กลับตามที่ฮับเดิมตอบ ·
+/// ใช้ client ร่วมที่มี timeout แทนการสร้างใหม่ทุกคำขอ
 async fn proxy_legacy(path_and_query: &str, headers: &HeaderMap) -> ApiResult<Response> {
     let Some(base) = legacy_upstream() else { return Err(ApiError::NotFound) };
     let url = format!("{base}{path_and_query}");
-    let mut req = reqwest::Client::new().get(&url);
-    if let Some(auth) = headers.get(header::AUTHORIZATION) {
-        req = req.header(header::AUTHORIZATION, auth.clone());
+    let mut req = crate::serve::upstream_client().get(&url);
+    for k in [header::AUTHORIZATION, header::RANGE, header::IF_RANGE] {
+        if let Some(v) = headers.get(&k) {
+            req = req.header(k.as_str(), v.as_bytes());
+        }
     }
     let resp = req
         .send()
@@ -476,17 +490,18 @@ async fn proxy_legacy(path_and_query: &str, headers: &HeaderMap) -> ApiResult<Re
         .map_err(|e| ApiError::Other(anyhow::anyhow!("legacy upstream: {e}")))?;
     let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
     let mut out = HeaderMap::new();
-    for k in [header::CONTENT_TYPE, header::CONTENT_DISPOSITION, header::CACHE_CONTROL] {
+    for k in [
+        header::CONTENT_TYPE, header::CONTENT_DISPOSITION, header::CACHE_CONTROL,
+        header::CONTENT_LENGTH, header::CONTENT_RANGE, header::ACCEPT_RANGES,
+        header::ETAG, header::LAST_MODIFIED,
+    ] {
         if let Some(v) = resp.headers().get(k.as_str()) {
             if let Ok(hv) = axum::http::HeaderValue::from_bytes(v.as_bytes()) {
                 out.insert(k, hv);
             }
         }
     }
-    let body: bytes::Bytes = resp
-        .bytes()
-        .await
-        .map_err(|e| ApiError::Other(anyhow::anyhow!("legacy upstream body: {e}")))?;
+    let body = axum::body::Body::from_stream(resp.bytes_stream());
     Ok((status, out, body).into_response())
 }
 
@@ -495,30 +510,21 @@ async fn serve_bytes(
     user: &User,
     f: &File,
     inline: bool,
+    req: &HeaderMap,
 ) -> ApiResult<Response> {
     if crate::auth::ensure_system_access(&s.db, user, &f.system_id).await.is_err() {
         return Err(ApiError::NotFound);
     }
-    let (body, ct) = s
-        .storage
-        .get(&f.object_key, f.encrypted)
-        .await?
-        .ok_or(ApiError::NotFound)?;
-    let content_type = ct
-        .or_else(|| mime_guess::from_path(&f.name).first().map(|m| m.to_string()))
-        .unwrap_or_else(|| "application/octet-stream".into());
-    let kind = if inline { "inline" } else { "attachment" };
-    let ascii = sanitize_filename(&f.name);
-    let utf8 = urlencoding::encode(&f.name);
-    let mut h = HeaderMap::new();
-    h.insert(header::CONTENT_TYPE, content_type.parse().unwrap());
-    h.insert(
-        header::CONTENT_DISPOSITION,
-        format!("{kind}; filename=\"{ascii}\"; filename*=UTF-8''{utf8}")
-            .parse()
-            .unwrap(),
-    );
-    Ok((StatusCode::OK, h, body).into_response())
+    // stream + Range — ของเดิมอ่านทั้งไฟล์ลงหน่วยความจำและไม่สน Range
+    // (ขอ 1 MB ได้ทั้งไฟล์) ทำให้วิดีโอเลื่อนเวลาไม่ได้และไฟล์ใหญ่ทำ pod ล่ม
+    crate::serve::stream_object(s, crate::serve::ServeOpts {
+        key: &f.object_key,
+        encrypted: f.encrypted,
+        name: &f.name,
+        etag: f.etag.as_deref(),
+        disposition: if inline { "inline" } else { "attachment" },
+        cache_control: "private, no-store",
+    }, req).await
 }
 
 async fn download(
@@ -534,11 +540,11 @@ async fn download(
     match find_file(&s, &file_id).await? {
         Some(f) => {
             let user = caller(&s, who).await?;
-            serve_bytes(&s, &user, &f, false).await
+            serve_bytes(&s, &user, &f, false, &headers).await
         }
         None => {
             proxy_legacy(
-                &format!("/FileService/downloadFile?fileId={file_id}&logType=download"),
+                &format!("/FileService/downloadFile?fileId={}&logType=download", urlencoding::encode(&file_id)),
                 &headers,
             )
             .await
@@ -559,11 +565,11 @@ async fn preview(
     match find_file(&s, &file_id).await? {
         Some(f) => {
             let user = caller(&s, who).await?;
-            serve_bytes(&s, &user, &f, true).await
+            serve_bytes(&s, &user, &f, true, &headers).await
         }
         None => {
             proxy_legacy(
-                &format!("/FileService/previewFile?fileId={file_id}&logType=preview"),
+                &format!("/FileService/previewFile?fileId={}&logType=preview", urlencoding::encode(&file_id)),
                 &headers,
             )
             .await
@@ -595,7 +601,7 @@ async fn file_detail(
             .into_response())
         }
         None => {
-            proxy_legacy(&format!("/FileService/getFileDetail?fileId={file_id}"), &headers).await
+            proxy_legacy(&format!("/FileService/getFileDetail?fileId={}", urlencoding::encode(&file_id)), &headers).await
         }
     }
 }

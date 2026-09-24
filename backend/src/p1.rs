@@ -73,7 +73,9 @@ pub fn make_thumbnail(body: &[u8], max_dim: u32) -> Option<(u32, u32, Vec<u8>)> 
 
 pub async fn index_thumbnail(db: &sqlx::PgPool, file_id: Uuid, file_type: &str, body: &[u8]) {
     if !matches!(file_type, "png" | "jpg" | "jpeg" | "img" | "gif") { return; }
-    let Some((w, h, bytes)) = make_thumbnail(body, 256) else { return; };
+    let owned = body.to_vec();
+    let Ok(Some((w, h, bytes))) = tokio::task::spawn_blocking(move || make_thumbnail(&owned, 256)).await
+    else { return; };
     let _ = sqlx::query(
         r#"INSERT INTO thumbnails (file_id, width, height, mime, data)
            VALUES ($1, $2, $3, 'image/png', $4)
@@ -140,6 +142,9 @@ pub fn convert_to_pdf(file_name: &str, body: &[u8]) -> Option<Vec<u8>> {
 
 pub async fn index_office_preview(db: &sqlx::PgPool, file_id: Uuid, file_type: &str, file_name: &str, body: &[u8]) {
     if !is_office_doc(file_type) { return; }
+    // PDFs are served straight from storage by `get_preview` — don't keep a
+    // second full copy in Postgres.
+    if file_type == "pdf" || file_name.to_lowercase().ends_with(".pdf") { return; }
     let body_owned = body.to_vec();
     let name_owned = file_name.to_string();
     let pdf = match tokio::task::spawn_blocking(move || convert_to_pdf(&name_owned, &body_owned)).await {
@@ -159,6 +164,7 @@ pub async fn get_preview(
     State(s): State<Arc<AppState>>,
     user: AuthUser,
     Path(file_id): Path<Uuid>,
+    headers_in: HeaderMap,
 ) -> ApiResult<axum::response::Response> {
     // Load the file first so we can verify the caller has access before
     // serving any cached preview bytes.  Without this, a viewer could read
@@ -176,6 +182,20 @@ pub async fn get_preview(
     // leak existence via the response code.
     if crate::auth::ensure_system_access(&s.db, &user.0, &file.system_id).await.is_err() {
         return Err(ApiError::NotFound);
+    }
+
+    // A PDF is its own preview: stream the stored file (Range-capable, so
+    // pdf.js can fetch pages lazily) instead of keeping a second full copy
+    // of every PDF inside Postgres.
+    if file.file_type == "pdf" || file.name.to_lowercase().ends_with(".pdf") {
+        return crate::serve::stream_object(&s, crate::serve::ServeOpts {
+            key: &file.object_key,
+            encrypted: file.encrypted,
+            name: &file.name,
+            etag: file.etag.as_deref(),
+            disposition: "inline",
+            cache_control: "private, max-age=3600",
+        }, &headers_in).await;
     }
 
     // Fast path — preview already in the cache.

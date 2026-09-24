@@ -11,6 +11,7 @@ pub mod models;
 pub mod p1;
 pub mod rotation;
 pub mod seed_demo;
+pub mod serve;
 pub mod state;
 pub mod storage;
 pub mod store;
@@ -241,7 +242,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
                     "/api/files/:id/versions",
                     get(handlers::list_versions).post(handlers::upload_version),
                 )
-                .layer(DefaultBodyLimit::max(64 * 1024 * 1024))
+                .layer(DefaultBodyLimit::max(crate::handlers::upload_max_bytes() as usize))
         )
         .route("/api/files/:id/download",     get(handlers::download_file))
         .route("/api/files/:id/share",        axum::routing::post(handlers::create_share_link))
@@ -264,7 +265,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
                 .route("/api/uploads/:id",   axum::routing::head(tus::head_session)
                                                .patch(tus::append_chunk)
                                                .delete(tus::terminate_session))
-                .layer(DefaultBodyLimit::max(64 * 1024 * 1024))
+                .layer(DefaultBodyLimit::max(crate::handlers::upload_max_bytes() as usize))
         )
         .route("/api/files/:id/workflow",
             get(p1::list_workflow).post(p1::start_workflow))

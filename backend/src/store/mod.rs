@@ -9,9 +9,17 @@
 //! `Storage` wrapper in `storage.rs`) runs in front of whichever backend is
 //! configured.
 
+use std::path::Path;
+use std::pin::Pin;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use bytes::Bytes;
+use futures::Stream;
+
+/// Stream of raw object bytes — what [`ObjectStore::open_range`] hands back so
+/// large objects never have to sit in memory in one piece.
+pub type ByteStream = Pin<Box<dyn Stream<Item = std::io::Result<Bytes>> + Send + 'static>>;
 
 pub mod fs;
 pub mod s3;
@@ -35,6 +43,50 @@ pub trait ObjectStore: Send + Sync {
     /// Human-readable backend label for log lines and the dashboard's
     /// "Source" badge.
     fn label(&self) -> &str;
+
+    /// Size of the stored object in bytes, `Ok(None)` when missing.
+    /// Default reads the whole object — backends should override.
+    async fn size(&self, key: &str) -> Result<Option<u64>> {
+        Ok(self.get(key).await?.map(|b| b.len() as u64))
+    }
+
+    /// Stream `len` bytes starting at `offset` (clamped to the object end).
+    /// Default reads the whole object and slices it — backends that can seek
+    /// (filesystem, S3 Range GET) override this so memory stays O(chunk).
+    async fn open_range(&self, key: &str, offset: u64, len: u64) -> Result<Option<ByteStream>> {
+        let Some(all) = self.get(key).await? else { return Ok(None) };
+        let start = (offset as usize).min(all.len());
+        let end = start.saturating_add(len as usize).min(all.len());
+        let part = all.slice(start..end);
+        Ok(Some(Box::pin(futures::stream::once(async move { Ok(part) }))))
+    }
+
+    /// Move a finished local file (written by the staging step) into the
+    /// store under `key`.  The source file is consumed.  Default reads it
+    /// into memory and calls [`put`](Self::put); the filesystem backend
+    /// renames it instead so no byte is copied.
+    async fn put_path(&self, key: &str, src: &Path) -> Result<()> {
+        let body = tokio::fs::read(src).await?;
+        self.put(key, Bytes::from(body)).await?;
+        let _ = tokio::fs::remove_file(src).await;
+        Ok(())
+    }
+
+    /// Move an object to a new key.  Default copies through memory; the
+    /// filesystem backend renames.
+    async fn rename(&self, from: &str, to: &str) -> Result<()> {
+        if let Some(b) = self.get(from).await? {
+            self.put(to, b).await?;
+            self.delete(from).await?;
+        }
+        Ok(())
+    }
+
+    /// Directory where staged uploads are written before [`put_path`].
+    /// Same filesystem as the store when possible so the final move is a rename.
+    fn staging_dir(&self) -> std::path::PathBuf {
+        std::env::temp_dir().join("filehub-staging")
+    }
 }
 
 /// Build the configured backend from env. Falls back to filesystem.

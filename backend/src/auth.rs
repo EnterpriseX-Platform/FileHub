@@ -852,7 +852,16 @@ mod login_throttle {
 /// once the caller exceeds `MAX_UPLOADS_PER_MINUTE` within the rolling window.
 /// Call this at the top of upload handlers, *after* authentication.
 pub async fn upload_rate_limit(user_id: &str) -> Result<(), ApiError> {
-    upload_throttle::check_and_record(user_id).await
+    upload_throttle::check_and_record(user_id, upload_throttle::MAX_UPLOADS_PER_MINUTE).await
+}
+
+/// Rate limit for callers that share one service identity (the legacy
+/// `/FileService` account every NEB module uses).  Keyed by the calling
+/// system instead of the shared user, with its own ceiling
+/// (`LEGACY_UPLOAD_RATE_PER_MIN`, default 1200/min per pod) — otherwise all
+/// modules together were capped at 60 uploads per minute.
+pub async fn upload_rate_limit_keyed(key: &str, per_minute: u32) -> Result<(), ApiError> {
+    upload_throttle::check_and_record(key, per_minute).await
 }
 
 mod upload_throttle {
@@ -863,7 +872,7 @@ mod upload_throttle {
 
     use crate::error::ApiError;
 
-    const MAX_UPLOADS_PER_MINUTE: u32 = 60;
+    pub const MAX_UPLOADS_PER_MINUTE: u32 = 60;
 
     #[derive(Default)]
     struct State {
@@ -876,7 +885,7 @@ mod upload_throttle {
         S.get_or_init(|| Mutex::new(State::default()))
     }
 
-    pub async fn check_and_record(user_id: &str) -> Result<(), ApiError> {
+    pub async fn check_and_record(user_id: &str, max_per_minute: u32) -> Result<(), ApiError> {
         let now = Utc::now();
         let mut st = state().lock().await;
         // Drop stale windows so a long-running process doesn't accumulate
@@ -884,7 +893,7 @@ mod upload_throttle {
         st.entries.retain(|_, (ws, _)| (now - *ws).num_seconds() < 60);
         let e = st.entries.entry(user_id.to_string()).or_insert((now, 0));
         if (now - e.0).num_seconds() >= 60 { e.0 = now; e.1 = 0; }
-        if e.1 >= MAX_UPLOADS_PER_MINUTE {
+        if e.1 >= max_per_minute {
             return Err(ApiError::TooManyRequests(
                 "upload rate limit exceeded — slow down".into()
             ));

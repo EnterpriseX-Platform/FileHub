@@ -525,13 +525,80 @@ pub(crate) struct UploadFields {
     pub(crate) tags: Option<String>,
     pub(crate) content_type: Option<String>,
     pub(crate) body: Option<bytes::Bytes>,
+    /// Streamed upload already written to the staging area (preferred over
+    /// `body` — large files never sit in memory).
+    pub(crate) staged: Option<crate::storage::Staged>,
+}
+
+/// Max bytes for one multipart upload (`UPLOAD_MAX_MB`, default 2048).
+/// Uploads stream to disk now, so this is a policy limit, not a RAM limit.
+pub fn upload_max_bytes() -> u64 {
+    std::env::var("UPLOAD_MAX_MB").ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .filter(|v| *v > 0)
+        .unwrap_or(2048) * 1024 * 1024
+}
+
+/// Stream one multipart file field into the staging area (encrypting as it
+/// goes).  Memory stays O(chunk) whatever the file size.
+pub(crate) async fn stage_field(
+    s: &AppState,
+    field: &mut axum::extract::multipart::Field<'_>,
+    max_bytes: u64,
+) -> Result<crate::storage::Staged, ApiError> {
+    let mut w = s.storage.begin_stage().await?;
+    loop {
+        match field.chunk().await {
+            Ok(Some(chunk)) => {
+                if let Err(e) = w.write(&chunk).await { w.abort().await; return Err(e.into()); }
+                // size is tracked inside the writer; re-derive cheaply here
+            }
+            Ok(None) => break,
+            Err(e) => { w.abort().await; return Err(multipart_error(e, max_bytes)); }
+        }
+        if w.size() > max_bytes {
+            w.abort().await;
+            return Err(ApiError::PayloadTooLarge(format!("file exceeds {} MB", max_bytes / 1024 / 1024)));
+        }
+    }
+    Ok(w.finish().await?)
+}
+
+/// Map a multipart read error — the body limit surfaces as a generic
+/// "Error parsing multipart" 400, which hid the real reason (file too large).
+pub(crate) fn multipart_error(e: axum::extract::multipart::MultipartError, max_bytes: u64) -> ApiError {
+    if e.status() == StatusCode::PAYLOAD_TOO_LARGE {
+        ApiError::PayloadTooLarge(format!("file exceeds {} MB", max_bytes / 1024 / 1024))
+    } else {
+        ApiError::BadRequest(e.to_string())
+    }
+}
+
+/// Text extraction / thumbnail / Office preview after an upload — runs in the
+/// background so the upload returns as soon as the bytes are durable, and is
+/// skipped for files above `P1_MAX_MB` (default 32) which would otherwise be
+/// read fully into memory.
+pub(crate) fn spawn_p1(s: &AppState, id: Uuid, file_type: String, name: String, object_key: String, encrypted: bool, size: u64) {
+    let max = std::env::var("P1_MAX_MB").ok().and_then(|v| v.parse::<u64>().ok()).unwrap_or(32) * 1024 * 1024;
+    if size > max { return; }
+    let db = s.db.clone();
+    let storage = s.storage.clone();
+    tokio::spawn(async move {
+        let Some((bytes, _)) = storage.get(&object_key, encrypted).await.ok().flatten() else { return };
+        let (ft, b) = (file_type.clone(), bytes.clone());
+        if let Ok(Some(text)) = tokio::task::spawn_blocking(move || crate::p1::extract_text_from(&ft, &b)).await {
+            crate::p1::index_file_content(&db, id, &text).await;
+        }
+        crate::p1::index_thumbnail(&db, id, &file_type, &bytes).await;
+        crate::p1::index_office_preview(&db, id, &file_type, &name, &bytes).await;
+    });
 }
 
 fn parse_uuid(s: &str) -> Result<Uuid, ApiError> {
     Uuid::parse_str(s).map_err(|_| ApiError::BadRequest(format!("invalid uuid: {s}")))
 }
 
-async fn read_one_upload(multipart: &mut Multipart) -> Result<UploadFields, ApiError> {
+async fn read_one_upload(s: &AppState, multipart: &mut Multipart) -> Result<UploadFields, ApiError> {
     let mut f = UploadFields::default();
     while let Some(mut field) = multipart.next_field().await
         .map_err(|e| ApiError::BadRequest(e.to_string()))?
@@ -541,11 +608,8 @@ async fn read_one_upload(multipart: &mut Multipart) -> Result<UploadFields, ApiE
             "file" => {
                 f.name = field.file_name().map(str::to_string);
                 f.content_type = field.content_type().map(str::to_string);
-                let mut buf = BytesMut::new();
-                while let Some(chunk) = field.chunk().await.map_err(|e| ApiError::BadRequest(e.to_string()))? {
-                    buf.extend_from_slice(&chunk);
-                }
-                f.body = Some(buf.freeze());
+                if let Some(old) = f.staged.take() { s.storage.discard(old).await; }
+                f.staged = Some(stage_field(s, &mut field, upload_max_bytes()).await?);
             }
             "system_id" => f.system_id = Some(field.text().await.map_err(|e| ApiError::BadRequest(e.to_string()))?),
             "org_id"    => f.org_id    = Some(field.text().await.map_err(|e| ApiError::BadRequest(e.to_string()))?),
@@ -688,16 +752,32 @@ pub(crate) async fn persist_upload_for(
         }
     }
 
-    let name = f.name.ok_or_else(|| ApiError::BadRequest("missing file".into()))?;
-    let body = f.body.ok_or_else(|| ApiError::BadRequest("missing file body".into()))?;
-    let system_id = f.system_id.ok_or_else(|| ApiError::BadRequest("missing system_id".into()))?;
+    enum Src { Staged(crate::storage::Staged), Bytes(bytes::Bytes) }
+    let src = match (f.staged.take(), f.body.take()) {
+        (Some(st), _) => Src::Staged(st),
+        (None, Some(b)) => Src::Bytes(b),
+        (None, None) => return Err(ApiError::BadRequest("missing file body".into())),
+    };
+    let size_bytes = match &src { Src::Staged(st) => st.size as i64, Src::Bytes(b) => b.len() as i64 };
 
-    let system: System = sqlx::query_as("SELECT * FROM systems WHERE id = $1")
-        .bind(&system_id).fetch_optional(&s.db).await?
-        .ok_or_else(|| ApiError::BadRequest("unknown system_id".into()))?;
-
-    let size_bytes = body.len() as i64;
-    enforce_quota(s, size_bytes, Some(&system_id), f.org_id.as_deref(), actor).await?;
+    // Validation before the bytes become visible — a staged upload that fails
+    // here is discarded so the staging area doesn't fill up with orphans.
+    let checked: Result<(String, String, System), ApiError> = async {
+        let name = f.name.clone().ok_or_else(|| ApiError::BadRequest("missing file".into()))?;
+        let system_id = f.system_id.clone().ok_or_else(|| ApiError::BadRequest("missing system_id".into()))?;
+        let system: System = sqlx::query_as("SELECT * FROM systems WHERE id = $1")
+            .bind(&system_id).fetch_optional(&s.db).await?
+            .ok_or_else(|| ApiError::BadRequest("unknown system_id".into()))?;
+        enforce_quota(s, size_bytes, Some(&system_id), f.org_id.as_deref(), actor).await?;
+        Ok((name, system_id, system))
+    }.await;
+    let (name, system_id, system) = match checked {
+        Ok(v) => v,
+        Err(e) => {
+            if let Src::Staged(st) = src { s.storage.discard(st).await; }
+            return Err(e);
+        }
+    };
 
     let id = Uuid::now_v7();
     let file_type = detect_file_type(&name);
@@ -710,7 +790,10 @@ pub(crate) async fn persist_upload_for(
     let ct = f.content_type.clone()
         .or_else(|| mime_guess::from_path(&name).first().map(|m| m.to_string()));
 
-    let etag = s.storage.put(&object_key, body, ct.as_deref()).await?;
+    let etag = match src {
+        Src::Staged(st) => s.storage.commit(st, &object_key).await?,
+        Src::Bytes(b) => s.storage.put(&object_key, b, ct.as_deref()).await?,
+    };
     let encrypted = s.storage.encryption_enabled();
 
     let owner = f.owner.unwrap_or_else(|| "Anonymous".into());
@@ -746,17 +829,8 @@ pub(crate) async fn persist_upload_for(
     .bind(&system_id).bind(&f.org_id).bind(now).bind(actor)
     .execute(&s.db).await?;
 
-    // P1: extract text + generate a thumbnail + render Office → PDF preview.
-    // We re-fetch the plaintext body from storage so the encryption layer
-    // hands us decrypted bytes; we already wrote it once and don't want to
-    // keep a second copy in memory.
-    if let Some((bytes, _)) = s.storage.get(&object_key, encrypted).await.ok().flatten() {
-        if let Some(text) = crate::p1::extract_text_from(&file_type, &bytes) {
-            crate::p1::index_file_content(&s.db, id, &text).await;
-        }
-        crate::p1::index_thumbnail(&s.db, id, &file_type, &bytes).await;
-        crate::p1::index_office_preview(&s.db, id, &file_type, &name, &bytes).await;
-    }
+    // P1: extract text + thumbnail + Office → PDF preview, in the background.
+    spawn_p1(s, id, file_type.clone(), name.clone(), object_key.clone(), encrypted, size_bytes as u64);
 
     Ok(sqlx::query_as::<_, File>(&format!("SELECT {FILE_COLS} FROM files WHERE id = $1"))
         .bind(id).fetch_one(&s.db).await?)
@@ -769,7 +843,7 @@ pub async fn upload_file(
 ) -> ApiResult<Json<File>> {
     crate::auth::require_role(&user.0, &["admin", "editor"])?;
     crate::auth::upload_rate_limit(&user.0.id).await?;
-    let fields = read_one_upload(&mut multipart).await?;
+    let fields = read_one_upload(&s, &mut multipart).await?;
     if let Some(ref sid) = fields.system_id {
         crate::auth::ensure_system_access(&s.db, &user.0, sid).await?;
     }
@@ -804,11 +878,7 @@ pub async fn upload_batch(
                 };
                 one.name = field.file_name().map(str::to_string);
                 one.content_type = field.content_type().map(str::to_string);
-                let mut buf = BytesMut::new();
-                while let Some(chunk) = field.chunk().await.map_err(|e| ApiError::BadRequest(e.to_string()))? {
-                    buf.extend_from_slice(&chunk);
-                }
-                one.body = Some(buf.freeze());
+                one.staged = Some(stage_field(&s, &mut field, upload_max_bytes()).await?);
                 if let Some(ref sid) = one.system_id {
                     crate::auth::ensure_system_access(&s.db, &user.0, sid).await?;
                 }
@@ -858,98 +928,28 @@ pub async fn download_file(
         }
     }
 
-    let (body, ct) = s.storage.get(&file.object_key, file.encrypted).await?
-        .ok_or(ApiError::NotFound)?;
-    let total: u64 = body.len() as u64;
-    let content_type = ct.unwrap_or_else(|| "application/octet-stream".into());
-
-    // Video / audio file types render through `<video>` / `<audio>` elements,
-    // which the browser will only treat as streamable if the response sets
-    // `Accept-Ranges: bytes` *and* honours `Range:` headers with 206 Partial
-    // Content.  Without that, a 100 MB video plays only after the full bytes
-    // arrive and the user can't seek.  This block matches the relevant slice
-    // of the in-memory `Bytes`, then re-uses the headers below.
-    let mut h = HeaderMap::new();
-    h.insert(header::CONTENT_TYPE, content_type.parse().unwrap());
-    // Inline disposition for media types so the `<video>`/`<audio>` tag can
-    // actually play them; everything else stays as an `attachment` so a click
-    // on the topbar Download button triggers a real download.
+    // Video / audio play inline so `<video>`/`<audio>` can seek (206 +
+    // Content-Range); everything else is an attachment.  The body streams
+    // from storage — memory no longer scales with the file size.
     let inline = matches!(file.file_type.as_str(),
         "mp4" | "mov" | "webm" | "mp3" | "wav" | "img" | "png" | "jpg" | "jpeg" | "gif" | "pdf");
-    // Content-Disposition needs both an ASCII fallback (`filename="..."`) for
-    // ancient clients and an RFC 5987 `filename*=UTF-8''<percent-encoded>`
-    // form for browsers — without the latter, Thai or any non-ASCII filename
-    // ends up as a string of `?`s in the Save As dialog.  The ASCII fallback
-    // is run through `sanitize_filename` so a name containing `"` doesn't
-    // break the quoted form (and accidentally inject extra header params).
-    let kind = if inline { "inline" } else { "attachment" };
-    let ascii_fallback = sanitize_filename(&file.name);
-    let utf8_encoded   = urlencoding::encode(&file.name);
-    let disp = format!(
-        "{kind}; filename=\"{ascii_fallback}\"; filename*=UTF-8''{utf8_encoded}"
-    );
-    h.insert(header::CONTENT_DISPOSITION, disp.parse().unwrap());
-    if let Some(etag) = &file.etag {
-        h.insert(header::ETAG, format!("\"{etag}\"").parse().unwrap());
-    }
+    // Cache policy unchanged from the buffered version: thumbnails/images are
+    // immutable per version, everything else is not stored.
     let cache_control = if is_image_type(&file.file_type) {
         "public, max-age=86400, immutable"
     } else {
         "private, no-store"
     };
-    h.insert(header::CACHE_CONTROL, cache_control.parse().unwrap());
-    h.insert(header::ACCEPT_RANGES, "bytes".parse().unwrap());
-
-    // Range request? Honour it.  Format is e.g. `Range: bytes=0-1023` or
-    // `Range: bytes=1024-` (open-ended).  We only implement single-range
-    // requests — multipart byte ranges are rare and not needed for media
-    // playback in any modern browser.
-    if let Some(range) = headers_in.get(header::RANGE).and_then(|v| v.to_str().ok()) {
-        if let Some((start, end)) = parse_range(range, total) {
-            let len = end - start + 1;
-            let slice = body.slice((start as usize)..((end as usize) + 1));
-            h.insert(header::CONTENT_LENGTH, len.to_string().parse().unwrap());
-            h.insert(
-                header::CONTENT_RANGE,
-                format!("bytes {start}-{end}/{total}").parse().unwrap(),
-            );
-            return Ok((StatusCode::PARTIAL_CONTENT, h, slice).into_response());
-        }
-        // Malformed range header → 416 with a hint of the real size so the
-        // client can retry with a valid window.
-        h.insert(
-            header::CONTENT_RANGE,
-            format!("bytes */{total}").parse().unwrap(),
-        );
-        return Ok((StatusCode::RANGE_NOT_SATISFIABLE, h).into_response());
-    }
-
-    h.insert(header::CONTENT_LENGTH, total.to_string().parse().unwrap());
-    Ok((StatusCode::OK, h, body).into_response())
+    crate::serve::stream_object(&s, crate::serve::ServeOpts {
+        key: &file.object_key,
+        encrypted: file.encrypted,
+        name: &file.name,
+        etag: file.etag.as_deref(),
+        disposition: if inline { "inline" } else { "attachment" },
+        cache_control,
+    }, &headers_in).await
 }
 
-/// Parse a single-range `bytes=start-end` header into an inclusive `(start, end)`
-/// pair, clamped to the file size.  Returns `None` for multipart, unit
-/// other than `bytes`, or an end before the start.
-fn parse_range(header: &str, total: u64) -> Option<(u64, u64)> {
-    let rest = header.strip_prefix("bytes=")?;
-    if rest.contains(',') { return None; }              // multipart unsupported
-    let (s, e) = rest.split_once('-')?;
-    let start: u64 = if s.is_empty() {
-        // Suffix range like `bytes=-1024` ⇒ last 1024 bytes.
-        let suffix: u64 = e.parse().ok()?;
-        total.saturating_sub(suffix)
-    } else {
-        s.parse().ok()?
-    };
-    let end: u64 = if e.is_empty() {
-        total.saturating_sub(1)
-    } else {
-        e.parse().ok()?
-    };
-    if start > end || start >= total { return None; }
-    Some((start, end.min(total - 1)))
-}
 
 /// Soft delete — moves a file to the trash by setting `deleted_at`.  Use
 /// `?hard=true` (admin role required) to permanently purge.
@@ -1304,20 +1304,13 @@ pub async fn patch_file(
         new_bucket = sys.bucket.clone();
         let safe = sanitize_filename(&new_name);
         new_object_key = format!("{}/{}-{}", sys.bucket, file.id, safe);
-        if let Some((body, ct)) = s.storage.get(&file.object_key, file.encrypted).await? {
-            s.storage.put(&new_object_key, body, ct.as_deref()).await?;
-            let _ = s.storage.delete(&file.object_key).await;
-        }
-    } else if p.name.is_some() && new_name != file.name {
-        let safe = sanitize_filename(&new_name);
-        new_object_key = format!("{}/{}-{}", file.bucket, file.id, safe);
-        if new_object_key != file.object_key {
-            if let Some((body, ct)) = s.storage.get(&file.object_key, file.encrypted).await? {
-                s.storage.put(&new_object_key, body, ct.as_deref()).await?;
-                let _ = s.storage.delete(&file.object_key).await;
-            }
-        }
+        // Moving into another bucket counts against that bucket's quota.
+        enforce_quota(&s, file.size_bytes, Some(&sys.id), file.org_id.as_deref(), None).await?;
+        s.storage.rename(&file.object_key, &new_object_key).await?;
     }
+    // A plain rename only changes the display name — the object key keeps the
+    // original name (it is an opaque id), so no bytes are rewritten.  The old
+    // code re-uploaded the whole file through memory on every rename.
 
     let tags_json = match p.tags {
         Some(v) => v.to_string(),
@@ -1591,24 +1584,19 @@ pub async fn share_meta(
 pub async fn share_download(
     State(s): State<Arc<AppState>>,
     Path(token): Path<String>,
+    headers_in: HeaderMap,
 ) -> ApiResult<axum::response::Response> {
     let file = share_target(&s, &token).await?;
-    let (body, ct) = s.storage.get(&file.object_key, file.encrypted).await?
-        .ok_or(ApiError::NotFound)?;
-    let mut h = HeaderMap::new();
-    h.insert(
-        header::CONTENT_TYPE,
-        ct.unwrap_or_else(|| "application/octet-stream".into()).parse().unwrap(),
-    );
-    h.insert(
-        header::CONTENT_DISPOSITION,
-        format!("attachment; filename=\"{}\"", file.name).parse().unwrap(),
-    );
-    if let Some(etag) = &file.etag {
-        h.insert(header::ETAG, format!("\"{etag}\"").parse().unwrap());
-    }
-    h.insert(header::CACHE_CONTROL, "private, no-store".parse().unwrap());
-    Ok((StatusCode::OK, h, body).into_response())
+    // Content-Disposition now goes through the RFC 5987 helper — the old
+    // `format!("attachment; filename=\"{}\"")` panicked on Thai file names.
+    crate::serve::stream_object(&s, crate::serve::ServeOpts {
+        key: &file.object_key,
+        encrypted: file.encrypted,
+        name: &file.name,
+        etag: file.etag.as_deref(),
+        disposition: "attachment",
+        cache_control: "private, no-store",
+    }, &headers_in).await
 }
 
 // -----------------------------------------------------------------------------
