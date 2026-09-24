@@ -63,7 +63,7 @@ export default async function FilesTablePage({ searchParams }: FilesPageProps) {
                 filters.status ? `${filters.status} files` :
                 filters.project ? `${filters.project} files` :
                 sys ? `${sys.name} files` :
-                "ไฟล์ทั้งหมด";
+                "All files";
   const crumbs = searchTerm ? ["Workspace", "Search"] :
                  sys ? ["Workspace", sys.name, "Files"] :
                  ["Workspace", "Files"];
@@ -191,7 +191,7 @@ export default async function FilesTablePage({ searchParams }: FilesPageProps) {
               <div className="t-sm t-muted" style={{ marginTop: 2 }}>
                 {sys
                   ? <>{folders.length} folder{folders.length === 1 ? "" : "s"} in this system</>
-                  : <>ทุกระบบในพื้นที่ทำงาน · {systems.length} ระบบ</>
+                  : <>All buckets in this workspace · {systems.length}</>
                 }
               </div>
             </div>
@@ -309,7 +309,7 @@ export default async function FilesTablePage({ searchParams }: FilesPageProps) {
             <div style={{ padding: 40, textAlign: "center", color: "var(--text-subtle)" }}>
               {searchTerm || activeFilters.length > 0
                 ? <>No files match this view. <Link href={buildFilesHref({})} className="t-semibold" style={{ color: "var(--accent)" }}>Clear filters</Link>.</>
-                : <>ยังไม่มีไฟล์ในนี้ —{canMutate(role) && <> <Link href={buildViewHref("/upload", { system_id: filters.system_id, org_id: filters.org_id, folder_id: folderId })} className="t-semibold" style={{ color: "var(--accent)" }}>อัปโหลดไฟล์แรก</Link>.</>}</>}
+                : <>No files here yet —{canMutate(role) && <> <Link href={buildViewHref("/upload", { system_id: filters.system_id, org_id: filters.org_id, folder_id: folderId })} className="t-semibold" style={{ color: "var(--accent)" }}>upload the first one</Link>.</>}</>}
             </div>
           ) : (
             <div className="table-scroll">

@@ -180,6 +180,16 @@ pub async fn create_system(
         .filter(|b| !b.is_empty())
         .unwrap_or_else(|| slugify_bucket(&body.name));
 
+    // Storage keys and S3 prefixes are built from this — keep it to a safe,
+    // S3-compatible charset (a-z 0-9 -, 2–63 chars).
+    let valid = bucket.len() >= 2 && bucket.len() <= 63
+        && bucket.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        && !bucket.starts_with('-');
+    if !valid {
+        return Err(ApiError::BadRequest(
+            "bucket name must be 2-63 chars of a-z, 0-9 and '-'".into()));
+    }
+
     // Block bucket-name collisions early so we don't leak partial state if
     // the unique index fires.
     let exists: bool = sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM systems WHERE bucket = $1)")
@@ -367,6 +377,16 @@ pub async fn list_files(
     if let Some(v) = q.status    { n += 1; where_sql.push_str(&format!(" AND status = ${n}"));    str_binds.push(v); }
     if let Some(v) = q.project   { n += 1; where_sql.push_str(&format!(" AND project = ${n}"));   str_binds.push(v); }
     if let Some(v) = q.owner     { n += 1; where_sql.push_str(&format!(" AND owner = ${n}"));     str_binds.push(v); }
+    if let Some(v) = q.tag.filter(|t| !t.trim().is_empty()) {
+        n += 1;
+        where_sql.push_str(&format!(" AND (CASE WHEN tags ~ '^\\s*\\[' THEN tags::jsonb ELSE '[]'::jsonb END) ? ${n}"));
+        str_binds.push(v);
+    }
+    if let Some(v) = q.q.map(|t| t.trim().to_string()).filter(|t| !t.is_empty()) {
+        n += 1;
+        where_sql.push_str(&format!(" AND (name ILIKE ${n} OR tags ILIKE ${n})"));
+        str_binds.push(format!("%{}%", v.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")));
+    }
     // Folder scoping mirrors `list_folders` parent_id: "null"/"" = root (no
     // folder), an id = that folder's files. Absent = every folder (no filter).
     if let Some(v) = q.folder_id {
@@ -701,24 +721,25 @@ pub(crate) async fn enforce_quota(
     Ok(())
 }
 
-/// แท็กอัตโนมัติ: ระบบ / หน่วยงาน / ปีงบประมาณ (พ.ศ.) / ผู้อัปโหลด
+/// Auto tags (`key:value`, grouped into "Tag folders" in the explorer):
+/// system / org / fiscal-year (Thai B.E., starts 1 Oct) / uploaded-by
 async fn auto_tags(s: &AppState, system: &System, org_id: Option<&str>, owner: &str) -> String {
-    let mut tags: Vec<String> = vec![format!("ระบบ:{}", system.name)];
+    let mut tags: Vec<String> = vec![format!("system:{}", system.name)];
     if let Some(oid) = org_id {
         if let Ok(Some((name,))) = sqlx::query_as::<_, (String,)>("SELECT name FROM orgs WHERE id = $1")
             .bind(oid)
             .fetch_optional(&s.db)
             .await
         {
-            tags.push(format!("หน่วยงาน:{name}"));
+            tags.push(format!("org:{name}"));
         }
     }
     // ปีงบประมาณไทย: เริ่ม 1 ต.ค. ⇒ ต.ค.-ธ.ค. นับเป็นปีถัดไป
     let now = Utc::now().with_timezone(&chrono::FixedOffset::east_opt(7 * 3600).unwrap());
     let y = now.year() + 543 + if now.month() >= 10 { 1 } else { 0 };
-    tags.push(format!("ปีงบ:{y}"));
+    tags.push(format!("fiscal-year:{y}"));
     if owner != "Anonymous" {
-        tags.push(format!("ผู้อัปโหลด:{owner}"));
+        tags.push(format!("uploaded-by:{owner}"));
     }
     serde_json::to_string(&tags).unwrap_or_else(|_| "[]".into())
 }
@@ -765,9 +786,13 @@ pub(crate) async fn persist_upload_for(
     let checked: Result<(String, String, System), ApiError> = async {
         let name = f.name.clone().ok_or_else(|| ApiError::BadRequest("missing file".into()))?;
         let system_id = f.system_id.clone().ok_or_else(|| ApiError::BadRequest("missing system_id".into()))?;
-        let system: System = sqlx::query_as("SELECT * FROM systems WHERE id = $1")
+        let system: System = sqlx::query_as("SELECT * FROM systems WHERE id = $1 AND deleted_at IS NULL")
             .bind(&system_id).fetch_optional(&s.db).await?
             .ok_or_else(|| ApiError::BadRequest("unknown system_id".into()))?;
+        // A bucket switched off in settings ("เปิดใช้งาน (รับไฟล์ใหม่)") refuses new files.
+        if system.status != "live" {
+            return Err(ApiError::BadRequest(format!("bucket '{}' is not accepting new files", system.bucket)));
+        }
         enforce_quota(s, size_bytes, Some(&system_id), f.org_id.as_deref(), actor).await?;
         Ok((name, system_id, system))
     }.await;
@@ -1040,6 +1065,55 @@ pub async fn list_activity(
     let rows: Vec<Activity> = sqlx::query_as("SELECT * FROM activity ORDER BY created_at DESC LIMIT $1 OFFSET $2")
         .bind(limit).bind(offset).fetch_all(&s.db).await?;
     Ok(Json(rows))
+}
+
+/// All tags in use, with file counts — feeds the "Tag folders" tree in the
+/// explorer.  A tag written as `key:value` is split so the UI can group by key
+/// (e.g. `fiscal-year` → `2569`, `2570`).  Scoped to the buckets the caller
+/// can see (personal drives of other users are excluded).
+pub async fn list_tags(
+    State(s): State<Arc<AppState>>,
+    user: AuthUser,
+    Query(q): Query<crate::models::TagsQuery>,
+) -> ApiResult<Json<Vec<serde_json::Value>>> {
+    let limit = q.limit.unwrap_or(500).clamp(1, 5000);
+    let scope = crate::auth::effective_system_ids(&s.db, &user.0).await?;
+    let rows: Vec<(String, i64)> = sqlx::query_as(
+        r#"SELECT t, COUNT(*)::bigint
+             FROM files f,
+                  jsonb_array_elements_text(CASE WHEN f.tags ~ '^\s*\[' THEN f.tags::jsonb ELSE '[]'::jsonb END) t
+            WHERE f.deleted_at IS NULL
+              AND ($1::text IS NULL OR f.system_id = $1)
+              AND ($2::text[] IS NULL OR f.system_id = ANY($2))
+            GROUP BY t
+            ORDER BY COUNT(*) DESC, t
+            LIMIT $3"#,
+    )
+    .bind(q.system_id).bind(scope).bind(limit)
+    .fetch_all(&s.db).await?;
+    Ok(Json(rows.into_iter().map(|(tag, count)| {
+        let (key, value) = match tag.split_once(':') {
+            Some((k, v)) if !k.trim().is_empty() && !v.trim().is_empty() => (k.trim().to_string(), v.trim().to_string()),
+            _ => (String::new(), tag.clone()),
+        };
+        serde_json::json!({ "tag": tag, "key": key, "value": value, "count": count })
+    }).collect()))
+}
+
+/// Delete a saved view / tag folder — its creator or an admin.
+pub async fn delete_view(
+    State(s): State<Arc<AppState>>,
+    user: AuthUser,
+    Path(id): Path<String>,
+) -> ApiResult<StatusCode> {
+    let owner: Option<Option<String>> = sqlx::query_scalar("SELECT created_by FROM views WHERE id = $1")
+        .bind(&id).fetch_optional(&s.db).await?;
+    let Some(owner) = owner else { return Err(ApiError::NotFound) };
+    if user.0.role != "admin" && owner.as_deref() != Some(user.0.id.as_str()) {
+        return Err(ApiError::Forbidden);
+    }
+    sqlx::query("DELETE FROM views WHERE id = $1").bind(&id).execute(&s.db).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn list_views(State(s): State<Arc<AppState>>) -> ApiResult<Json<Vec<View>>> {

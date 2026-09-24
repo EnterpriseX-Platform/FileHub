@@ -358,12 +358,12 @@ async fn upload(
 
     // แท็กเพิ่มจากข้อมูลที่ของเดิมส่งมาอยู่แล้ว + ป้ายบอกว่ามาทางเส้นเก่า
     // (ถ้าไม่ส่ง tags มาเลย persist_upload_for จะติดแท็กอัตโนมัติให้ต่ออีกชุด)
-    let mut extra: Vec<String> = vec!["ผ่าน:FileService เดิม".into()];
+    let mut extra: Vec<String> = vec!["via:legacy-fileservice".into()];
     if let Some(v) = up.file_type.as_deref() {
-        extra.push(format!("ประเภท:{v}"));
+        extra.push(format!("type:{v}"));
     }
     if let Some(v) = up.group_id.as_deref() {
-        extra.push(format!("กลุ่ม:{v}"));
+        extra.push(format!("group:{v}"));
     }
 
     let fields = UploadFields {

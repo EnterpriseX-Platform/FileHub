@@ -1,10 +1,11 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Ico } from "@/components/icons";
 import { Av, Ft, Pill, Prop, Tag } from "@/components/primitives";
 import { Sidebar } from "@/components/sidebar";
 import { TopBar } from "@/components/topbar";
-import { safeFile, safeSystems, safePermissions, safeOrgs } from "@/lib/api";
+import { safeFile, safeFolders, safeSystems, safePermissions, safeOrgs } from "@/lib/api";
 import { loadServerCtx } from "@/lib/auth-server";
 import { fmtAgo, fmtBytes, parseJsonArray, statusTone } from "@/lib/format";
 import { canMutate } from "@/lib/roles";
@@ -25,13 +26,29 @@ export default async function FileDetailPage({ params }: { params: Promise<{ id:
 
   const tags = parseJsonArray(file.tags);
   const sys = systems.find((s) => s.id === file.system_id);
-  const orgs = await safeOrgs(file.system_id, cookieHeader);
+  const [orgs, folders] = await Promise.all([
+    safeOrgs(file.system_id, cookieHeader),
+    safeFolders(file.system_id, cookieHeader),
+  ]);
+  // Folder path for the breadcrumb: bucket › folder › sub-folder
+  const folderPath: { id: string; name: string }[] = [];
+  for (let cur = folders.find((f) => f.id === file.folder_id), guard = 0; cur && guard < 50; guard++) {
+    folderPath.unshift({ id: cur.id, name: cur.name });
+    const parent = cur.parent_id;
+    cur = parent ? folders.find((f) => f.id === parent) : undefined;
+  }
 
   return (
     <div className="scr with-inspector">
       <Sidebar nav="files" systems={systems} orgs={orgs} systemActive={file.system_id} orgActive={file.org_id ?? undefined} />
       <TopBar
-        crumbs={["Workspace", sys?.name ?? file.system_id, "Files"]}
+        crumbs={[
+          <Link key="ws" href="/explorer">Files</Link>,
+          <Link key="b" href={`/explorer?b=${encodeURIComponent(file.system_id)}`}>{sys?.name ?? file.system_id}</Link>,
+          ...folderPath.map((f) => (
+            <Link key={f.id} href={`/explorer?b=${encodeURIComponent(file.system_id)}&f=${encodeURIComponent(f.id)}`}>{f.name}</Link>
+          )),
+        ]}
         title={file.name}
         actions={
           <>
@@ -54,7 +71,7 @@ export default async function FileDetailPage({ params }: { params: Promise<{ id:
             <div style={{ flex: 1, minWidth: 0 }}>
               <div className="t-md t-semibold t-trunc">{file.name}</div>
               <div className="t-xs t-muted">
-                {fmtBytes(file.size_bytes)} · v{file.version} · อัปโหลดเมื่อ {fmtAgo(file.created_at)}
+                {fmtBytes(file.size_bytes)} · v{file.version} · uploaded {fmtAgo(file.created_at)}
               </div>
             </div>
           </div>
@@ -62,42 +79,42 @@ export default async function FileDetailPage({ params }: { params: Promise<{ id:
         </div>
 
         <div style={{ padding: "12px 16px", flex: 1, overflow: "auto" }}>
-          <Label>ข้อมูลไฟล์</Label>
-          <Prop label="สถานะ" icon={<span style={{ width: 6, height: 6, background: `var(--c-${statusTone(file.status)})`, borderRadius: "50%" }} />}>
+          <Label>Details</Label>
+          <Prop label="Status" icon={<span style={{ width: 6, height: 6, background: `var(--c-${statusTone(file.status)})`, borderRadius: "50%" }} />}>
             <Pill tone={statusTone(file.status)}><span className="dot" />{file.status}</Pill>
           </Prop>
           {file.project && (
-            <Prop label="โครงการ" icon={<Ico.tag className="icon sm" />}>
+            <Prop label="Project" icon={<Ico.tag className="icon sm" />}>
               <Pill tone="indigo">{file.project}</Pill>
             </Prop>
           )}
-          <Prop label="เจ้าของ" icon={<Ico.user className="icon sm" />}>
+          <Prop label="Owner" icon={<Ico.user className="icon sm" />}>
             <Av name={file.owner} tone="rose" /><span>{file.owner}</span>
           </Prop>
-          <Prop label="ชนิดไฟล์" icon={<Ico.layers className="icon sm" />}>
+          <Prop label="File type" icon={<Ico.layers className="icon sm" />}>
             <Pill>{file.file_type}</Pill>
           </Prop>
-          <Prop label="แท็ก" icon={<Ico.tag className="icon sm" />}>
+          <Prop label="Tags" icon={<Ico.tag className="icon sm" />}>
             {tags.length > 0 ? tags.map((t) => <Tag key={t}>{t}</Tag>) : <span className="t-subtle">—</span>}
           </Prop>
-          <Prop label="แก้ไขล่าสุด" icon={<Ico.clock className="icon sm" />}>
+          <Prop label="Last modified" icon={<Ico.clock className="icon sm" />}>
             <span>{fmtAgo(file.modified_at)}</span>
           </Prop>
-          <Prop label="สร้างเมื่อ" icon={<Ico.clock className="icon sm" />}>
+          <Prop label="Created" icon={<Ico.clock className="icon sm" />}>
             <span>{fmtAgo(file.created_at)}</span>
           </Prop>
 
           <div className="divider" />
 
-          <Label>ที่จัดเก็บ</Label>
-          <Prop label="ระบบต้นทาง" icon={<Ico.database className="icon sm" />}>
+          <Label>Location</Label>
+          <Prop label="Bucket" icon={<Ico.database className="icon sm" />}>
             {sys ? <Pill tone={sys.tone}><span className="dot" />{sys.name}</Pill> : <span className="t-mono">{file.system_id}</span>}
           </Prop>
           {/* Bucket/path/ETag are operator detail, not user metadata — folded
               away by default. Native <details> keeps this a server component. */}
           <details className="disclosure">
-            <summary>รายละเอียดทางเทคนิค</summary>
-            <Prop label="ที่เก็บจริง" icon={<Ico.bucket className="icon sm" />}><span className="t-mono t-sm">{file.bucket}</span></Prop>
+            <summary>Technical details</summary>
+            <Prop label="Bucket id" icon={<Ico.bucket className="icon sm" />}><span className="t-mono t-sm">{file.bucket}</span></Prop>
             <Prop label="Object path"      icon={<Ico.folder className="icon sm" />}><span className="t-mono t-sm t-trunc">{file.object_key}</span></Prop>
             {file.etag && <Prop label="Checksum" icon={<Ico.tag className="icon sm" />}><span className="t-mono t-xs t-trunc">{file.etag}</span></Prop>}
             <Prop label="Encryption" icon={<Ico.shield className="icon sm" />}>
@@ -107,7 +124,7 @@ export default async function FileDetailPage({ params }: { params: Promise<{ id:
 
           <div className="divider" />
           <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
-            <Label>สิทธิ์การเข้าถึง</Label>
+            <Label>Access</Label>
             <span className="t-xs t-muted" style={{ marginLeft: "auto" }}>{perms.length}</span>
           </div>
           {perms.length === 0 ? (
