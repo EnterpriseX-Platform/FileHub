@@ -43,13 +43,19 @@ impl AppState {
         // Seed accounts run *after* migrations so the users table exists, and
         // are idempotent — they only insert when the table is empty so a
         // restart never duplicates them.
-        crate::auth::bootstrap_seed_users(&db).await?;
-
-        // Demo collaboration data (comment threads, review workflows,
-        // notifications, version history). Best-effort: a failure must never
-        // block startup, so we log and continue rather than propagate.
-        if let Err(e) = crate::seed_demo::bootstrap_demo_data(&db).await {
-            tracing::warn!("demo seed skipped: {e:#}");
+        // Demo accounts (known passwords) + demo collaboration rows only in
+        // DEMO_MODE — a production install must not get an admin account
+        // whose password is printed in the public README.
+        if crate::seed_demo::demo_mode() {
+            crate::auth::bootstrap_seed_users(&db).await?;
+            // Best-effort: a failure must never block startup.
+            if let Err(e) = crate::seed_demo::bootstrap_demo_data(&db).await {
+                tracing::warn!("demo seed skipped: {e:#}");
+            }
+        } else if std::env::var("PURGE_DEMO_DATA").map(|v| v == "1").unwrap_or(false) {
+            if let Err(e) = crate::seed_demo::purge_demo_data(&db).await {
+                tracing::warn!("demo purge failed: {e:#}");
+            }
         }
 
         let storage_root = std::env::var("STORAGE_ROOT").unwrap_or_else(|_| "./storage".into());
