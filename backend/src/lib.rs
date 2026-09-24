@@ -77,6 +77,8 @@ pub async fn method_override(
                 "DELETE" => Some(axum::http::Method::DELETE),
                 "PATCH" => Some(axum::http::Method::PATCH),
                 "PUT" => Some(axum::http::Method::PUT),
+                // tus ถามตำแหน่งที่อัปไปแล้วด้วย HEAD (ตอน resume/retry)
+                "HEAD" => Some(axum::http::Method::HEAD),
                 _ => None,
             };
             if let Some(m) = m {

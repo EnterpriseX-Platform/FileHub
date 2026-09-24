@@ -19,6 +19,26 @@ import type { Org, System } from "@/lib/api";
 // because the round-trip overhead of TUS isn't worth it.
 const TUS_THRESHOLD_BYTES = 50 * 1024 * 1024;
 
+/**
+ * tus HTTP stack that sends HEAD as POST + `X-HTTP-Method-Override: HEAD`.
+ * The edge in front of FileHub answers 403 to anything but GET/POST; the
+ * backend's `method_override` layer turns the POST back into HEAD.
+ */
+const baseHttpStack = new tus.DefaultHttpStack({});
+const edgeSafeHttpStack: tus.HttpStack = {
+  createRequest(method: string, url: string) {
+    if (method.toUpperCase() === "HEAD") {
+      const req = baseHttpStack.createRequest("POST", url);
+      req.setHeader("X-HTTP-Method-Override", "HEAD");
+      return req;
+    }
+    return baseHttpStack.createRequest(method, url);
+  },
+  getName() {
+    return "edge-safe";
+  },
+};
+
 type Item = {
   file: File;
   // Relative path within a dropped folder (e.g. "reports/q1/summary.pdf").
@@ -253,14 +273,29 @@ function UploadInner() {
 
       const upload = new tus.Upload(item.file, {
         endpoint,
-        chunkSize: 8 * 1024 * 1024,         // 8 MB PATCH chunks
-        retryDelays: [0, 1000, 3000, 5000],
+        // 8 MB chunks — well under the edge's 100 MB request-body limit, so
+        // files of any size get through as a series of small requests.
+        chunkSize: 8 * 1024 * 1024,
+        retryDelays: [0, 1000, 3000, 5000, 10000],
+        // The edge (Cloudflare) only lets GET/POST through: PATCH is sent as
+        // POST + X-HTTP-Method-Override and HEAD (offset check on resume /
+        // retry) goes through `edgeSafeHttpStack` below.
+        overridePatchMethod: true,
+        httpStack: edgeSafeHttpStack,
         metadata: meta,
         onError: (err) => setProgress(0, "error", err.message),
         onProgress: (sent, total) => setProgress(Math.round((sent / total) * 100), "uploading"),
         onSuccess: () => setProgress(100, "success", "Done (TUS)"),
       });
-      upload.start();
+      // Resume an interrupted upload of the same file (page reload, network
+      // drop) instead of starting over — tus-js-client keeps the upload URL
+      // in localStorage keyed by the file fingerprint.
+      upload.findPreviousUploads()
+        .then((previous) => {
+          if (previous.length > 0) upload.resumeFromPreviousUpload(previous[0]);
+          upload.start();
+        })
+        .catch(() => upload.start());
       return;
     }
 
