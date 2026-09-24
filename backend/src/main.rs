@@ -16,6 +16,10 @@ async fn main() -> anyhow::Result<()> {
 
     let state = Arc::new(AppState::init().await?);
 
+    // Staged uploads left by a crash / aborted request (> 1 h old).
+    let swept = state.storage.sweep_staging(std::time::Duration::from_secs(3600)).await;
+    if swept > 0 { tracing::info!("removed {swept} stale staged upload(s)"); }
+
     // Phase K — background rotation worker.  Defaults to once per hour; tests
     // and CI can override via `ROTATION_INTERVAL_SECS`.  Disable entirely by
     // setting the env var to `0`.
