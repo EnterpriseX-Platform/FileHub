@@ -225,6 +225,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         // endpoints themselves are public — see above.
         .route("/api/files/:id/office-url",   get(wopi::office_url))
         .route("/api/search",                 get(handlers::search_files))
+        .route("/api/tags",                   get(handlers::list_tags))
         // File CRUD lives in its own sub-router so we can raise the body
         // limit on the multipart endpoints (upload, batch, new version, and
         // patch which may rewrite bytes) without affecting JSON-only routes.
@@ -285,6 +286,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/reports/by-time",        get(handlers::report_by_time))
         .route("/api/activity",               get(handlers::list_activity))
         .route("/api/views",                  get(handlers::list_views).post(handlers::create_view))
+        .route("/api/views/:id",              axum::routing::delete(handlers::delete_view))
         .route("/api/permissions/:file_id",   get(handlers::list_permissions))
         .layer(middleware::from_fn_with_state(state.clone(), auth::require_session));
 

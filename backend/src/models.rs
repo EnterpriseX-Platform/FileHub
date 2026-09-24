@@ -192,6 +192,10 @@ pub struct FilesQuery {
     pub status: Option<String>,
     pub project: Option<String>,
     pub owner: Option<String>,
+    /// Exact tag (one element of the `tags` JSON array), e.g. `fiscal-year:2569`.
+    pub tag: Option<String>,
+    /// Name / tag substring search within the current scope (bucket, folder).
+    pub q: Option<String>,
     /// Scope the listing to a single folder. `"null"` / `""` matches files that
     /// sit at the system root (no folder); a folder id matches its direct
     /// children. Absent = no folder filter (every folder), unchanged behaviour.
@@ -269,6 +273,12 @@ pub struct CreateFolder {
     pub color: Option<String>,
     pub owner: Option<String>,
     pub encrypted: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TagsQuery {
+    pub system_id: Option<String>,
+    pub limit: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -82,8 +82,8 @@ function LoginInner() {
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
             <span style={{ width: 44, height: 44, borderRadius: "var(--r-5)", background: "var(--accent)", color: "var(--on-accent)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 20 }}>F</span>
             <div>
-              <div className="t-2xl t-semibold">คลังไฟล์กลาง</div>
-              <div className="t-sm t-muted">สำนักงบประมาณ · New e-Budgeting</div>
+              <div className="t-2xl t-semibold">File Hub</div>
+              <div className="t-sm t-muted">Bureau of the Budget · New e-Budgeting</div>
             </div>
           </div>
 
@@ -93,12 +93,12 @@ function LoginInner() {
             background: "var(--bg-muted)", border: "1px solid var(--border)",
             borderRadius: "var(--r-2)", padding: "10px 12px", lineHeight: 1.7,
           }}>
-            หน้านี้สำหรับ<strong>ผู้ดูแลคลังไฟล์</strong>เท่านั้น — ผู้ใช้ทั่วไปไม่ต้องล็อกอินที่นี่
-            เพราะระบบงานแนบและเปิดไฟล์ให้ผ่านหน้าจอของแต่ละระบบอยู่แล้ว
+            This console is for <strong>File Hub administrators</strong> only. Other users don’t need
+            to sign in here — business systems attach and open files from their own screens.
           </div>
 
           <div>
-            <label htmlFor="email" className="t-sm t-muted t-medium" style={{ display: "block", marginBottom: 6 }}>อีเมล</label>
+            <label htmlFor="email" className="t-sm t-muted t-medium" style={{ display: "block", marginBottom: 6 }}>Email</label>
             <div className="field" style={{ width: "100%", height: 42, fontSize: "var(--t-md)" }}>
               <input
                 id="email"
@@ -114,7 +114,7 @@ function LoginInner() {
           </div>
 
           <div>
-            <label htmlFor="password" className="t-sm t-muted t-medium" style={{ display: "block", marginBottom: 6 }}>รหัสผ่าน</label>
+            <label htmlFor="password" className="t-sm t-muted t-medium" style={{ display: "block", marginBottom: 6 }}>Password</label>
             <div className="field" style={{ width: "100%", height: 42, fontSize: "var(--t-md)" }}>
               <input
                 id="password"
@@ -133,11 +133,11 @@ function LoginInner() {
           )}
 
           <button type="submit" className="btn primary" disabled={busy} style={{ justifyContent: "center", height: 42, fontSize: "var(--t-md)" }}>
-            {busy ? "กำลังเข้าสู่ระบบ…" : "เข้าสู่ระบบ"}
+            {busy ? "Signing in…" : "Sign in"}
           </button>
 
           <div className="t-sm t-subtle">
-            ติดปัญหาเข้าใช้งาน ติดต่อผู้ดูแลระบบ
+            Trouble signing in? Contact your system administrator.
           </div>
         </form>
 

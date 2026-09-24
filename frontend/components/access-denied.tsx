@@ -28,21 +28,21 @@ export function AccessDenied({ email }: { email?: string }) {
           !
         </div>
         <h1 className="t-lg t-semibold" style={{ margin: "0 0 8px" }}>
-          ไม่มีสิทธิ์เข้าใช้งานคลังไฟล์
+          You don’t have access to File Hub
         </h1>
         <p className="t-sm t-muted" style={{ margin: "0 0 4px", lineHeight: 1.7 }}>
-          บัญชีของคุณเข้าสู่ระบบ NEB เรียบร้อยแล้ว แต่ยังไม่ได้รับสิทธิ์ให้ใช้งานคลังไฟล์กลาง
+          You are signed in to NEB, but your account has not been granted access to File Hub.
         </p>
         {email && (
           <p className="t-xs t-subtle" style={{ margin: "0 0 16px" }}>
-            บัญชีที่ใช้อยู่: {email}
+            Signed in as: {email}
           </p>
         )}
         <p className="t-sm t-muted" style={{ margin: "0 0 20px", lineHeight: 1.7 }}>
-          หากจำเป็นต้องใช้งาน กรุณาติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์ผ่านระบบบริหารจัดการผู้ใช้ (IAM-X)
+          If you need access, ask your administrator to grant it in IAM-X.
         </p>
         <a href="/app/" className="btn primary" style={{ textDecoration: "none" }}>
-          กลับหน้าพอร์ทัล
+          Back to the portal
         </a>
       </div>
     </div>

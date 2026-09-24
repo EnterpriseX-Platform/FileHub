@@ -9,8 +9,8 @@ import { ThemeProvider } from "@/lib/theme-context";
 import "./tokens.css";
 
 export const metadata: Metadata = {
-  title: "คลังไฟล์กลาง NEB",
-  description: "คลังไฟล์กลางของระบบ New e-Budgeting",
+  title: "File Hub · New e-Budgeting",
+  description: "Central file hub for New e-Budgeting",
 };
 
 // Runs before first paint so a dark-mode user never sees a white flash.
@@ -56,7 +56,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     // suppressHydrationWarning: the boot script mutates <html> className
     // before React hydrates, which is exactly the mismatch React warns about.
-    <html lang="th" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
