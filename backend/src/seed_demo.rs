@@ -160,3 +160,72 @@ pub async fn bootstrap_demo_data(db: &PgPool) -> anyhow::Result<()> {
     tracing::info!("seeded demo collaboration data (comments, workflows, notifications, versions, permissions)");
     Ok(())
 }
+
+// =============================================================================
+// Demo data is opt-in (DEMO_MODE=1).  Production deployments start clean, and
+// `PURGE_DEMO_DATA=1` removes demo rows that an earlier boot already created
+// (migration 0002 + this module + the seed accounts), without touching any
+// real file: a demo system/org/folder is only removed once nothing else
+// references it, and demo accounts are disabled rather than deleted.
+// =============================================================================
+
+/// `DEMO_MODE=1|true|on` — seed demo accounts and collaboration rows.
+pub fn demo_mode() -> bool {
+    matches!(std::env::var("DEMO_MODE").unwrap_or_default().trim().to_ascii_lowercase().as_str(),
+        "1" | "true" | "on" | "yes")
+}
+
+const DEMO_SYSTEMS: &[&str] = &["sys_crm", "sys_dms", "sys_fin", "sys_hr", "sys_it", "sys_legal", "sys_proc"];
+const DEMO_FOLDERS: &[&str] = &["fld_contracts2026", "fld_handbooks", "fld_budgets", "fld_confidential"];
+const DEMO_UUID_PREFIX: &str = "00000000-0000-7000-8000-%";
+
+pub async fn purge_demo_data(db: &PgPool) -> anyhow::Result<()> {
+    let seed_accounts: Vec<&str> = crate::auth::SEED_ACCOUNTS.iter().map(|a| a.0).collect();
+
+    // 1. Demo files (fixed UUID prefix) + every row that references them.
+    let fk_to_files: Vec<(String, String)> = sqlx::query_as(
+        r#"SELECT DISTINCT kcu.table_name::text, kcu.column_name::text
+             FROM information_schema.referential_constraints rc
+             JOIN information_schema.key_column_usage kcu ON kcu.constraint_name = rc.constraint_name
+             JOIN information_schema.constraint_column_usage ccu ON ccu.constraint_name = rc.unique_constraint_name
+            WHERE ccu.table_name = 'files' AND kcu.table_schema = 'public'"#,
+    ).fetch_all(db).await?;
+    for (table, col) in &fk_to_files {
+        sqlx::query(&format!(
+            "DELETE FROM {table} WHERE {col} IN (SELECT id FROM files WHERE id::text LIKE $1)"
+        )).bind(DEMO_UUID_PREFIX).execute(db).await?;
+    }
+    for table in ["activity", "file_comments", "workflow_steps", "file_workflows", "notifications",
+                  "file_versions", "permissions", "files"] {
+        sqlx::query(&format!("DELETE FROM {table} WHERE id::text LIKE $1"))
+            .bind(DEMO_UUID_PREFIX).execute(db).await?;
+    }
+    sqlx::query("DELETE FROM views WHERE id IN ('vw_q1board','vw_needs_review','vw_expiring','vw_my_uploads','vw_photos')")
+        .execute(db).await?;
+
+    // 2. Demo folders / orgs / systems — only when nothing real is left in them.
+    for id in DEMO_FOLDERS {
+        let _ = sqlx::query("DELETE FROM folders WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM files WHERE folder_id = $1)")
+            .bind(id).execute(db).await;
+    }
+    for sys in DEMO_SYSTEMS {
+        let _ = sqlx::query(
+            "DELETE FROM orgs o WHERE o.system_id = $1 AND NOT EXISTS (SELECT 1 FROM files f WHERE f.org_id = o.id)",
+        ).bind(sys).execute(db).await;
+        // Fails harmlessly (FK) if the system still holds real rows.
+        let _ = sqlx::query("DELETE FROM systems WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM files WHERE system_id = $1)")
+            .bind(sys).execute(db).await;
+    }
+
+    // 3. Demo accounts: sessions dropped, login disabled; their empty personal drives removed.
+    for uid in &seed_accounts {
+        sqlx::query("DELETE FROM sessions WHERE user_id = $1").bind(uid).execute(db).await?;
+        sqlx::query("UPDATE users SET status = 'disabled', password_hash = '' WHERE id = $1").bind(uid).execute(db).await?;
+        let _ = sqlx::query(
+            "DELETE FROM systems WHERE owner_user_id = $1 AND system_type = 'personal' \
+               AND NOT EXISTS (SELECT 1 FROM files f WHERE f.system_id = systems.id)",
+        ).bind(uid).execute(db).await;
+    }
+    tracing::info!("demo data purged (PURGE_DEMO_DATA=1)");
+    Ok(())
+}

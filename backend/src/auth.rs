@@ -143,7 +143,7 @@ pub async fn resolve_api_key(db: &PgPool, key: &str) -> Result<User, ApiError> {
 // -----------------------------------------------------------------------------
 // Seed bootstrap — called from AppState::init
 // -----------------------------------------------------------------------------
-const SEED_ACCOUNTS: &[(&str, &str, &str, &str, &str, &str)] = &[
+pub(crate) const SEED_ACCOUNTS: &[(&str, &str, &str, &str, &str, &str)] = &[
     // (id, email, display_name, avatar_tone, role, password)
     ("usr_admin",  "admin@acme.go.th",  "Admin",     "indigo",  "admin",  "admin123"),
     ("usr_anong",  "anong@acme.go.th",  "Anong K.",  "rose",    "editor", "anong123"),

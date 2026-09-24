@@ -25,7 +25,7 @@ cd backend && cargo run
 cd frontend && npm install && PORT=3001 npm run dev
 ```
 
-Open <http://localhost:3001/filehub>. Seed login: `anong@acme.go.th` / `anong123` (editor), `admin@acme.go.th` / `admin123` (admin), `viewer@acme.go.th` / `viewer123` (viewer) — defined in `backend/src/auth.rs::SEED_ACCOUNTS`, inserted only when `users` is empty.
+Open <http://localhost:3001/filehub>. Seed login: `anong@acme.go.th` / `anong123` (editor), `admin@acme.go.th` / `admin123` (admin), `viewer@acme.go.th` / `viewer123` (viewer) — defined in `backend/src/auth.rs::SEED_ACCOUNTS`, inserted only with `DEMO_MODE=1` (tests need it: `DEMO_MODE=1 cargo run`).
 
 ## Testing
 

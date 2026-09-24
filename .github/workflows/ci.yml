@@ -55,6 +55,8 @@ jobs:
       STORAGE_ROOT: ./storage
       # Don't run the background rotation worker during CI.
       ROTATION_INTERVAL_SECS: 0
+      # Integration tests log in as the seed accounts and read the demo rows.
+      DEMO_MODE: "1"
       RUST_LOG: warn
 
     steps:
