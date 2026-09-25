@@ -3,8 +3,8 @@
 import * as React from "react";
 
 /// Light/dark theme state. The inline script in app/layout.tsx applies the
-/// `.dark` class to <html> BEFORE first paint (จาก localStorage "fh-theme"
-/// เท่านั้น — NEB ตั้งให้เริ่มสว่างเสมอ), so this provider initialises from
+/// `.dark` class to <html> BEFORE first paint (from localStorage "fh-theme"
+/// only — the default is always light), so this provider initialises from
 /// the DOM — never from localStorage directly — to stay consistent with
 /// whatever the script already decided.
 type ThemeCtx = {

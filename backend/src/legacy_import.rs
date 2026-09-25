@@ -1,20 +1,24 @@
-//! นำเข้าไฟล์จากฮับเดิมเข้ามาที่ FileHub ตัวใหม่ (NEB — 22 ก.ย. 2569)
+//! Import files from the old file service (legacy FileService API) into FileHub.
 //!
-//! ## ทำไมต้องมี
-//! ฮับเดิมของ NEB มีไฟล์ราว 6 หมื่นใบ (PROD 62,900 ใบ / 41.9 GB) ที่ระบบงานต่าง ๆ
-//! อ้างถึงด้วย `FILE_ID` ที่เก็บไว้ใน Oracle ของตัวเอง ถ้าย้ายแล้ว "รหัสเปลี่ยน"
-//! ก็ต้องไล่แก้ข้อมูลในฐานของทุกโมดูล ซึ่งเป็นไปไม่ได้ในทางปฏิบัติ
+//! ## Why
+//! A legacy file service can hold tens of thousands of files that other
+//! applications reference by a `FILE_ID` stored in their own databases. If the
+//! IDs changed during migration, every application's data would have to be
+//! rewritten, which is impractical.
 //!
-//! 🔑 ตัวนี้จึง **คงรหัสไฟล์เดิมไว้ทุกใบ** (ทั้งสองฝั่งเป็น UUID เหมือนกัน)
-//! ⇒ ไฟล์ที่ย้ายมาแล้วเปิดด้วยรหัสเดิมได้ทันที ไม่ต้องแตะข้อมูลของโมดูลใดเลย
-//! และเมื่อย้ายครบก็ปลดฮับเดิมได้จริง (ไม่ต้องพึ่งการส่งต่อคำขออีก)
+//! Key point: this importer **keeps every original file ID** (both sides use UUIDs)
+//! ⇒ migrated files open with their old IDs immediately, no application data is
+//! touched, and once everything is imported the old service can really be
+//! retired (no more request forwarding).
 //!
-//! ## ทำซ้ำได้
-//! ใบไหนมีอยู่แล้วจะข้าม (นับเป็น skipped) ⇒ รันซ้ำเพื่อไล่เก็บส่วนที่เหลือได้
-//! และรันระหว่างระบบเปิดใช้งานได้ เพราะไม่แตะของเดิมเลย (อ่านอย่างเดียว)
+//! ## Idempotent
+//! Files that already exist are skipped (counted as skipped) ⇒ re-run to pick up
+//! the remainder. Safe to run while the system is live, since the old service is
+//! only read, never modified.
 //!
-//! ## ตั้งใจไม่ทำ thumbnail / สกัดข้อความตอนนำเข้า
-//! 6 หมื่นใบจะถล่มเครื่องทันที — ให้ทยอยทำทีหลังเป็นงานเบื้องหลังแยกต่างหาก
+//! ## Deliberately no thumbnails / text extraction during import
+//! Tens of thousands of files would overload the machine at once — do that
+//! later, gradually, as a separate background job.
 
 use std::sync::Arc;
 
@@ -30,13 +34,13 @@ use crate::AppState;
 
 #[derive(Deserialize)]
 pub struct ImportRequest {
-    /// จำนวนใบที่จะไล่ดูต่อรอบ (ค่าเริ่มต้น 50 · สูงสุด 500)
+    /// Number of files to scan per run (default 50 · max 500).
     pub limit: Option<i64>,
-    /// ตำแหน่งเริ่มของรายการฝั่งฮับเดิม
+    /// Start offset in the old service's file list.
     pub offset: Option<i64>,
-    /// ระบุรหัสไฟล์เองก็ได้ (ใช้ตอนไล่เก็บใบที่ตกหล่น)
+    /// Explicit file IDs (for picking up files that were missed).
     pub ids: Option<Vec<String>>,
-    /// ดูเฉย ๆ ไม่เขียนจริง
+    /// Report only; write nothing.
     pub dry_run: Option<bool>,
 }
 
@@ -65,7 +69,7 @@ fn s(v: &serde_json::Value, k: &str) -> Option<String> {
     v.get(k).and_then(|x| x.as_str()).map(|x| x.trim().to_string()).filter(|x| !x.is_empty())
 }
 
-/// นำเข้าไฟล์จากฮับเดิม — admin เท่านั้น
+/// Import files from the old file service — admin only.
 pub async fn import_from_legacy(
     State(st): State<Arc<AppState>>,
     user: AuthUser,
@@ -73,15 +77,15 @@ pub async fn import_from_legacy(
 ) -> ApiResult<Json<ImportResult>> {
     crate::auth::require_role(&user.0, &["admin"])?;
     let base = env_opt("LEGACY_FILEHUB_URL")
-        .ok_or_else(|| ApiError::BadRequest("ยังไม่ได้ตั้ง LEGACY_FILEHUB_URL".into()))?;
+        .ok_or_else(|| ApiError::BadRequest("LEGACY_FILEHUB_URL is not set".into()))?;
     let system_id = env_opt("LEGACY_DEFAULT_SYSTEM")
         .or_else(|| env_opt("EDGE_DEFAULT_SYSTEM"))
-        .ok_or_else(|| ApiError::BadRequest("ยังไม่ได้ตั้ง LEGACY_DEFAULT_SYSTEM".into()))?;
+        .ok_or_else(|| ApiError::BadRequest("LEGACY_DEFAULT_SYSTEM is not set".into()))?;
     let system: System = sqlx::query_as("SELECT * FROM systems WHERE id = $1")
         .bind(&system_id)
         .fetch_optional(&st.db)
         .await?
-        .ok_or_else(|| ApiError::BadRequest("ไม่รู้จัก system ปลายทาง".into()))?;
+        .ok_or_else(|| ApiError::BadRequest("unknown target system".into()))?;
 
     let dry = req.dry_run.unwrap_or(false);
     let limit = req.limit.unwrap_or(50).clamp(1, 500);
@@ -92,7 +96,7 @@ pub async fn import_from_legacy(
         .map_err(|e| ApiError::Other(anyhow::anyhow!(e)))?;
     let token = legacy_token(&client).await;
 
-    // รายการที่จะนำเข้า: ระบุเองมา หรือดึงจากฮับเดิมทีละหน้า
+    // Files to import: explicitly listed, or fetched page by page from the old service.
     let mut rows: Vec<serde_json::Value> = Vec::new();
     if let Some(ids) = req.ids.clone() {
         for id in ids {
@@ -102,9 +106,9 @@ pub async fn import_from_legacy(
             match r.send().await {
                 Ok(resp) => match resp.json::<serde_json::Value>().await {
                     Ok(v) => { if let Some(d) = v.get("data") { rows.push(d.clone()); } }
-                    Err(e) => return Err(ApiError::Other(anyhow::anyhow!("อ่านรายละเอียดไม่ได้: {e}"))),
+                    Err(e) => return Err(ApiError::Other(anyhow::anyhow!("cannot read file detail: {e}"))),
                 },
-                Err(e) => return Err(ApiError::Other(anyhow::anyhow!("เรียกฮับเดิมไม่ได้: {e}"))),
+                Err(e) => return Err(ApiError::Other(anyhow::anyhow!("cannot reach the old file service: {e}"))),
             }
         }
     } else {
@@ -114,10 +118,10 @@ pub async fn import_from_legacy(
         let v: serde_json::Value = r
             .send()
             .await
-            .map_err(|e| ApiError::Other(anyhow::anyhow!("เรียกฮับเดิมไม่ได้: {e}")))?
+            .map_err(|e| ApiError::Other(anyhow::anyhow!("cannot reach the old file service: {e}")))?
             .json()
             .await
-            .map_err(|e| ApiError::Other(anyhow::anyhow!("อ่านรายการไม่ได้: {e}")))?;
+            .map_err(|e| ApiError::Other(anyhow::anyhow!("cannot read file list: {e}")))?;
         if let Some(arr) = v.get("data").and_then(|d| d.as_array()) {
             rows = arr.clone();
         }
@@ -126,18 +130,18 @@ pub async fn import_from_legacy(
     let mut out = ImportResult { dry_run: dry, ..Default::default() };
     for row in rows {
         out.scanned += 1;
-        // โฟลเดอร์ของเดิมไม่ใช่ไฟล์ — ข้าม
+        // Legacy folders are not files — skip.
         if s(&row, "type_").as_deref() == Some("DIRECTORY") {
             continue;
         }
         let Some(raw_id) = s(&row, "file_system_id").or_else(|| s(&row, "id")) else {
             out.failed += 1;
-            out.errors.push("แถวไม่มีรหัสไฟล์".into());
+            out.errors.push("row has no file ID".into());
             continue;
         };
         let Ok(id) = Uuid::parse_str(&raw_id) else {
             out.failed += 1;
-            out.errors.push(format!("รหัสไม่ใช่ UUID: {raw_id}"));
+            out.errors.push(format!("ID is not a UUID: {raw_id}"));
             continue;
         };
         let exists: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM files WHERE id = $1")
@@ -157,17 +161,17 @@ pub async fn import_from_legacy(
             continue;
         }
 
-        // ดึงไบต์จากฮับเดิม
+        // Fetch the bytes from the old service.
         let url = format!("{base}/FileService/downloadFile?fileId={raw_id}&logType=download");
         let mut rq = client.get(&url);
         if let Some(t) = &token { rq = rq.bearer_auth(t); }
         let resp = match rq.send().await {
             Ok(r) => r,
-            Err(e) => { out.failed += 1; out.errors.push(format!("{name}: โหลดไม่ได้ {e}")); continue; }
+            Err(e) => { out.failed += 1; out.errors.push(format!("{name}: download failed {e}")); continue; }
         };
         if !resp.status().is_success() {
             out.failed += 1;
-            out.errors.push(format!("{name}: ฮับเดิมตอบ {}", resp.status()));
+            out.errors.push(format!("{name}: old service answered {}", resp.status()));
             continue;
         }
         let ct = resp
@@ -177,21 +181,21 @@ pub async fn import_from_legacy(
             .map(|v| v.split(';').next().unwrap_or(v).trim().to_string());
         let body = match resp.bytes().await {
             Ok(b) => b,
-            Err(e) => { out.failed += 1; out.errors.push(format!("{name}: อ่านไบต์ไม่ได้ {e}")); continue; }
+            Err(e) => { out.failed += 1; out.errors.push(format!("{name}: cannot read bytes {e}")); continue; }
         };
 
         let safe = sanitize_filename(&name);
         let object_key = format!("{}/{}-{}", system.bucket, id, safe);
         let etag = match st.storage.put(&object_key, body.clone(), ct.as_deref()).await {
             Ok(e) => e,
-            Err(e) => { out.failed += 1; out.errors.push(format!("{name}: เขียนไม่ได้ {e}")); continue; }
+            Err(e) => { out.failed += 1; out.errors.push(format!("{name}: write failed {e}")); continue; }
         };
         let encrypted = st.storage.encryption_enabled();
         let file_type = crate::handlers::detect_file_type(&name);
         let size = body.len() as i64;
 
-        // แท็กบอกที่มา + แท็กเดิมถ้ามี เพื่อให้ค้นย้อนกลับได้ว่าใบไหนมาจากฮับเดิม
-        let mut tags: Vec<String> = vec!["นำเข้า:ฮับเดิม".into()];
+        // A provenance tag + the original tags if any, so imported files can be traced back.
+        let mut tags: Vec<String> = vec!["via:legacy-import".into()];
         if let Some(t) = s(&row, "tag_name") {
             if let Ok(serde_json::Value::Array(a)) = serde_json::from_str::<serde_json::Value>(&t) {
                 for x in a { if let Some(v) = x.as_str() { tags.push(v.to_string()); } }
@@ -199,12 +203,12 @@ pub async fn import_from_legacy(
                 tags.push(t);
             }
         }
-        // ของเดิมเก็บ "เจ้าของ" เป็นรหัสผู้ใช้ดิบ ๆ ถ้ายกมาตรง ๆ หน้าจอจะโชว์ UUID
-        // ยาวเหยียดซึ่งอ่านไม่รู้เรื่อง — เก็บรหัสเดิมไว้เป็นแท็กเพื่อสืบกลับได้
-        // แล้วแสดงชื่อที่คนอ่านออกแทน
-        let owner = "นำเข้าจากฮับเดิม".to_string();
+        // The old service stores the owner as a raw user ID; copied as-is the UI would
+        // show a long unreadable UUID — keep the original ID as a tag for traceability
+        // and show a human-readable owner instead.
+        let owner = "Imported from legacy hub".to_string();
         if let Some(uid) = s(&row, "owner_user_id") {
-            tags.push(format!("ผู้ใช้เดิม:{uid}"));
+            tags.push(format!("legacy-user:{uid}"));
         }
 
         let res = sqlx::query(
@@ -231,7 +235,7 @@ pub async fn import_from_legacy(
             Ok(_) => { out.imported += 1; out.bytes += size; }
             Err(e) => {
                 out.failed += 1;
-                out.errors.push(format!("{name}: บันทึกไม่ได้ {e}"));
+                out.errors.push(format!("{name}: failed to save {e}"));
                 let _ = st.storage.delete(&object_key).await;
             }
         }
@@ -239,7 +243,7 @@ pub async fn import_from_legacy(
     }
     tracing::info!(
         scanned = out.scanned, imported = out.imported, skipped = out.skipped_existing,
-        failed = out.failed, "นำเข้าไฟล์จากฮับเดิม"
+        failed = out.failed, "imported files from the old file service"
     );
     Ok(Json(out))
 }

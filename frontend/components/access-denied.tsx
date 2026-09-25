@@ -1,10 +1,11 @@
-/// จอ "ไม่มีสิทธิ์" — ขึ้นเมื่อหลังบ้านตอบ 403 คือผู้ใช้ล็อกอิน NEB มาแล้วจริง
-/// แต่ไม่มีรหัสสิทธิ์ที่กำหนดไว้ใน IAM-X สำหรับคลังไฟล์
-///
-/// ทำไมต้องมีจอนี้: ถ้าปล่อยให้เป็นจอว่างหรือเด้งไปหน้า login ของ FileHub เอง
-/// ผู้ใช้จะเข้าใจว่าระบบพัง แล้วโทรมาถามทีละคน — บอกให้ชัดว่าเป็นเรื่องสิทธิ์
-/// และต้องไปขอที่ไหนจะจบเร็วกว่า
-export function AccessDenied({ email }: { email?: string }) {
+import type { Branding } from "@/lib/branding-shared";
+
+/// Shown when the identity proxy says the user is signed in but has no File Hub
+/// role (backend 403).  A blank page or a bounce to the console login would
+/// look like an outage; saying it is an access question — and where to ask —
+/// saves a round of support calls.  Wording and portal link come from the
+/// workspace branding settings.
+export function AccessDenied({ email, branding }: { email?: string; branding: Branding }) {
   return (
     <div
       style={{
@@ -28,10 +29,10 @@ export function AccessDenied({ email }: { email?: string }) {
           !
         </div>
         <h1 className="t-lg t-semibold" style={{ margin: "0 0 8px" }}>
-          You don’t have access to File Hub
+          You don’t have access to {branding.workspace_display}
         </h1>
         <p className="t-sm t-muted" style={{ margin: "0 0 4px", lineHeight: 1.7 }}>
-          You are signed in to NEB, but your account has not been granted access to File Hub.
+          You are signed in, but your account has not been granted access to {branding.workspace_display}.
         </p>
         {email && (
           <p className="t-xs t-subtle" style={{ margin: "0 0 16px" }}>
@@ -39,11 +40,13 @@ export function AccessDenied({ email }: { email?: string }) {
           </p>
         )}
         <p className="t-sm t-muted" style={{ margin: "0 0 20px", lineHeight: 1.7 }}>
-          If you need access, ask your administrator to grant it in IAM-X.
+          {branding.access_help}
         </p>
-        <a href="/app/" className="btn primary" style={{ textDecoration: "none" }}>
-          Back to the portal
-        </a>
+        {branding.portal_url && (
+          <a href={branding.portal_url} className="btn primary" style={{ textDecoration: "none" }}>
+            {branding.portal_label}
+          </a>
+        )}
       </div>
     </div>
   );

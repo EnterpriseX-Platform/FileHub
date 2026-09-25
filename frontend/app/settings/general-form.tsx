@@ -90,6 +90,65 @@ export function GeneralForm({ initial, canMutate }: { initial: WorkspaceConfig; 
       </div>
 
       <div className="card" style={{ padding: 20, marginBottom: 16 }}>
+        <div className="t-md t-semibold" style={{ marginBottom: 4 }}>Branding</div>
+        <div className="t-xs t-muted" style={{ marginBottom: 14 }}>
+          How this workspace presents itself — organisation name, colour and links.
+          The product itself stays neutral; these values are per installation.
+        </div>
+        <div className="form-grid" style={{ alignItems: "center" }}>
+          <div className="t-sm t-muted">Organisation</div>
+          <input className="field" style={{ width: "100%" }} placeholder="e.g. Acme Corporation"
+                 value={cfg.org_name ?? ""} onChange={(e) => set("org_name", e.target.value)} disabled={!canMutate} />
+
+          <div className="t-sm t-muted">Accent colour</div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input type="color" aria-label="Accent colour"
+                   value={/^#[0-9a-fA-F]{6}$/.test(cfg.brand_accent ?? "") ? cfg.brand_accent : "#4f46e5"}
+                   onChange={(e) => set("brand_accent", e.target.value)} disabled={!canMutate}
+                   style={{ width: 40, height: 30, padding: 0, border: "1px solid var(--border)", borderRadius: 6, background: "none" }} />
+            <input className="field t-mono" style={{ width: 120 }} placeholder="#4f46e5"
+                   value={cfg.brand_accent ?? ""} onChange={(e) => set("brand_accent", e.target.value.trim())} disabled={!canMutate} />
+            {canMutate && cfg.brand_accent && (
+              <button type="button" className="btn xs ghost" onClick={() => set("brand_accent", "")}>Use default</button>
+            )}
+          </div>
+
+          <div className="t-sm t-muted">Login e-mail hint</div>
+          <input className="field" style={{ width: "100%" }} placeholder="you@example.com"
+                 value={cfg.login_email_placeholder ?? ""} onChange={(e) => set("login_email_placeholder", e.target.value)} disabled={!canMutate} />
+
+          <div className="t-sm t-muted">Portal link</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input className="field" style={{ flex: 2 }} placeholder="https://portal.example.com (empty = hidden)"
+                   value={cfg.portal_url ?? ""} onChange={(e) => set("portal_url", e.target.value)} disabled={!canMutate} />
+            <input className="field" style={{ flex: 1 }} placeholder="Back to portal"
+                   value={cfg.portal_label ?? ""} onChange={(e) => set("portal_label", e.target.value)} disabled={!canMutate} />
+          </div>
+
+          <div className="t-sm t-muted">No-access message</div>
+          <input className="field" style={{ width: "100%" }} placeholder="Ask your administrator to grant you access."
+                 value={cfg.access_help ?? ""} onChange={(e) => set("access_help", e.target.value)} disabled={!canMutate} />
+
+          <div className="t-sm t-muted">Fiscal-year tag</div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <select className="field" value={cfg.fiscal_year_start_month ?? "0"}
+                    onChange={(e) => set("fiscal_year_start_month", e.target.value)} disabled={!canMutate}>
+              <option value="0">Off</option>
+              {["January","February","March","April","May","June","July","August","September","October","November","December"]
+                .map((m, i) => <option key={m} value={String(i + 1)}>Starts in {m}</option>)}
+            </select>
+            <select className="field" value={cfg.fiscal_year_era ?? "CE"}
+                    onChange={(e) => set("fiscal_year_era", e.target.value)}
+                    disabled={!canMutate || (cfg.fiscal_year_start_month ?? "0") === "0"}>
+              <option value="CE">Common Era (2026)</option>
+              <option value="BE">Buddhist Era (2569)</option>
+            </select>
+            <span className="t-xs t-muted">Adds a <code>fiscal-year:…</code> tag to every upload</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="card" style={{ padding: 20, marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
           <div className="t-md t-semibold">Office documents</div>
         </div>

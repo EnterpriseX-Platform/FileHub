@@ -722,7 +722,10 @@ pub(crate) async fn enforce_quota(
 }
 
 /// Auto tags (`key:value`, grouped into "Tag folders" in the explorer):
-/// system / org / fiscal-year (Thai B.E., starts 1 Oct) / uploaded-by
+/// system / org / fiscal-year / uploaded-by.  The fiscal-year convention is a
+/// workspace setting (`fiscal_year_start_month`, `fiscal_year_era`) — e.g. the
+/// Thai government year starts in October and is numbered in B.E. — and the
+/// tag is skipped when the start month is 0 (default).
 async fn auto_tags(s: &AppState, system: &System, org_id: Option<&str>, owner: &str) -> String {
     let mut tags: Vec<String> = vec![format!("system:{}", system.name)];
     if let Some(oid) = org_id {
@@ -734,21 +737,30 @@ async fn auto_tags(s: &AppState, system: &System, org_id: Option<&str>, owner: &
             tags.push(format!("org:{name}"));
         }
     }
-    // ปีงบประมาณไทย: เริ่ม 1 ต.ค. ⇒ ต.ค.-ธ.ค. นับเป็นปีถัดไป
-    let now = Utc::now().with_timezone(&chrono::FixedOffset::east_opt(7 * 3600).unwrap());
-    let y = now.year() + 543 + if now.month() >= 10 { 1 } else { 0 };
-    tags.push(format!("fiscal-year:{y}"));
+    let cfg: Vec<(String, String)> = sqlx::query_as(
+        "SELECT key, value FROM workspace_config WHERE key IN ('fiscal_year_start_month','fiscal_year_era')",
+    ).fetch_all(&s.db).await.unwrap_or_default();
+    let get = |k: &str| cfg.iter().find(|(kk, _)| kk == k).map(|(_, v)| v.trim().to_string()).unwrap_or_default();
+    let start: u32 = get("fiscal_year_start_month").parse().unwrap_or(0);
+    if (1..=12).contains(&start) {
+        let now = Utc::now();
+        // A fiscal year that starts after January is named after the year it ends in.
+        let mut y = now.year() + if start > 1 && now.month() >= start { 1 } else { 0 };
+        if get("fiscal_year_era").eq_ignore_ascii_case("BE") { y += 543; }
+        tags.push(format!("fiscal-year:{y}"));
+    }
     if owner != "Anonymous" {
         tags.push(format!("uploaded-by:{owner}"));
     }
     serde_json::to_string(&tags).unwrap_or_else(|_| "[]".into())
 }
 
-/// 22 ก.ย. 2569 (NEB): อัปโหลดโดยไม่ต้องกรอก system_id/org_id และติดแท็กให้อัตโนมัติ
+/// Upload without requiring system_id/org_id, and tag the file automatically.
 ///
-/// ถ้าไม่ได้ส่ง system_id/org_id มา ให้ใช้ค่าตั้งต้นของผู้ใช้ที่ระบบจำไว้ตอนเข้าใช้งาน
-/// ผ่านขอบนอก (users.default_system_id / default_org_id) — ผู้ใช้จึงอัปโหลดเข้า
-/// หน่วยงานตัวเองได้เลย ไม่ต้องรู้จักรหัสระบบ/หน่วยงาน
+/// When system_id/org_id are not supplied, fall back to the user's defaults that
+/// were remembered when they signed in through the edge
+/// (users.default_system_id / default_org_id) — so users can upload into their
+/// own organisation without knowing any system/org IDs.
 pub(crate) async fn persist_upload_for(
     s: &AppState,
     actor: Option<&str>,
@@ -789,7 +801,7 @@ pub(crate) async fn persist_upload_for(
         let system: System = sqlx::query_as("SELECT * FROM systems WHERE id = $1 AND deleted_at IS NULL")
             .bind(&system_id).fetch_optional(&s.db).await?
             .ok_or_else(|| ApiError::BadRequest("unknown system_id".into()))?;
-        // A bucket switched off in settings ("เปิดใช้งาน (รับไฟล์ใหม่)") refuses new files.
+        // A bucket switched off in settings ("Enabled (accept new files)") refuses new files.
         if system.status != "live" {
             return Err(ApiError::BadRequest(format!("bucket '{}' is not accepting new files", system.bucket)));
         }
@@ -823,8 +835,8 @@ pub(crate) async fn persist_upload_for(
 
     let owner = f.owner.unwrap_or_else(|| "Anonymous".into());
     let status = f.status.unwrap_or_else(|| "Draft".into());
-    // ไม่ได้ส่งแท็กมา = ติดให้อัตโนมัติจากสิ่งที่ระบบรู้อยู่แล้ว
-    // (ระบบต้นทาง · หน่วยงาน · ปีงบประมาณไทย · ผู้อัปโหลด) จะได้ค้นหาย้อนหลังได้
+    // No tags supplied = tag automatically from what we already know
+    // (source system · organisation · fiscal year · uploader) so files stay searchable later.
     let tags_json = match f.tags {
         Some(t) if t.trim() != "" && t.trim() != "[]" => t,
         _ => auto_tags(s, &system, f.org_id.as_deref(), &owner).await,
@@ -1716,6 +1728,25 @@ pub async fn report_by_time(
 // =============================================================================
 // Workspace config — Q1: PATCH /api/workspace
 // =============================================================================
+/// Public branding for pages shown before sign-in (login, access denied) and
+/// for the app shell.  Only presentation keys — never quotas or policies.
+pub async fn branding(State(s): State<Arc<AppState>>) -> ApiResult<Json<serde_json::Value>> {
+    const KEYS: &[&str] = &["workspace_display", "org_name", "brand_accent", "login_email_placeholder",
+                            "portal_url", "portal_label", "access_help"];
+    let rows: Vec<(String, String)> = sqlx::query_as("SELECT key, value FROM workspace_config WHERE key = ANY($1)")
+        .bind(KEYS.iter().map(|k| k.to_string()).collect::<Vec<_>>())
+        .fetch_all(&s.db).await?;
+    let mut m = serde_json::Map::new();
+    for k in KEYS { m.insert((*k).into(), serde_json::Value::String(String::new())); }
+    for (k, v) in rows { m.insert(k, serde_json::Value::String(v)); }
+    // Accept only a plain hex colour so the value can go straight into CSS.
+    if let Some(serde_json::Value::String(c)) = m.get("brand_accent") {
+        let ok = c.len() == 7 && c.starts_with('#') && c[1..].chars().all(|ch| ch.is_ascii_hexdigit());
+        if !ok { m.insert("brand_accent".into(), serde_json::Value::String(String::new())); }
+    }
+    Ok(Json(serde_json::Value::Object(m)))
+}
+
 /// Generic PATCH for workspace_config k/v rows.  Accepts any keys an admin
 /// wants to update — we deliberately do NOT enforce a strict allow-list here
 /// so adding a new tunable (e.g. `share_link_default_days`) is a one-line

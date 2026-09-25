@@ -9,7 +9,7 @@ import type { System } from "@/lib/api";
 import type { Tone } from "@/components/primitives";
 import { fmtBytes, fmtCount } from "@/lib/format";
 
-/// Buckets — one per business system (UPM, PDPA, DTS …).
+/// Buckets — typically one per business system or department.
 ///
 /// Previously a table where the quota was typed in raw bytes: "10GB" became
 /// `Number("10GB")` = NaN → saved as 0 = unlimited, silently.  Now one card per
@@ -73,7 +73,7 @@ export function SystemsPanel({ initial, canMutate }: { initial: System[]; canMut
 
   React.useEffect(() => { void refresh(); }, [refresh]);
 
-  const sorted = [...rows].sort((a, b) => a.name.localeCompare(b.name, "th"));
+  const sorted = [...rows].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div id="buckets" className="card" style={{ padding: 20, marginBottom: 16, scrollMarginTop: 16 }}>
@@ -225,7 +225,7 @@ export function BucketForm({ mode, row, existing, onCancel, onDone, onError }: {
     if (!name.trim()) { onError("Please enter a bucket name."); return; }
     if (!bucketOk) {
       onError(bucketTaken ? `Bucket id "${effectiveBucket}" already exists.` :
-        "Bucket id may only contain a-z, 0-9 and - (2–63 chars), e.g. neb-upm.");
+        "Bucket id may only contain a-z, 0-9 and - (2–63 chars), e.g. hr-contracts.");
       return;
     }
     if (quotaBytes == null) { onError("Enter a quota greater than 0, or tick “No limit”."); return; }
@@ -265,13 +265,13 @@ export function BucketForm({ mode, row, existing, onCancel, onDone, onError }: {
         <label>
           {label("Name", "shown to users")}
           <input className="field" value={name} onChange={(e) => setName(e.target.value)}
-                 placeholder="e.g. UPM – Permission Requests" style={{ width: "100%" }} autoFocus />
+                 placeholder="e.g. HR – Contracts" style={{ width: "100%" }} autoFocus />
         </label>
         <label>
           {label("Bucket id", mode === "create" ? "a-z 0-9 - only, cannot be changed later" : "cannot be changed")}
           <input className="field t-mono" value={effectiveBucket} disabled={mode === "edit"}
                  onChange={(e) => { setBT(true); setBucket(e.target.value.toLowerCase()); }}
-                 placeholder="e.g. neb-upm" style={{ width: "100%", borderColor: bucketOk || !effectiveBucket ? undefined : "var(--danger)" }} />
+                 placeholder="e.g. hr-contracts" style={{ width: "100%", borderColor: bucketOk || !effectiveBucket ? undefined : "var(--danger)" }} />
           {mode === "create" && !bucketOk && effectiveBucket && (
             <div className="t-xs" style={{ color: "var(--danger)", marginTop: 4 }}>
               {bucketTaken ? "Already in use" : "Only a-z, 0-9 and -"}
@@ -284,7 +284,7 @@ export function BucketForm({ mode, row, existing, onCancel, onDone, onError }: {
         <label style={{ gridColumn: "1 / -1" }}>
           {label("Description", "optional")}
           <input className="field" value={description} onChange={(e) => setDesc(e.target.value)}
-                 placeholder="e.g. Attachments for permission requests" style={{ width: "100%" }} />
+                 placeholder="e.g. Signed employment contracts" style={{ width: "100%" }} />
         </label>
         <div>
           {label("Storage quota")}

@@ -5,7 +5,7 @@
 //! for format-v2 objects), so memory per request no longer grows with the
 //! file size, and `Range:` is honoured everywhere — `<video>` seeking and
 //! resumable downloads work on every path, including the legacy one that
-//! most NEB modules call.
+//! most existing integrations call.
 
 use std::sync::OnceLock;
 use std::time::Duration;

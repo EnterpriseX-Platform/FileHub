@@ -446,7 +446,7 @@ function Tree(p: {
   onGo: (params: Record<string, string | undefined>) => void;
   onNewBucket: () => void; onNewTagFolder: () => void; onDeleteTagFolder: (t: TagFolder) => void;
 }) {
-  const [open, setOpen] = React.useState<Record<string, boolean>>({ "k:fiscal-year": true });
+  const [open, setOpen] = React.useState<Record<string, boolean>>({});
   // keep the path to the current location expanded
   React.useEffect(() => {
     const next: Record<string, boolean> = {};
@@ -774,7 +774,7 @@ function TagFolderForm({ tags, initial, onCreate, onCancel }: {
       <div className="t-xs t-muted" style={{ margin: "2px 0 12px" }}>
         A virtual folder that collects files by tag from every bucket. Files are not moved or copied.
       </div>
-      <input className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder="Folder name, e.g. Loan decree 2569" style={{ width: "100%", marginBottom: 10 }} />
+      <input className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder="Folder name, e.g. Project Alpha 2026" style={{ width: "100%", marginBottom: 10 }} />
       <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8, fontSize: 13 }}>
         <span className="t-muted">Show files that have</span>
         <label><input type="radio" checked={match === "all"} onChange={() => setMatch("all")} /> all selected tags</label>
