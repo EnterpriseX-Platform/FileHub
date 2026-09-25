@@ -250,7 +250,8 @@ pub async fn append_chunk(
 /// preview).
 async fn finalise(s: &AppState, tus_id: Uuid, temp_key: &str, user_id: &str) -> Result<(), ApiError> {
     let path = tus_root().join(temp_key);
-    let body = fs::read(&path).await.map_err(|e| ApiError::Other(anyhow::anyhow!(e)))?;
+    // Size from metadata; the bytes are streamed (not read into memory) below.
+    let size_on_disk = fs::metadata(&path).await.map_err(|e| ApiError::Other(anyhow::anyhow!(e)))?.len();
 
     // Pull the saved metadata back out.
     let row: (Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>) = sqlx::query_as(
@@ -274,7 +275,7 @@ async fn finalise(s: &AppState, tus_id: Uuid, temp_key: &str, user_id: &str) -> 
     // session can't traverse or inject quotes into the storage key.
     let safe = crate::handlers::sanitize_filename(&name);
     let object_key = format!("{}/{}-{}", system.bucket, new_file_id, safe);
-    let size_bytes = body.len() as i64;
+    let size_bytes = size_on_disk as i64;
 
     // Enforce nested workspace/system/org/user quota before committing the
     // bytes to storage.  TUS clients may have streamed gigabytes by now, but
@@ -282,9 +283,14 @@ async fn finalise(s: &AppState, tus_id: Uuid, temp_key: &str, user_id: &str) -> 
     // leak the storage.
     crate::handlers::enforce_quota(s, size_bytes, Some(&system_id), org_id.as_deref(), Some(user_id)).await?;
 
-    let ct = content_type.clone().or_else(|| mime_guess::from_path(&name).first().map(|m| m.to_string()));
-    let body_bytes = bytes::Bytes::from(body);
-    let etag = s.storage.put(&object_key, body_bytes.clone(), ct.as_deref()).await.map_err(ApiError::Other)?;
+    let _ct = content_type.clone().or_else(|| mime_guess::from_path(&name).first().map(|m| m.to_string()));
+    // Stream the assembled temp file through the encryption layer into the
+    // staging area, then move it into place — O(chunk) memory for any size.
+    let src = fs::File::open(&path).await.map_err(|e| ApiError::Other(anyhow::anyhow!(e)))?;
+    let staged = s.storage
+        .stage_stream(tokio_util::io::ReaderStream::with_capacity(src, 256 * 1024))
+        .await.map_err(ApiError::Other)?;
+    let etag = s.storage.commit(staged, &object_key).await.map_err(ApiError::Other)?;
     let encrypted = s.storage.encryption_enabled();
     let owner = owner_meta.unwrap_or_else(|| "Anonymous".into());
     let status = status_meta.unwrap_or_else(|| "Draft".into());
@@ -317,12 +323,8 @@ async fn finalise(s: &AppState, tus_id: Uuid, temp_key: &str, user_id: &str) -> 
         .bind(new_file_id).bind(now).bind(tus_id)
         .execute(&s.db).await?;
 
-    // Downstream P1 pipelines.
-    if let Some(text) = crate::p1::extract_text_from(&file_type, &body_bytes) {
-        crate::p1::index_file_content(&s.db, new_file_id, &text).await;
-    }
-    crate::p1::index_thumbnail(&s.db, new_file_id, &file_type, &body_bytes).await;
-    crate::p1::index_office_preview(&s.db, new_file_id, &file_type, &name, &body_bytes).await;
+    // Downstream P1 pipelines (background, size-capped).
+    crate::handlers::spawn_p1(s, new_file_id, file_type.clone(), name.clone(), object_key.clone(), encrypted, size_on_disk);
 
     let _ = fs::remove_file(&path).await;
     Ok(())

@@ -11,6 +11,7 @@ pub mod models;
 pub mod p1;
 pub mod rotation;
 pub mod seed_demo;
+pub mod serve;
 pub mod state;
 pub mod storage;
 pub mod store;
@@ -48,18 +49,21 @@ pub use state::AppState;
 ///     the credential — share-link recipients aren't logged in)
 ///   - `/wopi/*`                                              (Collabora
 ///     authenticates via the `access_token` query param we mint per file)
-/// 🪤 ต้องครอบชั้นนี้ "นอก" Router ที่ `main.rs` เท่านั้น — `Router::layer` ของ axum
-/// ทำงาน **หลัง** จับคู่เส้นทางแล้ว ⇒ ถ้าใส่ตรงนี้จะได้ 405 ก่อนที่เราจะได้แก้เมธอด
-/// (เสียเวลาไล่มาแล้วรอบหนึ่ง — อย่าย้ายกลับมา)
+/// Pitfall: this layer must wrap the Router from the OUTSIDE, in `main.rs` only —
+/// axum's `Router::layer` runs **after** route matching ⇒ applied here, the
+/// request would already get a 405 before we could rewrite the method.
+/// (This has been debugged once already — do not move it back.)
 ///
-/// ขอบนอกของ NEB (Cloudflare) ปล่อยเฉพาะ GET กับ POST — PATCH/PUT/DELETE/HEAD/OPTIONS
-/// โดนตอบ 403 เป็นหน้า HTML ตั้งแต่ยังไม่ถึงแอป (ตรวจจริงบน UAT 22 ก.ย. 2569)
-/// ⇒ ฟังก์ชันลบไฟล์ · แก้ข้อมูลไฟล์ · จัดการผู้ใช้ · โควตา ใช้งานผ่านหน้าเว็บไม่ได้เลย
+/// Some edge proxies (e.g. a CDN/WAF) only let GET and POST through —
+/// PATCH/PUT/DELETE/HEAD/OPTIONS are answered with a 403 HTML page before the
+/// request reaches the app ⇒ deleting files, editing file metadata, managing
+/// users and quotas would all be unusable from the web UI.
 ///
-/// และกติกาของโครงการคือ **ห้ามไปขอทีม WAF เปิดเมธอดให้** ต้องแก้ด้วยโค้ดเราเอง
-/// จึงรับคำสั่งเป็น POST แล้วบอกเมธอดจริงมาทางเฮดเดอร์ `X-HTTP-Method-Override`
-/// ชั้นนี้ครอบทั้ง router และทำงาน "ก่อน" การจับคู่เส้นทาง ⇒ ทุก endpoint เดิมใช้ได้ตามเดิม
-/// ไม่ต้องเพิ่มเส้นทางซ้ำ และของเดิมที่ยิงเมธอดตรง ๆ (เช่นจากในคลัสเตอร์) ก็ยังทำงานปกติ
+/// Reconfiguring the WAF is not always possible, so clients send POST and carry
+/// the real method in the `X-HTTP-Method-Override` header. This layer wraps the
+/// whole router and runs BEFORE route matching ⇒ every existing endpoint works
+/// unchanged, no duplicate routes are needed, and callers that send the real
+/// method directly (e.g. from inside the cluster) keep working as before.
 pub async fn method_override(
     mut req: axum::extract::Request,
     next: axum::middleware::Next,
@@ -71,11 +75,13 @@ pub async fn method_override(
             .and_then(|v| v.to_str().ok())
             .map(|v| v.trim().to_ascii_uppercase());
         if let Some(w) = want {
-            // อนุญาตเฉพาะเมธอดที่ขอบนอกบล็อก — ไม่เปิดให้เปลี่ยนเป็นอะไรก็ได้
+            // Only allow the methods an edge proxy would block — not arbitrary overrides.
             let m = match w.as_str() {
                 "DELETE" => Some(axum::http::Method::DELETE),
                 "PATCH" => Some(axum::http::Method::PATCH),
                 "PUT" => Some(axum::http::Method::PUT),
+                // tus asks for the current upload offset with HEAD (on resume/retry).
+                "HEAD" => Some(axum::http::Method::HEAD),
                 _ => None,
             };
             if let Some(m) = m {
@@ -156,6 +162,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/docs",                       get(handlers::swagger_ui))
         // Share-link endpoints carry a one-shot token in the URL — that
         // token IS the credential, so the recipient doesn't need a session.
+        .route("/api/branding",               get(handlers::branding))
         .route("/api/share/:token",           get(handlers::share_meta))
         .route("/api/share/:token/download",  get(handlers::share_download))
         // WOPI endpoints — Collabora calls these with `?access_token=...`
@@ -222,6 +229,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         // endpoints themselves are public — see above.
         .route("/api/files/:id/office-url",   get(wopi::office_url))
         .route("/api/search",                 get(handlers::search_files))
+        .route("/api/tags",                   get(handlers::list_tags))
         // File CRUD lives in its own sub-router so we can raise the body
         // limit on the multipart endpoints (upload, batch, new version, and
         // patch which may rewrite bytes) without affecting JSON-only routes.
@@ -241,7 +249,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
                     "/api/files/:id/versions",
                     get(handlers::list_versions).post(handlers::upload_version),
                 )
-                .layer(DefaultBodyLimit::max(64 * 1024 * 1024))
+                .layer(DefaultBodyLimit::max(crate::handlers::upload_max_bytes() as usize))
         )
         .route("/api/files/:id/download",     get(handlers::download_file))
         .route("/api/files/:id/share",        axum::routing::post(handlers::create_share_link))
@@ -264,7 +272,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
                 .route("/api/uploads/:id",   axum::routing::head(tus::head_session)
                                                .patch(tus::append_chunk)
                                                .delete(tus::terminate_session))
-                .layer(DefaultBodyLimit::max(64 * 1024 * 1024))
+                .layer(DefaultBodyLimit::max(crate::handlers::upload_max_bytes() as usize))
         )
         .route("/api/files/:id/workflow",
             get(p1::list_workflow).post(p1::start_workflow))
@@ -282,6 +290,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/reports/by-time",        get(handlers::report_by_time))
         .route("/api/activity",               get(handlers::list_activity))
         .route("/api/views",                  get(handlers::list_views).post(handlers::create_view))
+        .route("/api/views/:id",              axum::routing::delete(handlers::delete_view))
         .route("/api/permissions/:file_id",   get(handlers::list_permissions))
         .layer(middleware::from_fn_with_state(state.clone(), auth::require_session));
 
@@ -310,17 +319,18 @@ pub fn build_router(state: Arc<AppState>) -> Router {
 
     let app = Router::new().nest("/fh", inner);
 
-    // ชั้นรองรับ API เดิม `/FileService/*` — ปิดไว้เป็นค่าเริ่มต้น เปิดด้วย
-    // LEGACY_FILESERVICE=1 เฉพาะที่ต้องรับระบบเดิมของ NEB (ดู legacy.rs)
-    // อยู่นอก `/fh` เพราะผู้เรียกเดิมใช้ path นี้ที่ราก และเราไม่แก้โค้ดฝั่งนั้น
+    // Compatibility with the legacy FileService API (`/FileService/*`) — off by
+    // default; enable with LEGACY_FILESERVICE=1 only where legacy callers must be
+    // served (see legacy.rs). It lives outside `/fh` because those callers use this
+    // path at the root and their code is not changed.
     if legacy::enabled() {
-        // ของเดิมตอบ `Access-Control-Allow-Origin: *` ⇒ เบราว์เซอร์ของระบบเดิม
-        // ที่ยิงข้ามโดเมนอยู่แล้วต้องยังทำงานได้เหมือนเดิม (ไม่ใช้คุกกี้)
+        // The legacy service answered `Access-Control-Allow-Origin: *` ⇒ browsers of
+        // legacy apps already calling cross-origin must keep working (no cookies).
         let legacy_cors = CorsLayer::new()
             .allow_origin(Any)
             .allow_methods(Any)
             .allow_headers(Any);
-        tracing::info!("เปิดชั้นรองรับ API เดิม /FileService/* (LEGACY_FILESERVICE=1)");
+        tracing::info!("legacy FileService API compatibility enabled: /FileService/* (LEGACY_FILESERVICE=1)");
         return app.merge(
             legacy::router()
                 .with_state(legacy_state)

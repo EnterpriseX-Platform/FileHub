@@ -8,11 +8,12 @@ import type { Tone } from "@/components/primitives";
 // fetch from a Next.js page would hit `ECONNREFUSED ::1:8090`.
 const BASE = (process.env.BACKEND_URL || "http://127.0.0.1:8090") + "/fh";
 
-// ─── ตัวตนจากขอบนอก (NEB) ────────────────────────────────────────────────
-// หน้าที่ render ฝั่ง server จะ fetch ไปหลังบ้านเอง ซึ่ง "ไม่ได้พกเฮดเดอร์ของ
-// คำขอต้นทางไปด้วย" โดยอัตโนมัติ ⇒ หลังบ้านมองว่าไม่รู้จักผู้ใช้ แล้วตอบ 401
-// ทั้งที่ผู้ใช้ล็อกอิน NEB มาแล้ว (จอจะว่างหรือถูกเด้งไปหน้า login ของตัวเอง)
-// จึงต้องส่งต่อเฮดเดอร์ตัวตนของขอบนอกไปให้หลังบ้านทุกครั้ง
+// ─── Identity asserted by the edge (SSO proxy) ────────────────────────────
+// Server-rendered pages fetch the backend themselves, and those fetches do NOT
+// automatically carry the original request's headers ⇒ the backend sees an
+// unknown user and answers 401 even though the user is signed in via SSO (the
+// page renders empty or bounces to FileHub's own login). So the edge identity
+// headers must be forwarded to the backend on every server-side call.
 const EDGE_HEADERS = [
   "x-filehub-edge",
   "x-forwarded-access-token",
@@ -22,9 +23,9 @@ const EDGE_HEADERS = [
   "x-filehub-org",
 ];
 
-/// รวม cookie ของ session เดิมเข้ากับเฮดเดอร์ตัวตนของขอบนอก
-/// นำเข้า next/headers แบบ dynamic เพื่อไม่ให้ไฟล์นี้ลากโมดูลฝั่ง server
-/// เข้าไปในบันเดิลของเบราว์เซอร์
+/// Merge the existing session cookie with the edge identity headers.
+/// next/headers is imported dynamically so this file does not pull
+/// server-only modules into the browser bundle.
 export async function svrHeaders(cookieHeader?: string): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
   if (cookieHeader) out.cookie = cookieHeader;
@@ -37,7 +38,7 @@ export async function svrHeaders(cookieHeader?: string): Promise<Record<string, 
       if (v) out[k] = v;
     }
   } catch {
-    // ไม่ได้อยู่ในขอบเขตของ request (เช่นตอน build) — ข้ามไป
+    // Not inside a request scope (e.g. during build) — skip.
   }
   return out;
 }

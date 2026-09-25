@@ -45,14 +45,16 @@ export function middleware(req: NextRequest) {
   if (isPublic) return NextResponse.next();
 
   const hasSession = req.cookies.get("filehub_session")?.value;
-  // ── หน้าจอ (console) กับ API แยกทางเข้ากัน ────────────────────────────
-  // ค่าเริ่มต้น: **หน้าจอต้องล็อกอินของ FileHub เอง** (บัญชีผู้ดูแลแยกต่างหาก)
-  // ส่วน API (`/api/*` ซึ่งปล่อยผ่านด่านนี้อยู่แล้ว) รับตัวตนที่มาจาก IAM-X ได้
-  // ⇒ ระบบงาน NEB และผู้ใช้ในพอร์ทัลอัปโหลดไฟล์ได้โดยไม่ต้องล็อกอินซ้ำ
-  //    แต่ "หน้าจอผู้ดูแล" ไม่ได้เปิดให้คนทั่วไปที่ล็อกอิน NEB เดินเข้ามา
+  // ── The console UI and the API have separate entry rules ────────────────
+  // Default: **the console requires FileHub's own login** (separate admin accounts).
+  // The API (`/api/*`, which already bypasses this gate) accepts identities
+  // asserted by the upstream identity provider / SSO proxy
+  // ⇒ integrated applications and portal users can upload files without signing
+  //    in again, but the admin console is not open to everyone who has SSO access.
   //
-  // ถ้า environment ไหนอยากให้หน้าจอใช้ SSO ของ NEB ด้วย ให้ VirtualServer
-  // แนบเฮดเดอร์ `x-filehub-ui-sso: 1` ที่ route ของ /filehub — สลับได้โดยไม่ต้อง build ใหม่
+  // To let the console use SSO too in a given environment, have the ingress /
+  // reverse proxy add the header `x-filehub-ui-sso: 1` on the /filehub route —
+  // this toggles at runtime without a rebuild.
   const uiSso = req.headers.get("x-filehub-ui-sso");
   const hasEdge =
     Boolean(uiSso) &&

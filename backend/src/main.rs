@@ -16,6 +16,10 @@ async fn main() -> anyhow::Result<()> {
 
     let state = Arc::new(AppState::init().await?);
 
+    // Staged uploads left by a crash / aborted request (> 1 h old).
+    let swept = state.storage.sweep_staging(std::time::Duration::from_secs(3600)).await;
+    if swept > 0 { tracing::info!("removed {swept} stale staged upload(s)"); }
+
     // Phase K — background rotation worker.  Defaults to once per hour; tests
     // and CI can override via `ROTATION_INTERVAL_SECS`.  Disable entirely by
     // setting the env var to `0`.
@@ -35,9 +39,10 @@ async fn main() -> anyhow::Result<()> {
         None
     };
 
-    // บัญชีผู้ดูแลของหน้าจอ console — ตั้งจาก Secret ของ environment นั้น
-    // (แอปมาพร้อมบัญชีตัวอย่างที่รหัสผ่านอยู่ใน README สาธารณะ จึงต้องมีบัญชีจริง
-    //  ที่ตั้งรหัสเองได้ และตั้งซ้ำได้เรื่อย ๆ เวลาเปลี่ยนรหัส)
+    // Console admin account, provisioned from the environment's secrets.
+    // (The app ships with demo accounts whose passwords are in the public README,
+    //  so a real account with an operator-chosen password is needed; it is
+    //  re-applied on every start so rotating the password is just a restart.)
     if let (Ok(email), Ok(pass)) = (
         std::env::var("CONSOLE_ADMIN_EMAIL"),
         std::env::var("CONSOLE_ADMIN_PASSWORD"),
@@ -48,7 +53,7 @@ async fn main() -> anyhow::Result<()> {
                 Ok(hash) => {
                     let r = sqlx::query(
                         r#"INSERT INTO users (id, email, display_name, avatar_tone, password_hash, role, status)
-                           VALUES ($1, $2, 'ผู้ดูแลคลังไฟล์', 'slate', $3, 'admin', 'active')
+                           VALUES ($1, $2, 'FileHub Administrator', 'slate', $3, 'admin', 'active')
                            ON CONFLICT (email) DO UPDATE
                              SET password_hash = EXCLUDED.password_hash,
                                  role = 'admin', status = 'active'"#,
@@ -59,19 +64,20 @@ async fn main() -> anyhow::Result<()> {
                     .execute(&state.db)
                     .await;
                     match r {
-                        Ok(_) => tracing::info!(email = %email, "ตั้งบัญชีผู้ดูแลหน้าจอเรียบร้อย"),
-                        Err(e) => tracing::error!("ตั้งบัญชีผู้ดูแลไม่สำเร็จ: {e}"),
+                        Ok(_) => tracing::info!(email = %email, "console admin account provisioned"),
+                        Err(e) => tracing::error!("failed to provision console admin account: {e}"),
                     }
                 }
-                Err(e) => tracing::error!("เข้ารหัสรหัสผ่านผู้ดูแลไม่สำเร็จ: {e:?}"),
+                Err(e) => tracing::error!("failed to hash console admin password: {e:?}"),
             }
         } else {
-            tracing::warn!("ข้ามการตั้งบัญชีผู้ดูแล — อีเมลว่างหรือรหัสผ่านสั้นกว่า 12 ตัว");
+            tracing::warn!("skipping console admin provisioning — email is empty or password is shorter than 12 characters");
         }
     }
 
-    // ชั้นแปลงเมธอดต้องอยู่ "นอกสุด" ก่อน Router จับคู่เส้นทาง ไม่งั้นได้ 405 ไปแล้ว
-    // (ขอบนอกของ NEB ปล่อยเฉพาะ GET/POST — ดู method_override ใน lib.rs)
+    // The method-override layer must be the OUTERMOST layer, applied before the
+    // Router matches routes, otherwise the request has already been answered 405.
+    // (Some edge proxies only let GET/POST through — see method_override in lib.rs.)
     let app = tower::ServiceBuilder::new()
         .layer(axum::middleware::from_fn(method_override))
         .service(build_router(state));

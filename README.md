@@ -62,8 +62,11 @@ cd frontend && npm install && npm run dev -- -p 3001
 
 Open <http://localhost:3001/filehub>.
 
-Demo logins — seeded **only when the `users` table is empty**, so change them before any
-real deployment:
+Demo logins — created **only when the backend runs with `DEMO_MODE=1`** (together with the
+demo systems, comments, workflows and notifications).  A normal install starts clean; set
+`CONSOLE_ADMIN_EMAIL` / `CONSOLE_ADMIN_PASSWORD` for the first administrator.  To remove demo
+rows that an older version already created, start once with `PURGE_DEMO_DATA=1` — real files
+are never touched and demo accounts are disabled.
 
 | Email | Password | Role |
 |---|---|---|

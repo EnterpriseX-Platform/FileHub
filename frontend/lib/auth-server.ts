@@ -12,8 +12,8 @@ const BACKEND = process.env.BACKEND_URL || "http://127.0.0.1:8090";
 /// gets a 401 and the helpers swallow it as an empty result.
 export async function loadServerCtx(): Promise<{ cookieHeader: string; role: string | null }> {
   const cookieHeader = (await cookies()).getAll().map((c) => `${c.name}=${c.value}`).join("; ");
-  // ส่งต่อเฮดเดอร์ตัวตนของขอบนอกด้วย ไม่งั้นผู้ใช้ที่ล็อกอิน NEB มาแล้วจะกลายเป็น
-  // "ไม่รู้จัก" ในสายตาหลังบ้าน แล้วหน้าจอถูกเด้งไป /login ของ FileHub เอง
+  // Forward the edge identity headers too, otherwise a user already signed in via
+  // the SSO proxy looks "unknown" to the backend and gets bounced to FileHub's own /login.
   const meRes = await fetch(`${BACKEND}/fh/api/auth/me`, {
     headers: await svrHeaders(cookieHeader),
     cache: "no-store",

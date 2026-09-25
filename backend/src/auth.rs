@@ -143,7 +143,7 @@ pub async fn resolve_api_key(db: &PgPool, key: &str) -> Result<User, ApiError> {
 // -----------------------------------------------------------------------------
 // Seed bootstrap — called from AppState::init
 // -----------------------------------------------------------------------------
-const SEED_ACCOUNTS: &[(&str, &str, &str, &str, &str, &str)] = &[
+pub(crate) const SEED_ACCOUNTS: &[(&str, &str, &str, &str, &str, &str)] = &[
     // (id, email, display_name, avatar_tone, role, password)
     ("usr_admin",  "admin@acme.go.th",  "Admin",     "indigo",  "admin",  "admin123"),
     ("usr_anong",  "anong@acme.go.th",  "Anong K.",  "rose",    "editor", "anong123"),
@@ -208,14 +208,15 @@ pub async fn login(
     jar: CookieJar,
     Json(creds): Json<Credentials>,
 ) -> ApiResult<(CookieJar, Json<LoginResponse>)> {
-    // ปิดการล็อกอินด้วยบัญชีของแอปเอง เมื่อ NEB ใช้ตัวตนจากขอบนอกแล้ว
-    // ⇒ "ใครเข้าได้" ถูกตัดสินที่ IAM-X ที่เดียว ไม่มีประตูหลังให้เดารหัสผ่าน
-    // (แอปนี้มาพร้อมบัญชีตัวอย่างที่รหัสผ่านอยู่ใน README สาธารณะ)
+    // Disable login with the app's own accounts once identity comes from the edge
+    // ⇒ "who may enter" is decided in one place (the identity provider), with no
+    // back door for password guessing. (The app ships with demo accounts whose
+    // passwords are in the public README.)
     if matches!(
         std::env::var("LOCAL_LOGIN").unwrap_or_default().trim(),
         "0" | "off" | "false" | "no"
     ) {
-        tracing::warn!(email = %creds.email, "ปฏิเสธการล็อกอินด้วยบัญชีของแอป — ระบบตั้งให้เข้าผ่าน NEB เท่านั้น");
+        tracing::warn!(email = %creds.email, "local login rejected: LOCAL_LOGIN is off (use single sign-on)");
         return Err(ApiError::Forbidden);
     }
     // Crude in-process throttle: cap failed-login attempts per (email, IP)
@@ -320,16 +321,17 @@ pub async fn me(user: AuthUser) -> Json<User> {
 // -----------------------------------------------------------------------------
 /// Required-auth extractor — request fails with 401 when the cookie is missing
 /// or the session has expired/been revoked.
-/// ตัวตนจาก "ขอบนอก" (oauth2-proxy ของ NEB) — เข้าใช้งานได้เลยโดยไม่ต้องล็อกอิน
-/// ซ้ำและไม่ต้องขอ API token
+/// Identity asserted by the edge (an SSO proxy such as oauth2-proxy) — the user
+/// gets in without logging in again and without an API token.
 ///
-/// เปิดใช้เมื่อกำหนด `EDGE_AUTH_SECRET` เท่านั้น และคำขอต้องมีเฮดเดอร์ลับ
-/// `x-filehub-edge` ตรงกับค่านั้น — เฮดเดอร์นี้ใส่ที่ VirtualServer ของขอบนอก
-/// ⇒ คำขอที่ยิงตรงเข้ามาในคลัสเตอร์ปลอมตัวตนไม่ได้ (เฮดเดอร์ x-auth-request-*
-///   ใครก็ตั้งได้ ถ้าไม่มีของลับคู่กันจะเชื่อไม่ได้เลย)
+/// Enabled only when `EDGE_AUTH_SECRET` is set, and the request must carry the
+/// secret header `x-filehub-edge` matching it — the ingress / reverse proxy in
+/// front of FileHub adds this header ⇒ requests sent straight into the cluster
+/// cannot spoof an identity (anyone can set the x-auth-request-* headers; without
+/// the matching secret they cannot be trusted at all).
 ///
-/// ผู้ใช้ที่ยังไม่มีในระบบจะถูกสร้างให้อัตโนมัติ พร้อมจำระบบ/หน่วยงานต้นทาง
-/// (`x-filehub-system` / `x-filehub-org`) ไว้ใช้เป็นค่าตั้งต้นตอนอัปโหลด
+/// Users not yet known are provisioned automatically, remembering the source
+/// system/organisation (`x-filehub-system` / `x-filehub-org`) as upload defaults.
 async fn edge_identity(
     state: &Arc<AppState>,
     headers: &axum::http::HeaderMap,
@@ -342,8 +344,8 @@ async fn edge_identity(
     if presented != secret {
         return Ok(None);
     }
-    // ตัวตนมาได้ 2 ทาง: เฮดเดอร์ตรง ๆ ของ oauth2-proxy (auth_request mode)
-    // หรือ claim USERINFO ในโทเคนที่ gateway ส่งมา (เส้นที่ NEB ใช้จริง)
+    // Identity can arrive two ways: plain oauth2-proxy headers (auth_request mode)
+    // or the USERINFO claim inside the access token forwarded by the gateway.
     let ui = edge_userinfo(headers);
     let email = headers
         .get("x-auth-request-email")
@@ -353,26 +355,27 @@ async fn edge_identity(
         .or_else(|| ui.as_ref().and_then(|u| u.email.clone()).map(|e| e.to_lowercase()));
     let Some(email) = email else { return Ok(None) };
 
-    // ── ด่านสิทธิ์: ใครเข้าคลังไฟล์ได้บ้าง ────────────────────────────────
-    // EDGE_REQUIRED_ROLES = รหัสสิทธิ์ของ IAM-X ที่ยอมให้เข้า (คั่นด้วย ,)
-    // ไม่ตั้ง = เปิดให้ทุกคนที่ล็อกอิน NEB (พฤติกรรมเดิม)
-    // คนที่ไม่มีสิทธิ์จะได้ 403 ชัด ๆ ไม่ใช่จอว่างหรือถูกเด้งไปหน้า login ให้งง
+    // ── Role gate: who may use the file hub ───────────────────────────────
+    // EDGE_REQUIRED_ROLES = identity-provider role codes allowed in (comma-separated).
+    // Unset = open to everyone signed in via SSO (the original behaviour).
+    // Users without a matching role get a clear 403, not a blank page or a
+    // confusing bounce to the login screen.
     let user_roles: Vec<String> = ui.as_ref().map(|u| u.roles.clone()).unwrap_or_default();
     let required = role_list("EDGE_REQUIRED_ROLES");
     if !required.is_empty() && !has_any(&user_roles, &required) {
         tracing::warn!(
             email = %email, roles = ?user_roles,
-            "ปฏิเสธการเข้าคลังไฟล์ — ไม่มีสิทธิ์ตามที่ตั้งใน EDGE_REQUIRED_ROLES"
+            "file hub access denied — user has none of the roles in EDGE_REQUIRED_ROLES"
         );
         return Err(ApiError::Forbidden);
     }
-    // สิทธิ์ผู้ดูแลผูกกับรหัสสิทธิ์ใน IAM-X ด้วย จะได้ไม่ต้องตั้งซ้ำสองที่
+    // Admin rights are also mapped from identity-provider roles, so they are not maintained in two places.
     let admin_roles = role_list("EDGE_ADMIN_ROLES");
     let is_admin = !admin_roles.is_empty() && has_any(&user_roles, &admin_roles);
 
     let system_id = header_str(headers, "x-filehub-system")
         .or_else(|| std::env::var("EDGE_DEFAULT_SYSTEM").ok());
-    // หน่วยงานของผู้ใช้ — จาก claim ของ IAM-X ก่อน ถ้าไม่มีค่อยดูเฮดเดอร์
+    // The user's organisation — from the identity-provider claim first, else from the header.
     let org_id = resolve_org(
         state,
         system_id.as_deref(),
@@ -390,8 +393,9 @@ async fn edge_identity(
     .fetch_optional(&state.db)
     .await?
     {
-        // คนเดิมที่ย้ายหน่วยงาน (หรือบัญชีที่สร้างไว้ก่อนรู้จักหน่วยงาน)
-        // ต้องได้หน่วยงานปัจจุบันเสมอ ไม่งั้นไฟล์จะไปลงหน่วยงานเก่า
+        // Existing users who moved organisation (or accounts created before their
+        // organisation was known) must always get the current one, otherwise their
+        // files land in the old organisation.
         if org_id.is_some() {
             sqlx::query(
                 "UPDATE users SET default_org_id = $1, default_system_id = COALESCE(default_system_id, $2)                  WHERE id = $3 AND default_org_id IS DISTINCT FROM $1",
@@ -402,7 +406,7 @@ async fn edge_identity(
             .execute(&state.db)
             .await?;
         }
-        // สิทธิ์เปลี่ยนที่ IAM-X แล้วต้องมีผลที่นี่ทันที ไม่ต้องมาแก้มือซ้ำสองที่
+        // Role changes in the identity provider take effect here immediately — no manual sync.
         if u.password_hash.is_empty() && ((is_admin && u.role != "admin") || (!is_admin && !admin_roles.is_empty() && u.role == "admin")) {
             let want: String = if is_admin { "admin".into() } else { std::env::var("EDGE_AUTH_ROLE").unwrap_or_else(|_| "editor".into()) };
             sqlx::query("UPDATE users SET role = $1 WHERE id = $2")
@@ -418,7 +422,7 @@ async fn edge_identity(
         return Ok(Some(u));
     }
 
-    // สร้างบัญชีให้อัตโนมัติ — ไม่มีรหัสผ่าน (เข้าได้ทางขอบนอกเท่านั้น)
+    // Auto-provision the account — no password (reachable through the edge only).
     let display = ui
         .as_ref()
         .and_then(|u| u.full_name.clone())
@@ -461,8 +465,9 @@ fn header_str(headers: &axum::http::HeaderMap, name: &str) -> Option<String> {
         .filter(|v| !v.is_empty())
 }
 
-/// หา org จากรหัสหน่วยงานที่ส่งมา ถ้ายังไม่มีก็สร้างให้ (ชื่อ = รหัส จนกว่าจะมีใครแก้)
-/// คืน None เมื่อไม่ได้ระบุหน่วยงานหรือยังไม่รู้ว่าอยู่ระบบไหน
+/// Look up the org by the supplied organisation code, creating it if missing
+/// (name = code until someone renames it). Returns None when no organisation is
+/// given or the system is not yet known.
 async fn resolve_org(
     state: &Arc<AppState>,
     system_id: Option<&str>,
@@ -493,23 +498,24 @@ async fn resolve_org(
     Ok(Some(id))
 }
 
-/// ตัวตนที่ขอบนอกของ NEB ส่งมาให้ — ถอดจาก `X-Forwarded-Access-Token`
+/// Identity supplied by the edge — decoded from `X-Forwarded-Access-Token`.
 ///
-/// gateway (oauth2-proxy) ส่ง access token ของ Keycloak มาในเฮดเดอร์นี้ และ
-/// IAM-X ฝัง claim `USERINFO` ไว้ในโทเคน (ตัวเดียวกับที่ DTS ใช้) ซึ่งมีทั้ง
-/// อีเมล ชื่อเต็ม และ**หน่วยงานต้นสังกัด** ⇒ FileHub จึงรู้ได้เองว่าคนอัปโหลด
-/// เป็นใครและอยู่หน่วยงานไหน โดยไม่ต้องให้ใครกรอก
+/// The gateway (oauth2-proxy) forwards the Keycloak access token in this header,
+/// and the identity provider may embed a `USERINFO` claim carrying the email,
+/// full name and **home organisation** ⇒ FileHub knows who is uploading and for
+/// which organisation without anyone filling it in.
 ///
-/// ไม่ตรวจลายเซ็นโทเคนที่นี่ เพราะประตูคือเฮดเดอร์ลับ `x-filehub-edge` ที่
-/// VirtualServer เป็นคนใส่ — คำขอที่ไม่ได้ผ่านขอบนอกจะไม่มีของลับคู่กัน
-/// (ตรวจซ้ำที่นี่ก็ได้ แต่ต้องดึง JWKS ของ Keycloak มาเก็บ ซึ่งยังไม่จำเป็น)
+/// The token signature is not verified here, because the gate is the secret
+/// `x-filehub-edge` header added by the ingress — requests that did not pass the
+/// edge lack the matching secret. (Verifying here is possible but would require
+/// fetching and caching Keycloak's JWKS, which is not needed yet.)
 pub(crate) struct EdgeUserInfo {
     pub email: Option<String>,
     pub full_name: Option<String>,
     pub agency_code: Option<String>,
     pub agency_name: Option<String>,
-    /// รหัสสิทธิ์ทั้งหมดของผู้ใช้ — มาจาก claim `USERROLE` ที่ IAM-X ฝังไว้ในโทเคน
-    /// (ของ Keycloak เองอยู่ที่ realm_access.roles เก็บรวมไว้ด้วยกันที่นี่)
+    /// All of the user's role codes — from the `USERROLE` claim embedded in the token
+    /// (Keycloak's own roles in realm_access.roles are merged in here too).
     pub roles: Vec<String>,
 }
 
@@ -528,13 +534,13 @@ pub(crate) fn edge_userinfo(headers: &axum::http::HeaderMap) -> Option<EdgeUserI
         .decode(payload)
         .ok()?;
     let claims: serde_json::Value = serde_json::from_slice(&raw).ok()?;
-    // USERINFO มาได้ทั้งแบบ object และแบบสตริง JSON แล้วแต่ตัว mapper
+    // USERINFO may be an object or a JSON string, depending on the claim mapper.
     let ui = match claims.get("USERINFO") {
         Some(serde_json::Value::String(s)) => serde_json::from_str(s).ok()?,
         Some(v) => v.clone(),
         None => claims.clone(),
     };
-    // สิทธิ์: USERROLE ของ IAM-X มาได้ทั้ง array และสตริง JSON
+    // Roles: USERROLE may be an array or a JSON string.
     let mut roles: Vec<String> = Vec::new();
     match claims.get("USERROLE") {
         Some(serde_json::Value::Array(a)) => {
@@ -569,7 +575,7 @@ pub(crate) fn edge_userinfo(headers: &axum::http::HeaderMap) -> Option<EdgeUserI
     })
 }
 
-/// รายชื่อรหัสสิทธิ์ที่ยอมให้เข้าใช้งาน (คั่นด้วย , ) — ไม่ตั้ง = เปิดให้ทุกคนที่ล็อกอิน NEB
+/// Role codes read from a comma-separated env var — unset = allow everyone signed in via SSO.
 fn role_list(key: &str) -> Vec<String> {
     std::env::var(key)
         .unwrap_or_default()
@@ -598,11 +604,12 @@ impl FromRequestParts<Arc<AppState>> for AuthUser {
         if let Some(key) = bearer_token(&parts.headers) {
             return Ok(AuthUser(resolve_api_key(&state.db, &key).await?));
         }
-        // คุกกี้ของ FileHub มาก่อนตัวตนจากขอบนอก — ผู้ดูแลที่ล็อกอินหน้าจอ console
-        // เองต้องทำงานในนามบัญชีผู้ดูแล ไม่ใช่ถูกทับด้วยตัวตน NEB ของเบราว์เซอร์เดียวกัน
+        // FileHub's own session cookie wins over the edge identity — an admin who
+        // logged into the console must act as that admin account, not be overridden
+        // by the SSO identity of the same browser.
         let jar = CookieJar::from_headers(&parts.headers);
         let Some(token) = jar.get(COOKIE_NAME).map(|c| c.value().to_string()) else {
-            // ไม่มีคุกกี้ = เป็นการเรียก API จากระบบงาน/จอของโมดูล ⇒ ใช้ตัวตนจาก IAM-X
+            // No cookie = an API call from an integrated application ⇒ use the edge (SSO) identity.
             if let Some(u) = edge_identity(state, &parts.headers).await? {
                 return Ok(AuthUser(u));
             }
@@ -740,9 +747,10 @@ pub async fn require_session(
         resolve_api_key(&state.db, &key).await?;
         return Ok(next.run(req).await);
     }
-    // เรียงเหมือน AuthUser: คุกกี้ของ FileHub ก่อน แล้วค่อยตัวตนจาก IAM-X
-    // (ถ้าไม่ให้ตัวตนจากขอบนอกผ่านด่านนี้ ทุก endpoint หลังด่านจะตอบ 401
-    //  ทั้งที่ `/api/auth/me` ซึ่งอยู่นอกด่านบอกว่ารู้จักผู้ใช้แล้ว — จอว่างทั้งระบบ)
+    // Same order as AuthUser: FileHub's cookie first, then the edge (SSO) identity.
+    // (If edge identities were not let through this gate, every endpoint behind it
+    //  would answer 401 while `/api/auth/me`, outside the gate, says the user is
+    //  known — leaving every page blank.)
     let jar = CookieJar::from_headers(req.headers());
     let Some(token) = jar.get(COOKIE_NAME).map(|c| c.value().to_string()) else {
         if edge_identity(&state, req.headers()).await?.is_some() {
@@ -852,7 +860,16 @@ mod login_throttle {
 /// once the caller exceeds `MAX_UPLOADS_PER_MINUTE` within the rolling window.
 /// Call this at the top of upload handlers, *after* authentication.
 pub async fn upload_rate_limit(user_id: &str) -> Result<(), ApiError> {
-    upload_throttle::check_and_record(user_id).await
+    upload_throttle::check_and_record(user_id, upload_throttle::MAX_UPLOADS_PER_MINUTE).await
+}
+
+/// Rate limit for callers that share one service identity (the legacy
+/// `/FileService` account shared by every legacy caller).  Keyed by the calling
+/// system instead of the shared user, with its own ceiling
+/// (`LEGACY_UPLOAD_RATE_PER_MIN`, default 1200/min per pod) — otherwise all
+/// modules together were capped at 60 uploads per minute.
+pub async fn upload_rate_limit_keyed(key: &str, per_minute: u32) -> Result<(), ApiError> {
+    upload_throttle::check_and_record(key, per_minute).await
 }
 
 mod upload_throttle {
@@ -863,7 +880,7 @@ mod upload_throttle {
 
     use crate::error::ApiError;
 
-    const MAX_UPLOADS_PER_MINUTE: u32 = 60;
+    pub const MAX_UPLOADS_PER_MINUTE: u32 = 60;
 
     #[derive(Default)]
     struct State {
@@ -876,7 +893,7 @@ mod upload_throttle {
         S.get_or_init(|| Mutex::new(State::default()))
     }
 
-    pub async fn check_and_record(user_id: &str) -> Result<(), ApiError> {
+    pub async fn check_and_record(user_id: &str, max_per_minute: u32) -> Result<(), ApiError> {
         let now = Utc::now();
         let mut st = state().lock().await;
         // Drop stale windows so a long-running process doesn't accumulate
@@ -884,7 +901,7 @@ mod upload_throttle {
         st.entries.retain(|_, (ws, _)| (now - *ws).num_seconds() < 60);
         let e = st.entries.entry(user_id.to_string()).or_insert((now, 0));
         if (now - e.0).num_seconds() >= 60 { e.0 = now; e.1 = 0; }
-        if e.1 >= MAX_UPLOADS_PER_MINUTE {
+        if e.1 >= max_per_minute {
             return Err(ApiError::TooManyRequests(
                 "upload rate limit exceeded — slow down".into()
             ));

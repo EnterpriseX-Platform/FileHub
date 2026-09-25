@@ -15,11 +15,11 @@
   --text-subtle: #a8a29e;
   --text-faint: #d6d3d1;
 
-  --accent: #1d4c80;            /* NEB: ชุดสีพอร์ทัลสำนักงบประมาณ */
-  --accent-hover: #003d60;
-  --accent-soft: #eaf1f8;
-  --accent-border: #b9d0e6;
-  --accent-text: #003d60;
+  --accent: #4f46e5;            /* product default; a workspace sets its own in Settings → Branding */
+  --accent-hover: #4338ca;
+  --accent-soft: #eef2ff;
+  --accent-border: #c7d2fe;
+  --accent-text: #4338ca;
   --on-accent: #ffffff;
 
   --success: #16a34a;
@@ -131,7 +131,7 @@ body {
   color: var(--text);
   background: var(--bg);
   font-size: var(--t-base);
-  /* 1.5 leaves room for Thai ascender/descender marks (วรรณยุกต์/สระ). */
+  /* 1.5 leaves room for stacked diacritics (e.g. Thai tone marks and vowels). */
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

@@ -1,38 +1,39 @@
-//! ชั้นรองรับ API เดิม `/FileService/*` (NEB — 22 ก.ย. 2569)
+//! Compatibility with the legacy FileService API (`/FileService/*`).
 //!
-//! ## ทำไมต้องมีไฟล์นี้
-//! ระบบงานของ NEB ราว 20 ตัว (DTS, BPN, BGA, BPP, พอร์ทัล, Report Studio ฯลฯ)
-//! เรียกไฟล์ฮับตัวเดิมด้วย URL ชุดนี้อยู่แล้ว — `/FileService/upload`,
-//! `/FileService/downloadFile?fileId=...` ฯลฯ รวมจุดเรียกกว่า 250 แห่ง
-//! ถ้าจะย้ายมาใช้ FileHub ตัวใหม่แล้วต้องไล่แก้โค้ดทุกระบบ = แก้ 20 repo
-//! ทดสอบใหม่ 20 รอบ และต้องปล่อยขึ้นพร้อมกันทั้งหมด
+//! ## Why this module exists
+//! Deployments migrating from an older file service may have many applications
+//! (often dozens, with hundreds of call sites) that already call it with this URL
+//! set — `/FileService/upload`, `/FileService/downloadFile?fileId=...`, etc.
+//! Moving them to FileHub would otherwise mean changing every caller's code,
+//! re-testing each one, and releasing them all at the same time.
 //!
-//! ไฟล์นี้จึงทำให้ FileHub ตัวใหม่ "พูดภาษาเดิม" ได้ด้วย ⇒ ระบบเดิม
-//! **ไม่ต้องแก้โค้ดแม้แต่บรรทัดเดียว** เปลี่ยนแค่ค่า URL ปลายทางใน
-//! configmap/secret (FILE_SERVICE_URL / app.filehub.url / PGD_APP_URL_CENTER_TECH)
-//! แล้วเรียกตัวใหม่ได้ทันที และย้ายทีละระบบได้ ไม่ต้องยกชุดเดียวพร้อมกัน
+//! This module lets FileHub "speak the old protocol" too ⇒ legacy callers need
+//! **no code changes at all**; only the target URL in their configuration
+//! (configmap/secret) changes, they can call FileHub immediately, and they can be
+//! migrated one at a time instead of all at once.
 //!
-//! ## รูปแบบคำตอบ
-//! คัดลอกจากของจริงบน UAT (`neb-center-filehub-svc:7880`) ทีละคีย์ ทั้ง
-//! `{success,status,message,data:{...}}` ของ upload/getFileDetail และ
-//! `{success,message,total,data:[...]}` ของ getFiles เพราะฝั่งผู้เรียกอ่านคีย์
-//! ตรง ๆ เช่น `data.id`, `data.file_name`, `data.mime_type`, `data.file_path`
-//! (ดู `owdropzone` ของ OneWeb และ `FileHubUploadResponse` ของ DTS)
+//! ## Response shape
+//! Copied key by key from the legacy service's real responses — both
+//! `{success,status,message,data:{...}}` for upload/getFileDetail and
+//! `{success,message,total,data:[...]}` for getFiles — because callers read keys
+//! directly, e.g. `data.id`, `data.file_name`, `data.mime_type`, `data.file_path`.
 //!
-//! ## ไฟล์เก่ายังโหลดได้
-//! `fileId` ของไฟล์ที่อัปโหลดไว้กับตัวเดิมไม่มีใน FileHub ใหม่ ⇒ ถ้าหาในฐานไม่เจอ
-//! และตั้ง `LEGACY_FILEHUB_URL` ไว้ จะส่งต่อคำขอไปตัวเดิมให้อัตโนมัติ
-//! ระบบที่ย้ายมาแล้วจึงยังเปิดไฟล์เก่าได้ตามปกติ ไม่ต้องรอย้ายข้อมูล
+//! ## Old files stay downloadable
+//! `fileId`s of files uploaded to the old service do not exist in FileHub ⇒ when
+//! a lookup misses and `LEGACY_FILEHUB_URL` is set, the request is forwarded to
+//! the old service automatically, so migrated callers can still open old files
+//! without waiting for a data migration.
 //!
-//! ## ตัวตนผู้เรียก
-//! เรียงลำดับ: ตัวตนจากขอบนอก/API key ของ FileHub ใหม่ (ผ่าน `MaybeAuthUser`)
-//! → ถ้าไม่มี ใช้บัญชีบริการสำหรับระบบเดิม เพราะของเดิมส่ง Bearer เป็น token
-//! ของ center ซึ่งตัวใหม่ตรวจไม่ได้ (และนั่นคือสิ่งที่เราไม่อยากให้ต้องแก้)
+//! ## Caller identity
+//! In order: the edge identity / FileHub API key (via `MaybeAuthUser`)
+//! → otherwise a service account for legacy callers, because they send a Bearer
+//! token issued by the old service that FileHub cannot verify (and changing the
+//! callers is exactly what we want to avoid).
 //!
-//! 🔴 ข้อบังคับเรื่องความปลอดภัย: เส้นทาง `/FileService/*` ต้องไม่เปิดออก
-//! อินเทอร์เน็ตตรง ๆ ให้เรียกได้เฉพาะภายในคลัสเตอร์ (ClusterIP) หรือผ่าน
-//! oauth2-proxy เท่านั้น — ไม่งั้นจะซ้ำรอยไฟล์ฮับตัวเดิมที่ใครก็โหลดไฟล์ได้
-//! ปิดทั้งชั้นนี้ได้ด้วยการไม่ตั้ง `LEGACY_FILESERVICE=1`
+//! SECURITY REQUIREMENT: `/FileService/*` must not be exposed directly to the
+//! internet. Only allow it inside the cluster (ClusterIP) or behind an SSO proxy
+//! (oauth2-proxy) — otherwise anyone could download files, as with many legacy
+//! file services. The whole layer is disabled unless `LEGACY_FILESERVICE=1` is set.
 
 use std::sync::Arc;
 
@@ -50,11 +51,11 @@ use uuid::Uuid;
 
 use crate::auth::{MaybeAuthUser, User};
 use crate::error::{ApiError, ApiResult};
-use crate::handlers::{persist_upload_for, sanitize_filename, UploadFields, FILE_COLS};
+use crate::handlers::{persist_upload_for, UploadFields, FILE_COLS};
 use crate::models::File;
 use crate::AppState;
 
-/// เปิดใช้ชั้นรองรับของเดิมหรือไม่ (ค่าเริ่มต้น: ปิด)
+/// Whether the legacy compatibility layer is enabled (default: off).
 pub fn enabled() -> bool {
     matches!(
         std::env::var("LEGACY_FILESERVICE").unwrap_or_default().trim(),
@@ -66,17 +67,21 @@ fn env_opt(key: &str) -> Option<String> {
     std::env::var(key).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty())
 }
 
-/// ปลายทางไฟล์ฮับตัวเดิม ใช้ส่งต่อคำขอของไฟล์เก่าที่ยังไม่ได้ย้ายมา
+/// Service account the legacy routes use for callers without an identity.
+/// (The old service's URL, used to forward requests for files not yet migrated,
+/// comes from `LEGACY_FILEHUB_URL` — see `legacy_upstream`.)
+const LEGACY_SERVICE_USER_ID: &str = "usr_legacy_fileservice";
+
 fn legacy_upstream() -> Option<String> {
     env_opt("LEGACY_FILEHUB_URL").map(|v| v.trim_end_matches('/').to_string())
 }
 
-/// เพดานขนาดไฟล์ของเส้นเก่า (ค่าเริ่มต้น 256 MB)
+/// Upload size cap for the legacy routes (default 2048 MB, `LEGACY_MAX_UPLOAD_MB`).
 fn legacy_max_upload_bytes() -> usize {
     env_opt("LEGACY_MAX_UPLOAD_MB")
         .and_then(|v| v.parse::<usize>().ok())
         .filter(|v| *v > 0)
-        .unwrap_or(256)
+        .unwrap_or(2048)
         * 1024
         * 1024
 }
@@ -91,24 +96,26 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/FileService/getFiles", get(get_files))
         .route("/FileService/rename", post(rename))
         .route("/FileService/moveFileToTrash", post(move_to_trash))
-        // ขอบนอกของเดิมตั้ง client-max-body-size ไว้ 2048m ⇒ ถ้าตั้งต่ำกว่านั้นมาก
-        // ไฟล์ใหญ่ที่เคยอัปได้จะเริ่มล้มหลังสลับปลายทาง (regression ที่คนจะโทษ FileHub ใหม่)
-        // ตัวเลขนี้กินแรมจริงต่อคำขอ เพราะอ่านทั้งก้อนก่อนเขียน จึงตั้งค่าได้ด้วย
-        // LEGACY_MAX_UPLOAD_MB แล้วปรับ memory limit ของพ็อดให้สัมพันธ์กัน
+        // The old service's ingress allowed client-max-body-size 2048m ⇒ a much lower
+        // cap would make large uploads that used to work start failing after the
+        // switch-over (a regression people would blame on FileHub). Tune it with
+        // LEGACY_MAX_UPLOAD_MB and size the pod's memory limit accordingly.
         .layer(DefaultBodyLimit::max(legacy_max_upload_bytes()))
 }
 
-/// ระบบปลายทางของไฟล์ที่เข้ามาทางเส้นเดิม — "ถัง" ที่ไฟล์จะไปวาง
+/// Target system for files arriving via the legacy routes — the "bucket" they land in.
 ///
-/// ของเดิมเทไฟล์ทุกระบบรวมกองเดียว ทำให้แยกโควตา/อายุเก็บ/สิทธิ์รายระบบไม่ได้
-/// ตัวนี้เดาระบบต้นทางให้เองโดยที่ผู้เรียก **ไม่ต้องแก้โค้ด**:
-///   1. เฮดเดอร์ `x-filehub-system` (ถ้าใครอยากระบุตรง ๆ)
-///   2. `Referer` ของจอที่กดอัปโหลด — จอของ NEB อยู่ใต้ path ของโมดูลตัวเอง
-///      เช่น /neb-upm/... ⇒ ถังของ UPM   (ครอบการอัปโหลดจากเบราว์เซอร์เกือบทั้งหมด)
-///   3. ค่าตั้งต้น `LEGACY_DEFAULT_SYSTEM`
+/// Legacy services often dump every application's files into one pile, so
+/// quotas/retention/permissions cannot be separated per system. This infers the
+/// source system **without any caller code change**:
+///   1. the `x-filehub-system` header (for callers that want to be explicit)
+///   2. the `Referer` of the page that uploaded — apps usually live under their
+///      own path prefix, e.g. /hr-portal/... ⇒ the HR bucket (covers nearly all
+///      browser uploads)
+///   3. the `LEGACY_DEFAULT_SYSTEM` default
 ///
-/// แม็ปตั้งใน `LEGACY_SYSTEM_MAP` เช่น "neb-upm=sys_upm,digital-signature=sys_dts"
-/// (คั่นด้วย , ) — เพิ่มโมดูลใหม่ทีหลังได้โดยไม่ต้อง build ใหม่
+/// The mapping is set in `LEGACY_SYSTEM_MAP`, e.g. "hr-portal=sys_hr,e-sign=sys_esign"
+/// (comma-separated) — new apps can be added later without a rebuild.
 fn system_from_request(headers: &HeaderMap) -> Option<String> {
     if let Some(v) = headers.get("x-filehub-system").and_then(|v| v.to_str().ok()) {
         let v = v.trim();
@@ -130,7 +137,7 @@ fn system_from_request(headers: &HeaderMap) -> Option<String> {
             if prefix.is_empty() || system.is_empty() {
                 continue;
             }
-            // เทียบเฉพาะส่วน path ไม่ให้ชื่อโฮสต์มาชนโดยบังเอิญ
+            // Match path segments only, so a host name cannot match by accident.
             if referer.contains(&format!("/{prefix}/")) || referer.ends_with(&format!("/{prefix}")) {
                 return Some(system);
             }
@@ -139,16 +146,17 @@ fn system_from_request(headers: &HeaderMap) -> Option<String> {
     None
 }
 
-// ────────────────────────── ตัวตนของผู้เรียก ──────────────────────────
+// ────────────────────────── Caller identity ──────────────────────────
 
-/// บัญชีบริการสำหรับระบบเดิม — สร้างครั้งเดียวแล้วใช้ซ้ำ
+/// Service account for legacy callers — created once, then reused.
 ///
-/// ระบบเดิมส่ง `Authorization: Bearer <token ของ center>` มาด้วย แต่ตัวใหม่
-/// ตรวจ token นั้นไม่ได้ (คนละระบบตัวตน) จะให้แก้โค้ดฝั่งผู้เรียกก็ผิดโจทย์
-/// จึงยอมรับคำขอที่เข้ามาถึงเส้นทางนี้ว่าเป็น "ระบบเดิม" และบันทึกเป็นบัญชีนี้
-/// ให้ตรวจสอบย้อนหลังได้ว่าไฟล์ไหนมาทางเส้นเก่า
+/// Legacy callers send `Authorization: Bearer <token of the old service>`, which
+/// FileHub cannot verify (different identity system), and changing the callers
+/// defeats the purpose. So requests that reach these routes are accepted as
+/// "legacy" and recorded under this account, making it auditable which files
+/// came in through the legacy path.
 async fn legacy_service_user(s: &Arc<AppState>) -> ApiResult<User> {
-    const ID: &str = "usr_legacy_fileservice";
+    const ID: &str = LEGACY_SERVICE_USER_ID;
     if let Some(u) = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
         .bind(ID)
         .fetch_optional(&s.db)
@@ -162,7 +170,7 @@ async fn legacy_service_user(s: &Arc<AppState>) -> ApiResult<User> {
     sqlx::query(
         r#"INSERT INTO users (id, email, display_name, avatar_tone, password_hash, role, status,
                               default_system_id, default_org_id, source)
-           VALUES ($1, 'fileservice@legacy.local', 'ระบบเดิม (FileService)', 'slate', '', $2,
+           VALUES ($1, 'fileservice@legacy.local', 'Legacy FileService', 'slate', '', $2,
                    'active', $3, $4, 'legacy')
            ON CONFLICT (id) DO NOTHING"#,
     )
@@ -178,12 +186,12 @@ async fn legacy_service_user(s: &Arc<AppState>) -> ApiResult<User> {
         .await?)
 }
 
-/// คืนผู้ใช้ที่จะใช้บันทึก — คนจริงถ้ารู้จัก ไม่งั้นเป็นบัญชีบริการของระบบเดิม
+/// The user to record the action as — the real person if known, else the legacy service account.
 async fn caller(s: &Arc<AppState>, who: Option<User>) -> ApiResult<User> {
     match who {
         Some(u) => Ok(u),
         None => {
-            // ปิดทางสำรองนี้ได้ด้วย LEGACY_TRUST_CALLER=0 เมื่อย้ายผู้เรียกครบแล้ว
+            // Disable this fallback with LEGACY_TRUST_CALLER=0 once all callers are migrated.
             if env_opt("LEGACY_TRUST_CALLER").as_deref() == Some("0") {
                 return Err(ApiError::Unauthorized);
             }
@@ -192,7 +200,7 @@ async fn caller(s: &Arc<AppState>, who: Option<User>) -> ApiResult<User> {
     }
 }
 
-// ────────────────────────── รูปคำตอบแบบเดิม ──────────────────────────
+// ────────────────────────── Legacy response shape ──────────────────────────
 
 fn th_date(d: &DateTime<Utc>) -> String {
     d.with_timezone(&chrono::FixedOffset::east_opt(7 * 3600).unwrap())
@@ -206,9 +214,9 @@ fn real_ts(d: &DateTime<Utc>) -> String {
         .to_string()
 }
 
-/// ชื่อไฟล์ที่ตัดนามสกุลออก — ของเดิมคืน `file_name` แบบไม่มีนามสกุล
-/// และคืนชื่อเต็มไว้ที่ `fileName` / `full_name_type` ต้องเหมือนกันเป๊ะ
-/// เพราะบางระบบเอา `file_name` ไปต่อนามสกุลเองแล้ว
+/// File name without its extension — the legacy service returns `file_name`
+/// without the extension and the full name in `fileName` / `full_name_type`.
+/// This must match exactly, because some callers append the extension themselves.
 fn stem(name: &str) -> String {
     match name.rfind('.') {
         Some(i) if i > 0 => name[..i].to_string(),
@@ -223,7 +231,7 @@ fn download_link(id: &Uuid) -> String {
     }
 }
 
-/// แปลงไฟล์ของเราให้เป็นก้อน JSON หน้าตาเดียวกับของเดิมทุกคีย์
+/// Render a file as JSON with exactly the same keys as the legacy service.
 fn legacy_file(f: &File) -> Value {
     let mime = mime_guess::from_path(&f.name).first().map(|m| m.to_string());
     json!({
@@ -271,44 +279,37 @@ fn legacy_file(f: &File) -> Value {
     })
 }
 
-// ────────────────────────── อัปโหลด ──────────────────────────
+// ────────────────────────── Upload ──────────────────────────
 
 #[derive(Default)]
 struct LegacyUpload {
     name: Option<String>,
-    body: Option<bytes::Bytes>,
+    staged: Option<crate::storage::Staged>,
     content_type: Option<String>,
     parent_folder_id: Option<String>,
     file_type: Option<String>,
     group_id: Option<String>,
 }
 
-/// อ่าน multipart แบบของเดิม
+/// Read a legacy-style multipart body.
 ///
-/// ชื่อฟิลด์ไฟล์ไม่แน่นอน: ฝั่ง Angular ส่ง `file`, ฝั่ง Java บางตัวส่งชื่อว่างเปล่า
-/// และ 598-app ส่งชื่อฟิลด์ตามที่ผู้เรียกกำหนดเอง ⇒ ถือว่า "ฟิลด์ไหนที่มีชื่อไฟล์
-/// ติดมาด้วย คือไฟล์" ไม่ยึดชื่อฟิลด์
-async fn read_legacy_upload(mp: &mut Multipart) -> ApiResult<LegacyUpload> {
+/// The file field name is not consistent: Angular clients send `file`, some Java
+/// clients send an empty name, and others use caller-defined names ⇒ treat "any
+/// field that carries a filename" as the file, regardless of its field name.
+async fn read_legacy_upload(s: &AppState, mp: &mut Multipart) -> ApiResult<LegacyUpload> {
     let mut out = LegacyUpload::default();
     while let Some(mut field) = mp
         .next_field()
         .await
-        .map_err(|e| ApiError::BadRequest(e.to_string()))?
+        .map_err(|e| crate::handlers::multipart_error(e, legacy_max_upload_bytes() as u64))?
     {
         let fname = field.file_name().map(str::to_string);
         let key = field.name().unwrap_or("").to_string();
-        if fname.is_some() && out.body.is_none() {
+        if fname.is_some() && out.staged.is_none() {
             out.name = fname;
             out.content_type = field.content_type().map(str::to_string);
-            let mut buf = bytes::BytesMut::new();
-            while let Some(chunk) = field
-                .chunk()
-                .await
-                .map_err(|e| ApiError::BadRequest(e.to_string()))?
-            {
-                buf.extend_from_slice(&chunk);
-            }
-            out.body = Some(buf.freeze());
+            // Stream into staging (encrypting on the way) — never buffer the whole file in memory.
+            out.staged = Some(crate::handlers::stage_field(s, &mut field, legacy_max_upload_bytes() as u64).await?);
             continue;
         }
         let val = field.text().await.unwrap_or_default();
@@ -334,34 +335,47 @@ async fn upload(
 ) -> ApiResult<Json<Value>> {
     let user = caller(&s, who).await?;
     crate::auth::require_role(&user, &["admin", "editor"])?;
-    crate::auth::upload_rate_limit(&user.id).await?;
+    if user.id == LEGACY_SERVICE_USER_ID {
+        // All legacy callers share one service account ⇒ rate-limit per source system,
+        // otherwise every caller together would be capped at 60 uploads/min/pod
+        // (measured: of 150 requests, only 60 got through).
+        let key = format!("legacy:{}", system_from_request(&headers).unwrap_or_else(|| "default".into()));
+        let per_min = env_opt("LEGACY_UPLOAD_RATE_PER_MIN").and_then(|v| v.parse().ok()).unwrap_or(1200);
+        crate::auth::upload_rate_limit_keyed(&key, per_min).await?;
+    } else {
+        crate::auth::upload_rate_limit(&user.id).await?;
+    }
 
-    let up = read_legacy_upload(&mut mp).await?;
-    let name = up.name.clone().ok_or_else(|| ApiError::BadRequest("missing file".into()))?;
-    let body = up.body.clone().ok_or_else(|| ApiError::BadRequest("missing file body".into()))?;
+    let mut up = read_legacy_upload(&s, &mut mp).await?;
+    let Some(name) = up.name.clone() else {
+        if let Some(st) = up.staged.take() { s.storage.discard(st).await; }
+        return Err(ApiError::BadRequest("missing file".into()));
+    };
+    let staged = up.staged.take().ok_or_else(|| ApiError::BadRequest("missing file body".into()))?;
 
-    // โฟลเดอร์: ของเดิมส่งรหัสโฟลเดอร์ของตัวเองมา (เช่น parentFolderId ของ owdropzone)
-    // ถ้าไม่รับไว้ ไฟล์จะไปกองที่ราก แล้วผู้เรียกที่ list ด้วย parentFolderId จะหาไม่เจอ
-    // จึง "จองรหัสเดิมไว้" — สร้างโฟลเดอร์ที่ใช้ id เดียวกับของเดิม (id เป็น text)
-    // ⇒ getFiles?parentFolderId=<รหัสเดิม> ยังคืนไฟล์ได้เหมือนเดิม
+    // Folder: legacy callers send their own folder ID (e.g. parentFolderId).
+    // If ignored, the file lands at the root and callers listing by parentFolderId
+    // would not find it, so the legacy ID is "reserved" — a folder is created with
+    // the same id (ids are text) ⇒ getFiles?parentFolderId=<legacy id> still works.
     let folder_id = match up.parent_folder_id.as_deref() {
         Some(v) => Some(ensure_legacy_folder(&s, v, &user, system_from_request(&headers).as_deref()).await?),
         None => None,
     };
 
-    // แท็กเพิ่มจากข้อมูลที่ของเดิมส่งมาอยู่แล้ว + ป้ายบอกว่ามาทางเส้นเก่า
-    // (ถ้าไม่ส่ง tags มาเลย persist_upload_for จะติดแท็กอัตโนมัติให้ต่ออีกชุด)
-    let mut extra: Vec<String> = vec!["ผ่าน:FileService เดิม".into()];
+    // Extra tags from data the legacy caller already sends + a marker for the legacy path.
+    // (With no tags supplied, persist_upload_for also adds its automatic tags.)
+    let mut extra: Vec<String> = vec!["via:legacy-fileservice".into()];
     if let Some(v) = up.file_type.as_deref() {
-        extra.push(format!("ประเภท:{v}"));
+        extra.push(format!("type:{v}"));
     }
     if let Some(v) = up.group_id.as_deref() {
-        extra.push(format!("กลุ่ม:{v}"));
+        extra.push(format!("group:{v}"));
     }
 
     let fields = UploadFields {
         name: Some(name),
-        body: Some(body),
+        body: None,
+        staged: Some(staged),
         content_type: up.content_type,
         folder_id,
         system_id: system_from_request(&headers),
@@ -372,8 +386,8 @@ async fn upload(
         tags: None,
     };
     let file = persist_upload_for(&s, Some(user.id.as_str()), fields, Some(&user)).await?;
-    // ต่อแท็กของเส้นเก่าเข้าไปกับแท็กอัตโนมัติที่เพิ่งติดให้ แล้วอ่านกลับมาใหม่
-    // เพื่อให้ `tag_name` ในคำตอบตรงกับที่บันทึกจริง (ผู้เรียกบางตัวเก็บค่านี้ไว้)
+    // Append the legacy tags to the automatic ones just added, then re-read the row
+    // so `tag_name` in the response matches what was stored (some callers keep it).
     append_tags(&s, &file, &extra).await?;
     let file = find_file(&s, &file.id.to_string()).await?.unwrap_or(file);
 
@@ -385,7 +399,7 @@ async fn upload(
     })))
 }
 
-/// จองรหัสโฟลเดอร์ของระบบเดิมไว้ในฐานใหม่ (ใช้ id เดิมตรง ๆ) ถ้ายังไม่มี
+/// Reserve a legacy folder ID in FileHub's database (reusing the same id) if it does not exist yet.
 async fn ensure_legacy_folder(
     s: &Arc<AppState>,
     legacy_id: &str,
@@ -417,7 +431,7 @@ async fn ensure_legacy_folder(
     )
     .bind(legacy_id)
     .bind(&system_id)
-    .bind(format!("โฟลเดอร์เดิม {legacy_id}"))
+    .bind(format!("Legacy folder {legacy_id}"))
     .bind(&user.display_name)
     .bind(&user.id)
     .execute(&s.db)
@@ -441,7 +455,7 @@ async fn append_tags(s: &Arc<AppState>, f: &File, extra: &[String]) -> ApiResult
     Ok(())
 }
 
-// ────────────────────────── อ่านไฟล์ ──────────────────────────
+// ────────────────────────── Read files ──────────────────────────
 
 #[derive(Deserialize)]
 struct FileIdQuery {
@@ -451,7 +465,7 @@ struct FileIdQuery {
     _log_type: Option<String>,
 }
 
-/// หาไฟล์จาก `fileId` ของเดิม — คืน None เมื่อไม่ใช่ของฐานนี้ (ไฟล์เก่า)
+/// Look up a file by legacy `fileId` — None when it is not in this database (an old file).
 async fn find_file(s: &Arc<AppState>, file_id: &str) -> ApiResult<Option<File>> {
     let Ok(id) = Uuid::parse_str(file_id) else { return Ok(None) };
     Ok(sqlx::query_as::<_, File>(&format!(
@@ -462,13 +476,19 @@ async fn find_file(s: &Arc<AppState>, file_id: &str) -> ApiResult<Option<File>> 
     .await?)
 }
 
-/// ส่งต่อคำขอไปไฟล์ฮับตัวเดิม สำหรับไฟล์ที่อัปโหลดไว้ก่อนย้ายระบบ
+/// Forward the request to the old file service, for files uploaded before the migration.
+///
+/// Streams the body (never holds the whole file in memory) · forwards
+/// `Range`/`If-Range` and passes back 206/Content-Range/Accept-Ranges as the old
+/// service answers · uses a shared client with timeouts instead of one per request.
 async fn proxy_legacy(path_and_query: &str, headers: &HeaderMap) -> ApiResult<Response> {
     let Some(base) = legacy_upstream() else { return Err(ApiError::NotFound) };
     let url = format!("{base}{path_and_query}");
-    let mut req = reqwest::Client::new().get(&url);
-    if let Some(auth) = headers.get(header::AUTHORIZATION) {
-        req = req.header(header::AUTHORIZATION, auth.clone());
+    let mut req = crate::serve::upstream_client().get(&url);
+    for k in [header::AUTHORIZATION, header::RANGE, header::IF_RANGE] {
+        if let Some(v) = headers.get(&k) {
+            req = req.header(k.as_str(), v.as_bytes());
+        }
     }
     let resp = req
         .send()
@@ -476,17 +496,18 @@ async fn proxy_legacy(path_and_query: &str, headers: &HeaderMap) -> ApiResult<Re
         .map_err(|e| ApiError::Other(anyhow::anyhow!("legacy upstream: {e}")))?;
     let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
     let mut out = HeaderMap::new();
-    for k in [header::CONTENT_TYPE, header::CONTENT_DISPOSITION, header::CACHE_CONTROL] {
+    for k in [
+        header::CONTENT_TYPE, header::CONTENT_DISPOSITION, header::CACHE_CONTROL,
+        header::CONTENT_LENGTH, header::CONTENT_RANGE, header::ACCEPT_RANGES,
+        header::ETAG, header::LAST_MODIFIED,
+    ] {
         if let Some(v) = resp.headers().get(k.as_str()) {
             if let Ok(hv) = axum::http::HeaderValue::from_bytes(v.as_bytes()) {
                 out.insert(k, hv);
             }
         }
     }
-    let body: bytes::Bytes = resp
-        .bytes()
-        .await
-        .map_err(|e| ApiError::Other(anyhow::anyhow!("legacy upstream body: {e}")))?;
+    let body = axum::body::Body::from_stream(resp.bytes_stream());
     Ok((status, out, body).into_response())
 }
 
@@ -495,30 +516,22 @@ async fn serve_bytes(
     user: &User,
     f: &File,
     inline: bool,
+    req: &HeaderMap,
 ) -> ApiResult<Response> {
     if crate::auth::ensure_system_access(&s.db, user, &f.system_id).await.is_err() {
         return Err(ApiError::NotFound);
     }
-    let (body, ct) = s
-        .storage
-        .get(&f.object_key, f.encrypted)
-        .await?
-        .ok_or(ApiError::NotFound)?;
-    let content_type = ct
-        .or_else(|| mime_guess::from_path(&f.name).first().map(|m| m.to_string()))
-        .unwrap_or_else(|| "application/octet-stream".into());
-    let kind = if inline { "inline" } else { "attachment" };
-    let ascii = sanitize_filename(&f.name);
-    let utf8 = urlencoding::encode(&f.name);
-    let mut h = HeaderMap::new();
-    h.insert(header::CONTENT_TYPE, content_type.parse().unwrap());
-    h.insert(
-        header::CONTENT_DISPOSITION,
-        format!("{kind}; filename=\"{ascii}\"; filename*=UTF-8''{utf8}")
-            .parse()
-            .unwrap(),
-    );
-    Ok((StatusCode::OK, h, body).into_response())
+    // Stream + Range — the legacy service read whole files into memory and ignored
+    // Range (asking for 1 MB returned the whole file), so video seeking broke and
+    // large files crashed the pod.
+    crate::serve::stream_object(s, crate::serve::ServeOpts {
+        key: &f.object_key,
+        encrypted: f.encrypted,
+        name: &f.name,
+        etag: f.etag.as_deref(),
+        disposition: if inline { "inline" } else { "attachment" },
+        cache_control: "private, no-store",
+    }, req).await
 }
 
 async fn download(
@@ -534,11 +547,11 @@ async fn download(
     match find_file(&s, &file_id).await? {
         Some(f) => {
             let user = caller(&s, who).await?;
-            serve_bytes(&s, &user, &f, false).await
+            serve_bytes(&s, &user, &f, false, &headers).await
         }
         None => {
             proxy_legacy(
-                &format!("/FileService/downloadFile?fileId={file_id}&logType=download"),
+                &format!("/FileService/downloadFile?fileId={}&logType=download", urlencoding::encode(&file_id)),
                 &headers,
             )
             .await
@@ -559,11 +572,11 @@ async fn preview(
     match find_file(&s, &file_id).await? {
         Some(f) => {
             let user = caller(&s, who).await?;
-            serve_bytes(&s, &user, &f, true).await
+            serve_bytes(&s, &user, &f, true, &headers).await
         }
         None => {
             proxy_legacy(
-                &format!("/FileService/previewFile?fileId={file_id}&logType=preview"),
+                &format!("/FileService/previewFile?fileId={}&logType=preview", urlencoding::encode(&file_id)),
                 &headers,
             )
             .await
@@ -595,12 +608,12 @@ async fn file_detail(
             .into_response())
         }
         None => {
-            proxy_legacy(&format!("/FileService/getFileDetail?fileId={file_id}"), &headers).await
+            proxy_legacy(&format!("/FileService/getFileDetail?fileId={}", urlencoding::encode(&file_id)), &headers).await
         }
     }
 }
 
-// ────────────────────────── รายการไฟล์ ──────────────────────────
+// ────────────────────────── List files ──────────────────────────
 
 #[derive(Deserialize)]
 struct GetFilesQuery {
@@ -640,7 +653,7 @@ async fn get_files(
         sql.push_str(&format!(" AND folder_id = ${n}"));
         binds.push(p);
     }
-    // เห็นได้เฉพาะระบบที่ผู้เรียกมีสิทธิ์ — กติกาเดียวกับ /api/files
+    // Only systems the caller has access to are visible — same rule as /api/files.
     let scope = crate::auth::effective_system_ids(&s.db, &user).await?;
     let mut scope_bind: Option<Vec<String>> = None;
     if let Some(ids) = scope {
@@ -681,7 +694,7 @@ async fn get_files(
     })))
 }
 
-// ────────────────────────── แก้ชื่อ / ทิ้งลงถังขยะ ──────────────────────────
+// ────────────────────────── Rename / move to trash ──────────────────────────
 
 #[derive(Deserialize)]
 struct RenameBody {
@@ -762,11 +775,12 @@ mod tests {
 
     #[test]
     fn stem_strips_only_the_last_extension() {
-        // ของเดิมคืน file_name แบบไม่มีนามสกุล และคืนชื่อเต็มที่ fileName
+        // The legacy service returns file_name without the extension and the full name in fileName.
+        // Non-ASCII (Thai) file names must work too.
         assert_eq!(stem("probe-compat.txt"), "probe-compat");
         assert_eq!(stem("รายงาน.งบ.2570.pdf"), "รายงาน.งบ.2570");
         assert_eq!(stem("no-extension"), "no-extension");
-        // ไฟล์ซ่อนของยูนิกซ์ไม่ใช่ "นามสกุลล้วน" — ต้องไม่เหลือชื่อว่าง
+        // A Unix dotfile is not "just an extension" — it must not become an empty name.
         assert_eq!(stem(".env"), ".env");
     }
 

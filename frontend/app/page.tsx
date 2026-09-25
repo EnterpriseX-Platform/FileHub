@@ -39,30 +39,30 @@ export default async function DashboardPage() {
 
   const cards: Array<[string, string, string, "indigo" | "emerald" | "amber" | "rose", React.ComponentType<React.SVGProps<SVGSVGElement>>]> = [
     [
-      "ไฟล์ทั้งหมด",
+      "Total files",
       stats ? fmtCount(stats.total_files) : "—",
-      stats ? `${fmtBytes(stats.total_size_bytes)} บนดิสก์` : "ต่อหลังบ้านไม่ได้",
+      stats ? `${fmtBytes(stats.total_size_bytes)} stored` : "Backend unreachable",
       "indigo",
       Ico.files,
     ],
     [
-      "พื้นที่ที่ใช้",
+      "Storage used",
       stats ? fmtBytes(usedBytes) : "—",
-      quotaBytes > 0 ? `${quotaPct}% ของโควตา ${fmtBytes(quotaBytes)}` : "ไม่ได้ตั้งโควตา",
+      quotaBytes > 0 ? `${quotaPct}% of ${fmtBytes(quotaBytes)} quota` : "No quota set",
       "emerald",
       Ico.database,
     ],
     [
-      "หน่วยงานที่ใช้งาน",
+      "Active orgs",
       stats ? fmtCount(stats.active_orgs) : "—",
-      `เชื่อมอยู่ ${(stats?.connected_systems ?? []).length} ระบบ`,
+      `${(stats?.connected_systems ?? []).length} buckets`,
       "amber",
       Ico.users,
     ],
     [
-      "รอตรวจสอบ",
+      "Awaiting review",
       stats ? fmtCount(stats.awaiting_review) : "—",
-      orgsWithReview ? `${orgsWithReview} หน่วยงาน` : "ไม่มีรายการรอตรวจ",
+      orgsWithReview ? `${orgsWithReview} org${orgsWithReview === 1 ? "" : "s"}` : "Nothing to review",
       "rose",
       Ico.warning,
     ],
@@ -125,7 +125,7 @@ export default async function DashboardPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div className="card" style={{ padding: 16 }}>
               <SectionHd
-                title="พื้นที่แยกตามระบบ"
+                title="Storage by bucket"
                 sub={`${fmtBytes(totalStorage)} used`}
                 action={<a className="btn sm ghost" href="/orgs">View details <Ico.chevron className="icon sm" /></a>}
               />
@@ -232,7 +232,7 @@ export default async function DashboardPage() {
                 </div>
               ))}
               {(stats?.connected_systems ?? []).length === 0 && (
-                <div className="t-sm t-muted" style={{ padding: "8px 0" }}>ยังไม่มีระบบต้นทางเชื่อมเข้ามา ผู้ดูแลเพิ่มได้ที่หน้าตั้งค่า</div>
+                <div className="t-sm t-muted" style={{ padding: "8px 0" }}>No buckets yet — an admin can create one under Files or Settings.</div>
               )}
             </div>
           </div>

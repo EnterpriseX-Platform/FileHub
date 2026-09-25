@@ -4,11 +4,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 
 import { useAuth } from "@/lib/auth-context";
+import { useBranding } from "@/lib/branding";
 
 export const dynamic = "force-dynamic";
 
-// NEB: เอารายชื่อบัญชีตัวอย่างออก — เป็นบัญชีที่รหัสผ่านอยู่ใน README สาธารณะ
-// การโชว์รายชื่อไว้บนหน้า login ของระบบจริงเท่ากับชี้ทางให้ลองรหัส
+// No demo accounts on the login page: their passwords are in the public README,
+// so listing them on a real deployment points attackers at them.
 const DEMO_ACCOUNTS: Array<[string, string]> = [];
 
 // The test-account panel prefills the email so you can pick a role quickly; the
@@ -29,6 +30,7 @@ function LoginInner() {
   const router  = useRouter();
   const params  = useSearchParams();
   const { reload, user, loading } = useAuth();
+  const brand = useBranding();
   const [email, setEmail]       = React.useState("");
   const [password, setPassword] = React.useState("");
   const [busy, setBusy]         = React.useState(false);
@@ -82,30 +84,30 @@ function LoginInner() {
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
             <span style={{ width: 44, height: 44, borderRadius: "var(--r-5)", background: "var(--accent)", color: "var(--on-accent)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 20 }}>F</span>
             <div>
-              <div className="t-2xl t-semibold">คลังไฟล์กลาง</div>
-              <div className="t-sm t-muted">สำนักงบประมาณ · New e-Budgeting</div>
+              <div className="t-2xl t-semibold">{brand.workspace_display}</div>
+              {brand.org_name && <div className="t-sm t-muted">{brand.org_name}</div>}
             </div>
           </div>
 
-          {/* บอกให้ชัดว่าหน้านี้ไม่ใช่ทางเข้าของผู้ใช้ทั่วไป — ผู้ใช้ในพอร์ทัลไม่มี
-              บัญชีที่นี่ และไม่ต้องมี เพราะระบบงานเรียกใช้ผ่าน API ด้วยตัวตนจาก NEB อยู่แล้ว */}
+          {/* Make clear this is not the entrance for everyday users — business
+              systems reach files through the API with their own identity. */}
           <div className="t-xs t-muted" style={{
             background: "var(--bg-muted)", border: "1px solid var(--border)",
             borderRadius: "var(--r-2)", padding: "10px 12px", lineHeight: 1.7,
           }}>
-            หน้านี้สำหรับ<strong>ผู้ดูแลคลังไฟล์</strong>เท่านั้น — ผู้ใช้ทั่วไปไม่ต้องล็อกอินที่นี่
-            เพราะระบบงานแนบและเปิดไฟล์ให้ผ่านหน้าจอของแต่ละระบบอยู่แล้ว
+            This console is for <strong>{brand.workspace_display} administrators</strong> only. Other users don’t need
+            to sign in here — business systems attach and open files from their own screens.
           </div>
 
           <div>
-            <label htmlFor="email" className="t-sm t-muted t-medium" style={{ display: "block", marginBottom: 6 }}>อีเมล</label>
+            <label htmlFor="email" className="t-sm t-muted t-medium" style={{ display: "block", marginBottom: 6 }}>Email</label>
             <div className="field" style={{ width: "100%", height: 42, fontSize: "var(--t-md)" }}>
               <input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@bb.go.th"
+                placeholder={brand.login_email_placeholder}
                 style={{ width: "100%" }}
                 autoFocus
                 required
@@ -114,7 +116,7 @@ function LoginInner() {
           </div>
 
           <div>
-            <label htmlFor="password" className="t-sm t-muted t-medium" style={{ display: "block", marginBottom: 6 }}>รหัสผ่าน</label>
+            <label htmlFor="password" className="t-sm t-muted t-medium" style={{ display: "block", marginBottom: 6 }}>Password</label>
             <div className="field" style={{ width: "100%", height: 42, fontSize: "var(--t-md)" }}>
               <input
                 id="password"
@@ -133,11 +135,11 @@ function LoginInner() {
           )}
 
           <button type="submit" className="btn primary" disabled={busy} style={{ justifyContent: "center", height: 42, fontSize: "var(--t-md)" }}>
-            {busy ? "กำลังเข้าสู่ระบบ…" : "เข้าสู่ระบบ"}
+            {busy ? "Signing in…" : "Sign in"}
           </button>
 
           <div className="t-sm t-subtle">
-            ติดปัญหาเข้าใช้งาน ติดต่อผู้ดูแลระบบ
+            Trouble signing in? Contact your system administrator.
           </div>
         </form>
 

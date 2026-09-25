@@ -6,8 +6,7 @@ import * as React from "react";
 import { GlobalSearch } from "./global-search";
 import { Ico } from "./icons";
 import { MyDriveLink } from "./my-drive-link";
-import { SideLabel, SideRow } from "./primitives";
-import { SavedViewsList } from "./saved-views-list";
+import { SideRow } from "./primitives";
 import { UserMenu } from "./user-menu";
 import { fmtCount } from "@/lib/format";
 import { useSidebar } from "@/lib/sidebar-context";
@@ -15,15 +14,12 @@ import type { Org, System, DashboardStats } from "@/lib/api";
 
 export type NavKey = "dashboard" | "files" | "activity" | "views" | "share" | "archive" | "trash" | "settings";
 
-/// Sidebar is a pure synchronous component so it can render correctly inside
-/// both server and client pages. Data is supplied entirely via props; pages
-/// that want to show org rollups under the active system pass `orgs` in.
+/// Global navigation.  Buckets / folders / tag folders live in the Files
+/// explorer tree (/explorer) — keeping them here too made two competing trees.
+/// `systems` / `orgs` / `systemActive` / `orgActive` are still accepted so
+/// existing pages compile, but are no longer rendered.
 export function Sidebar({
   nav = "files",
-  systemActive,
-  orgActive,
-  systems = [],
-  orgs = [],
   stats,
 }: {
   nav?: NavKey;
@@ -34,12 +30,6 @@ export function Sidebar({
   stats?: DashboardStats | null;
 }) {
   const { open, setOpen } = useSidebar();
-  const activeSystemId = systemActive ?? systems[0]?.id;
-
-  const fileCountBySystem: Record<string, number> = {};
-  for (const sys of stats?.connected_systems ?? []) {
-    fileCountBySystem[sys.id] = sys.file_count;
-  }
 
   return (
     <>
@@ -48,86 +38,33 @@ export function Sidebar({
         <span className="ws-logo" style={{ background: "var(--accent)" }}>F</span>
         <div className="ws-name">
           {stats?.workspace_display || "File Hub"}
-          <div className="t-sm t-muted">{stats?.workspace_name || "acme.go.th"}</div>
+          <div className="t-sm t-muted">{stats?.workspace_name || ""}</div>
         </div>
-        <Ico.down />
       </div>
 
       <GlobalSearch />
 
-      <div className="side-section">
-        <SideRow href="/"          icon={<Ico.home />}     label="ภาพรวม" active={nav === "dashboard"} />
-        <SideRow href="/files"     icon={<Ico.files />}    label="ไฟล์ทั้งหมด" active={nav === "files"} count={stats ? fmtCount(stats.total_files) : undefined} />
-        <SideRow href="/activity"  icon={<Ico.activity />} label="ความเคลื่อนไหว"  active={nav === "activity"} />
-        <SideRow href="/views/new" icon={<Ico.views />}    label="มุมมองที่บันทึก" active={nav === "views"} />
-        <SideRow href="/share"     icon={<Ico.share />}    label="แชร์" active={nav === "share"} />
-        <SideRow href="/archive"   icon={<Ico.archive />}  label="คลังเก็บ" active={nav === "archive"} />
+      <div style={{ padding: "4px 12px 8px" }}>
+        <Link href="/upload" className="btn primary" style={{ width: "100%", justifyContent: "center" }}>
+          <Ico.upload className="icon sm" /> Upload files
+        </Link>
+      </div>
+
+      <div className="side-section" style={{ flex: 1 }}>
+        <SideRow href="/"          icon={<Ico.home />}     label="Overview" active={nav === "dashboard"} />
+        <SideRow href="/explorer"  icon={<Ico.files />}    label="Files" active={nav === "files"}
+                 count={stats ? fmtCount(stats.total_files) : undefined} />
+        <SideRow href="/activity"  icon={<Ico.activity />} label="Activity" active={nav === "activity"} />
+        <SideRow href="/share"     icon={<Ico.share />}    label="Shared links" active={nav === "share"} />
+        <SideRow href="/archive"   icon={<Ico.archive />}  label="Archive" active={nav === "archive"} />
         {/* My Drive — only renders for signed-in users; reads the personal
             drive id from the backend on mount. */}
         <MyDriveLink />
       </div>
 
-      <div className="divider" style={{ margin: "4px 12px" }} />
-
-      <div className="side-section">
-        <SideLabel action={<Link href="/views/new" title="สร้างมุมมองใหม่" aria-label="สร้างมุมมองใหม่" style={{ display: "inline-flex", color: "inherit" }}><Ico.plus className="icon sm" /></Link>}>มุมมองที่บันทึก</SideLabel>
-        {/* Pulled live from /api/views (pinned rows).  Each click derives a
-            `/files?field=value` URL from the first equality filter so the
-            sidebar actually narrows the file table instead of being a dead
-            label. */}
-        <SavedViewsList />
-      </div>
-
-      <div className="side-section" style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
-        <SideLabel>
-          ระบบต้นทาง · {systems.length}
-        </SideLabel>
-
-        {systems.length === 0 && (
-          <div style={{ padding: "8px 10px", fontSize: 12, color: "var(--text-subtle)" }}>
-            No systems yet.
-          </div>
-        )}
-
-        {systems.map((sys) => {
-          const isActive = sys.id === activeSystemId;
-          const count = fileCountBySystem[sys.id];
-          return (
-            <React.Fragment key={sys.id}>
-              <SideRow
-                icon={isActive ? <Ico.down className="icon sm" /> : <Ico.chevron className="icon sm" />}
-                label={sys.name}
-                active={isActive}
-                count={count != null ? count : undefined}
-                href={`/files?system_id=${sys.id}`}
-              >
-                <span className={"pill " + sys.tone + " sm"} style={{ marginLeft: 6, height: 14, padding: "0 5px" }}>
-                  <span className="dot" />
-                </span>
-              </SideRow>
-              {isActive && orgs.slice(0, 5).map((o) => (
-                <SideRow
-                  key={o.id}
-                  indent={1}
-                  icon={<Ico.bucket className="icon sm" />}
-                  label={o.name}
-                  active={orgActive === o.id}
-                  href={`/files?system_id=${o.system_id}&org_id=${o.id}`}
-                />
-              ))}
-              {isActive && orgs.length > 5 && (
-                <a href="/orgs" style={{ paddingLeft: 28, fontSize: 11, color: "var(--text-subtle)", padding: "4px 10px 4px 28px", display: "block" }}>
-                  + {orgs.length - 5} more org{orgs.length - 5 === 1 ? "" : "s"}
-                </a>
-              )}
-            </React.Fragment>
-          );
-        })}
-      </div>
-
       <div style={{ borderTop: "1px solid var(--border)", padding: "8px 8px" }}>
-        <SideRow href="/trash"    icon={<Ico.trash />}    label="ถังขยะ" active={nav === "trash"} />
-        <SideRow href="/settings" icon={<Ico.cog />}      label="ตั้งค่า" active={nav === "settings"} />
+        <SideRow href="/trash"    icon={<Ico.trash />}    label="Trash" active={nav === "trash"} />
+        <SideRow href="/settings" icon={<Ico.cog />}      label="Settings" active={nav === "settings"} />
         <UserMenu />
       </div>
     </div>
