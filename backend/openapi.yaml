@@ -1,0 +1,1064 @@
+openapi: 3.1.0
+
+info:
+  title: File Hub API
+  version: "1.0.0"
+  description: |
+    HTTP API for **File Hub** (Rust + Axum backend).
+
+    ## Base path
+    The backend mounts every route under **`/fh`** (see `lib.rs::build_router`).
+    The Next.js frontend is served under basePath **`/filehub`** and rewrites
+    `/filehub/api/*` → `<backend>/fh/api/*`. So the same logical path `/api/files`
+    is reached as:
+      - `http://<backend>:8090/fh/api/files`  (direct to the Rust service)
+      - `http://<frontend>:3001/filehub/api/files`  (via the app, same-origin cookie)
+
+    Pick the matching `servers` entry below; all `paths` are written relative to it.
+
+    ## Authentication
+    Two schemes, either satisfies any private endpoint:
+
+    - **Session cookie** (`cookieAuth`) — for browsers. `POST /api/auth/login`
+      sets an **HttpOnly** cookie `filehub_session` (32-byte random token,
+      14-day TTL, stored in the `sessions` table). Send it on every request
+      (`credentials: "include"` in fetch, `-b cookies.txt` in curl).
+    - **API key / Bearer** (`bearerAuth`) — for headless apps / integrations.
+      An admin mints a key via `POST /api/api-keys` bound to a service-account
+      user; send it as `Authorization: Bearer fhk_…`. The key authenticates AS
+      that user, inheriting its role + system access. Revoke via
+      `DELETE /api/api-keys/{id}`. See INTEGRATION.md.
+
+    - **IAMX / Keycloak SSO token** (`bearerAuth`) — another system forwards the
+      signed-in person's access token: `Authorization: Bearer <JWT>`. FileHub checks
+      the signature against the realm keys (`IAMX_JWKS_URL` =
+      `https://<keycloak>/realms/<realm>/protocol/openid-connect/certs`), expiry,
+      issuer (`IAMX_JWT_ISSUER`) and the client app (`azp` in `IAMX_ALLOWED_CLIENTS`).
+      The file is uploaded as that person, with their access and agency.
+      Optional `X-FileHub-System` / `X-FileHub-Org` give the default basket/agency.
+
+    ## Authorization (roles)
+    Three roles: `admin`, `editor`, `viewer`.
+      - **viewer** — read-only (browse, download, comment).
+      - **editor** — + upload / edit / delete (soft) / restore / share / create folders & views.
+      - **admin**  — + hard-delete (purge), buckets, members, rotation, quotas, workspace settings.
+    Mutating endpoints return **403** for insufficient role; reads on resources the
+    caller can't see return **404** (existence is not leaked).
+
+    ## Uploads
+      - **Any file, recommended** → chunked TUS at `/api/uploads` (the web app uses it for every upload).
+      - **Small files, one request** → `POST /api/files` (multipart).
+      - **Large/resumable files** → TUS 1.0.0 at `/api/uploads` (the web client switches
+        at ~50 MiB). Chunked and resumable: `POST` creates, `PATCH` sends each chunk
+        with `Upload-Offset`, `HEAD` tells where to resume after a dropped connection.
+        Basket rules (allowed types, size, required fields) are checked before the
+        upload starts. See the `Upload` tag.
+      - **From other systems** → the S3-compatible API (below) with multipart upload.
+
+    ## Baskets, access, statuses
+    A basket is a storage space with its own categories, fields, statuses and policy
+    (`/api/baskets/{id}/settings`). Access is granted as **view / edit / manage** on a
+    basket, folder or file (`/api/acl/...`) to a person, agency, IAMX role or everyone.
+    Grants flow down to folders and files unless a folder turns inheritance off.
+    The person who uploads a file always has at least Edit on it.
+
+    ## Vault baskets
+    A basket created with `vault: true`: always encrypted, no public links, every
+    download stamped, every view/download logged, never shared with `everyone`.
+
+    ## Encryption
+    Files are stored AES-256-GCM encrypted (key `STORAGE_ENC_KEY`). A basket or folder
+    policy can require it; `POST /api/files/{id}/encrypt` encrypts one file.
+
+    ## Download stamp
+    Where the policy has `stamp_downloads`, PDFs (and Office files converted to PDF)
+    get the downloader's name, time and a copy code on every page. Managers can add
+    `?original=1` to get the file as stored.
+
+    ## S3-compatible API
+    Separate port (`GET /api/s3-endpoint`). Bucket = basket, key = folder path + name.
+    Keys from `POST /api/s3-credentials` act as a chosen user, so access rules apply.
+    Supports SigV4 (header and presigned URL), SigV2 presigned GET, aws-chunked bodies
+    and multipart upload — point any MinIO/AWS SDK at it.
+
+    ## Errors
+    JSON `{ "error": "message" }`. 400 rule broken · 401 not signed in · 403 not
+    allowed · 404 not found or not visible · 410 link used up · 429 slow down.
+
+servers:
+  - url: http://localhost:8090/fh
+    description: Direct to the Rust backend (dev)
+  - url: http://localhost:3001/filehub
+    description: Via the Next.js app proxy (same-origin cookie)
+
+tags:
+  - name: Auth
+  - { name: Baskets, description: "Basket settings: categories, fields, statuses, policy" }
+  - { name: Access, description: "Grants (view/edit/manage) on baskets, folders, files" }
+  - { name: Virtual baskets, description: Rule-based views over files in other baskets }
+  - { name: Upload links, description: Forms that let others drop files into a folder }
+  - { name: S3, description: "S3-compatible API (replaces MinIO) and its keys" }
+  - name: Files
+  - name: Upload
+  - name: Search
+  - name: Folders
+  - name: Sharing
+  - name: Comments
+  - name: Workflow
+  - name: Notifications
+  - name: Trash
+  - name: Views
+  - name: Systems & Orgs
+  - name: Admin
+  - name: Reports
+  - name: Health
+
+security:
+  - cookieAuth: []
+  - bearerAuth: []
+
+paths:
+  # ─────────────────────────── Auth ───────────────────────────
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in; sets the filehub_session cookie
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Credentials" }
+      responses:
+        "200":
+          description: "Logged in. Sets the filehub_session cookie (HttpOnly, SameSite=Lax, Max-Age=1209600 / 14 days)."
+          headers:
+            Set-Cookie: { schema: { type: string } }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { description: Too many failed attempts (10/min → 60s lockout) }
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Log out; clears the session
+      responses:
+        "204": { description: Logged out }
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Current user
+      responses:
+        "200":
+          description: The signed-in user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  # ─────────────────────────── Files ───────────────────────────
+  /api/files:
+    get:
+      tags: [Files]
+      summary: List files
+      description: |
+        Returns files ordered by `modified_at DESC`. Only `system_id`, `org_id`,
+        `status`, `project`, `limit`, `offset` are honoured (no `sort`/`owner`).
+        Non-admins are scoped to systems they can access.
+      parameters:
+        - { name: system_id, in: query, schema: { type: string } }
+        - { name: org_id,    in: query, schema: { type: string } }
+        - { name: status,    in: query, schema: { type: string, enum: [Draft, Review, Approved, Archived] } }
+        - { name: project,   in: query, schema: { type: string } }
+        - { name: limit,     in: query, schema: { type: integer, default: 200, maximum: 2000 } }
+        - { name: offset,    in: query, schema: { type: integer, default: 0 } }
+      responses:
+        "200":
+          description: Files
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/File" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [Files, Upload]
+      summary: Upload one or more files (multipart)
+      description: |
+        `multipart/form-data`. **Requires `editor` or `admin`.** Body limit 64 MiB
+        (use TUS for larger). `system_id` is **required** (400 otherwise). Repeat the
+        `file` part to upload several at once; the text fields apply to them.
+        Field order does not matter.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, system_id]
+              properties:
+                file:      { type: string, format: binary, description: "The file bytes (repeatable)" }
+                system_id: { type: string, description: "Target system, e.g. sys_hr (required)" }
+                org_id:    { type: string }
+                folder_id: { type: string }
+                project:   { type: string }
+                status:    { type: string, enum: [Draft, Review, Approved, Archived] }
+                owner:     { type: string }
+                tags:      { type: string, description: "JSON array string, e.g. [\"contract\",\"2026\"]" }
+            encoding:
+              file: { contentType: application/octet-stream }
+      responses:
+        "200":
+          description: The created file (single object).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/File" }
+        "400": { description: Missing/unknown system_id, bad body, or over quota }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/files/batch:
+    post:
+      tags: [Files, Upload]
+      summary: Upload multiple files, returns the created list
+      description: Same multipart contract as `POST /api/files`; returns an array. Requires editor/admin.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: array, items: { type: string, format: binary } }
+      responses:
+        "200":
+          description: Created files
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/File" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/files/{id}:
+    parameters: [{ $ref: "#/components/parameters/FileId" }]
+    get:
+      tags: [Files]
+      summary: File detail
+      responses:
+        "200": { description: File, content: { application/json: { schema: { $ref: "#/components/schemas/File" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Files]
+      summary: Update metadata / status (editor+)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:    { type: string }
+                status:  { type: string }
+                project: { type: string }
+                owner:   { type: string }
+                tags:    { type: string }
+                folder_id: { type: string }
+      responses:
+        "200": { description: Updated file, content: { application/json: { schema: { $ref: "#/components/schemas/File" } } } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    delete:
+      tags: [Files, Trash]
+      summary: Soft-delete (editor+) or hard-delete/purge (admin, ?hard=true)
+      parameters:
+        - { name: hard, in: query, schema: { type: boolean }, description: "admin-only; permanently purges" }
+      responses:
+        "204": { description: Deleted }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/files/{id}/download:
+    parameters: [{ $ref: "#/components/parameters/FileId" }]
+    get:
+      tags: [Files]
+      summary: Download file bytes (decrypted); supports ETag + ?version=
+      parameters:
+        - { name: version, in: query, schema: { type: integer } }
+        - { name: If-None-Match, in: header, schema: { type: string } }
+      responses:
+        "200": { description: File bytes, content: { application/octet-stream: { schema: { type: string, format: binary } } } }
+        "304": { description: Not modified }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/files/{id}/versions:
+    parameters: [{ $ref: "#/components/parameters/FileId" }]
+    get:
+      tags: [Files]
+      summary: List version history
+      responses:
+        "200": { description: Versions, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+    post:
+      tags: [Files, Upload]
+      summary: Upload a new version (multipart, editor+)
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: { type: object, properties: { file: { type: string, format: binary }, note: { type: string } } }
+      responses:
+        "200": { description: New version's file, content: { application/json: { schema: { $ref: "#/components/schemas/File" } } } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/files/{id}/restore:
+    parameters: [{ $ref: "#/components/parameters/FileId" }]
+    post:
+      tags: [Trash]
+      summary: Restore a soft-deleted file (editor+)
+      responses:
+        "200": { description: Restored file, content: { application/json: { schema: { $ref: "#/components/schemas/File" } } } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/trash:
+    get:
+      tags: [Trash]
+      summary: List soft-deleted files
+      responses:
+        "200": { description: Trashed files, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/File" } } } } }
+
+  # ─────────────────────── Resumable upload (TUS 1.0.0) ───────────────────────
+  /api/uploads:
+    post:
+      tags: [Upload]
+      summary: Start a chunked, resumable upload (any size — the app uses it for every file)
+      description: |
+        TUS 1.0.0 (`creation` + `termination`). Send `Tus-Resumable: 1.0.0`,
+        `Upload-Length` and `Upload-Metadata` (comma-separated `key base64(value)`).
+
+        **New file** — `filename`, `system_id`, and optionally `folder_id`,
+        `category_code`, `fields` (JSON object), `tags`, `project`, `status`, `org_id`.
+        **New version** — `purpose=version`, `file_id`, optional `note`.
+
+        Every basket rule (access, allowed types, size limit, quota, category,
+        required fields, locked status) is checked HERE, before any byte is sent.
+        Then PATCH chunks (up to `UPLOAD_CHUNK_MAX_MB`, default 64 MB; the app sends
+        8 MB) to the `Location`. If the connection drops, HEAD tells where to carry on.
+        The last PATCH answers with `Upload-File-Id`.
+        Behind an edge that only lets GET/POST through, send POST with
+        `X-HTTP-Method-Override: PATCH|HEAD|DELETE`.
+      responses:
+        "201": { description: Session created; see Location header, headers: { Location: { schema: { type: string } } } }
+    options:
+      tags: [Upload]
+      summary: TUS capability discovery
+      responses:
+        "204": { description: Tus-Version / Tus-Extension headers }
+  /api/uploads/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+    head:
+      tags: [Upload]
+      summary: TUS — current Upload-Offset
+      responses: { "200": { description: Returns Upload-Offset } }
+    patch:
+      tags: [Upload]
+      summary: TUS — append a chunk
+      requestBody:
+        content: { application/offset+octet-stream: { schema: { type: string, format: binary } } }
+      parameters: [{ name: Upload-Offset, in: header, required: true, schema: { type: integer } }]
+      responses:
+        "204": { description: "Chunk stored; new Upload-Offset returned. On the last chunk the file is kept and Upload-File-Id is returned." }
+        "409": { description: Upload-Offset is not where the server is — HEAD and carry on from there }
+        "400": { description: "A rule refused the file (the upload ends and its bytes are freed)" }
+    delete:
+      tags: [Upload]
+      summary: TUS — terminate/abort the session
+      responses: { "204": { description: Aborted } }
+
+  # ─────────────────────────── Search ───────────────────────────
+  /api/search:
+    get:
+      tags: [Search]
+      summary: Full-text search (name, tags, owner, extracted PDF/txt content)
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Matching files, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/File" } } } } }
+
+  # ─────────────────────────── Folders ───────────────────────────
+  /api/folders:
+    get:
+      tags: [Folders]
+      summary: List folders (filter by ?system_id=)
+      parameters: [{ name: system_id, in: query, schema: { type: string } }]
+      responses: { "200": { description: Folders, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Folder" } } } } } }
+    post:
+      tags: [Folders]
+      summary: Create a folder (editor+)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, system_id]
+              properties:
+                name:      { type: string }
+                system_id: { type: string }
+                org_id:    { type: string }
+                color:     { type: string }
+                encrypted: { type: boolean }
+      responses:
+        "200": { description: Created folder, content: { application/json: { schema: { $ref: "#/components/schemas/Folder" } } } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/folders/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+    delete:
+      tags: [Folders]
+      summary: Delete a folder (editor+)
+      responses: { "204": { description: Deleted }, "403": { $ref: "#/components/responses/Forbidden" } }
+
+  # ─────────────────────────── Sharing ───────────────────────────
+  /api/files/{id}/share:
+    parameters: [{ $ref: "#/components/parameters/FileId" }]
+    post:
+      tags: [Sharing]
+      summary: Create a public link (Edit; basket policy must allow public links — never in a Vault)
+      description: Always expires (1–30 days, default 7). Optional password (stored hashed) and download limit. The token is 256-bit random.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expires_in_days: { type: integer, minimum: 1, maximum: 30, default: 7 }
+                password:        { type: string, minLength: 6 }
+                max_downloads:   { type: integer, minimum: 1 }
+                note:            { type: string }
+      responses:
+        "200":
+          description: Share link
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:      { type: string }
+                  url:        { type: string }
+                  expires_at: { type: string, format: date-time, nullable: true }
+                  file:       { $ref: "#/components/schemas/File" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/share/{token}:
+    parameters: [{ name: token, in: path, required: true, schema: { type: string } }]
+    get:
+      tags: [Sharing]
+      summary: Public — minimal share info (name, size, type, expiry, needs_password)
+      description: Wrong or expired tokens are throttled per client IP (429 after 20 misses a minute). A trashed file or a revoked link returns 404.
+      security: []
+      responses:
+        "200": { description: "{name, size, mime, expires_at, needs_password, downloads_left}" }
+        "429": { description: Too many wrong tokens }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/share/{token}/download:
+    parameters: [{ name: token, in: path, required: true, schema: { type: string } }]
+    get:
+      tags: [Sharing]
+      summary: Public — download a shared file (no auth)
+      security: []
+      responses:
+        "200": { description: File bytes (stamped where the basket stamps), content: { application/octet-stream: { schema: { type: string, format: binary } } } }
+        "401": { description: Link has a password — use POST }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "410": { description: Download limit reached }
+    post:
+      tags: [Sharing]
+      summary: Public — download a password-protected link
+      security: []
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [password], properties: { password: { type: string } } } } } }
+      responses:
+        "200": { description: File bytes }
+        "401": { description: Wrong password (counts toward throttling) }
+        "410": { description: Download limit reached }
+  /api/permissions/{file_id}:
+    parameters: [{ name: file_id, in: path, required: true, schema: { type: string } }]
+    get:
+      tags: [Sharing]
+      summary: List explicit permissions on a file
+      responses: { "200": { description: Permissions, content: { application/json: { schema: { type: array, items: { type: object } } } } } }
+
+  # ─────────────────────────── Comments / Workflow ───────────────────────────
+  /api/files/{id}/comments:
+    parameters: [{ $ref: "#/components/parameters/FileId" }]
+    get:
+      tags: [Comments]
+      summary: List comments
+      responses: { "200": { description: Comments, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Comment" } } } } } }
+    post:
+      tags: [Comments]
+      summary: Add a comment (any signed-in role, incl. viewer)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties: { body: { type: string }, parent_id: { type: string, nullable: true } }
+      responses: { "200": { description: Created comment, content: { application/json: { schema: { $ref: "#/components/schemas/Comment" } } } } }
+  /api/files/{id}/comments/{comment_id}:
+    parameters:
+      - { $ref: "#/components/parameters/FileId" }
+      - { name: comment_id, in: path, required: true, schema: { type: string } }
+    delete:
+      tags: [Comments]
+      summary: Delete a comment
+      responses: { "204": { description: Deleted } }
+  /api/files/{id}/workflow:
+    parameters: [{ $ref: "#/components/parameters/FileId" }]
+    get: { tags: [Workflow], summary: List review workflows + steps, responses: { "200": { description: Workflows } } }
+    post: { tags: [Workflow], summary: Start a review workflow (editor+), responses: { "200": { description: Started }, "403": { $ref: "#/components/responses/Forbidden" } } }
+  /api/workflow-steps/{id}/decision:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+    post:
+      tags: [Workflow]
+      summary: Approve/reject a workflow step (editor+)
+      requestBody:
+        content: { application/json: { schema: { type: object, properties: { decision: { type: string, enum: [approved, rejected] }, note: { type: string } } } } }
+      responses: { "200": { description: Recorded }, "403": { $ref: "#/components/responses/Forbidden" } }
+
+  # ─────────────────────────── Notifications ───────────────────────────
+  /api/notifications:
+    get: { tags: [Notifications], summary: List notifications, responses: { "200": { description: Notifications } } }
+  /api/notifications/unread-count:
+    get: { tags: [Notifications], summary: Unread count, responses: { "200": { description: "{ count }" } } }
+  /api/notifications/{id}/read:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+    post: { tags: [Notifications], summary: Mark a notification read, responses: { "200": { description: OK } } }
+
+  # ─────────────────────────── Views / Activity / Reports ───────────────────────────
+  /api/views:
+    get: { tags: [Views], summary: List saved views, responses: { "200": { description: Views, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/View" } } } } } } }
+    post:
+      tags: [Views]
+      summary: Create a saved view (any signed-in role)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:    { type: string }
+                layout:  { type: string, enum: [table, board, gallery, calendar, timeline] }
+                color:   { type: string }
+                pinned:  { type: boolean }
+                filters: { type: array, items: { type: object, properties: { field: { type: string }, op: { type: string }, value: {} } } }
+      responses: { "200": { description: Created view, content: { application/json: { schema: { $ref: "#/components/schemas/View" } } } } }
+  /api/activity:
+    get:
+      tags: [Reports]
+      summary: Recent activity feed
+      parameters: [{ name: limit, in: query, schema: { type: integer, default: 20 } }]
+      responses: { "200": { description: Activity, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Activity" } } } } } }
+  /api/stats:
+    get:
+      tags: [Reports]
+      summary: Dashboard stats (totals, quota, storage-by-system, connected systems)
+      responses: { "200": { description: Stats, content: { application/json: { schema: { $ref: "#/components/schemas/Stats" } } } } }
+  /api/reports/by-category:
+    get: { tags: [Reports], summary: Report — counts/size by category, responses: { "200": { description: Report } } }
+  /api/reports/by-time:
+    get: { tags: [Reports], summary: Report — activity over time, responses: { "200": { description: Report } } }
+
+  # ─────────────────────────── Systems & Orgs ───────────────────────────
+  /api/systems:
+    get: { tags: [Systems & Orgs], summary: List systems (buckets), responses: { "200": { description: Systems, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/System" } } } } } } }
+    post: { tags: [Systems & Orgs], summary: Create a system/bucket (admin), responses: { "200": { description: Created }, "403": { $ref: "#/components/responses/Forbidden" } } }
+  /api/systems/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+    patch: { tags: [Systems & Orgs], summary: Rename/update a system (admin), responses: { "200": { description: Updated }, "403": { $ref: "#/components/responses/Forbidden" } } }
+    delete: { tags: [Systems & Orgs], summary: Delete a system (admin), responses: { "204": { description: Deleted }, "403": { $ref: "#/components/responses/Forbidden" } } }
+  /api/orgs:
+    get:
+      tags: [Systems & Orgs]
+      summary: List orgs (filter by ?system_id=)
+      parameters: [{ name: system_id, in: query, schema: { type: string } }]
+      responses: { "200": { description: Orgs, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Org" } } } } } }
+  /api/orgs/{id}/quota:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+    patch: { tags: [Admin], summary: Set per-org quota (admin), responses: { "200": { description: Updated }, "403": { $ref: "#/components/responses/Forbidden" } } }
+  /api/personal-drive:
+    get: { tags: [Systems & Orgs], summary: The caller's personal "My Drive" system, responses: { "200": { description: System } } }
+
+  # ─────────────────────────── Admin ───────────────────────────
+  /api/workspace:
+    get: { tags: [Admin], summary: Workspace config (name, quota, access flags), responses: { "200": { description: k/v map } } }
+    patch: { tags: [Admin], summary: Update workspace config (admin), responses: { "200": { description: Updated }, "403": { $ref: "#/components/responses/Forbidden" } } }
+  /api/users:
+    get: { tags: [Admin], summary: List members (editor+), responses: { "200": { description: Members } } }
+    post: { tags: [Admin], summary: Invite a member (admin), responses: { "200": { description: Created }, "403": { $ref: "#/components/responses/Forbidden" } } }
+  /api/users/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+    patch: { tags: [Admin], summary: Update a member's role/status (admin), responses: { "200": { description: Updated }, "403": { $ref: "#/components/responses/Forbidden" } } }
+  /api/users/{id}/quota:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+    patch: { tags: [Admin], summary: Set per-user quota (admin), responses: { "200": { description: Updated }, "403": { $ref: "#/components/responses/Forbidden" } } }
+  /api/quota:
+    get: { tags: [Admin], summary: Quota usage report, responses: { "200": { description: Report } } }
+  /api/rotation/policies:
+    get: { tags: [Admin], summary: List rotation policies, responses: { "200": { description: Policies } } }
+    post: { tags: [Admin], summary: Upsert a rotation policy (admin), responses: { "200": { description: Saved }, "403": { $ref: "#/components/responses/Forbidden" } } }
+  /api/rotation/policies/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+    delete: { tags: [Admin], summary: Delete a rotation policy (admin), responses: { "204": { description: Deleted }, "403": { $ref: "#/components/responses/Forbidden" } } }
+  /api/rotation/run:
+    post: { tags: [Admin], summary: Run the rotation engine now (admin), responses: { "200": { description: Ran }, "403": { $ref: "#/components/responses/Forbidden" } } }
+  /api/rotation/runs:
+    get: { tags: [Admin], summary: List rotation runs, responses: { "200": { description: Runs } } }
+
+  # ─────────────────────────── API keys (machine-to-machine) ───────────────────────────
+  /api/api-keys:
+    get:
+      tags: [Admin]
+      summary: List API keys (admin) — never returns the secret
+      responses: { "200": { description: Keys }, "403": { $ref: "#/components/responses/Forbidden" } }
+    post:
+      tags: [Admin]
+      summary: Create an API key (admin). Returns the plaintext key ONCE.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, user_id]
+              properties:
+                name: { type: string, example: "CI uploader" }
+                user_id: { type: string, description: "Service-account user the key authenticates as", example: "usr_anong" }
+                expires_in_days: { type: integer, nullable: true, example: 90 }
+      responses:
+        "200":
+          description: Created — `key` is shown once; store it now (only its hash is kept).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  key: { type: string, example: "fhk_83jVunWus0I0..." }
+                  id: { type: string, format: uuid }
+                  name: { type: string }
+                  key_prefix: { type: string, example: "fhk_83jVunWu" }
+                  user_id: { type: string }
+                  expires_at: { type: string, format: date-time, nullable: true }
+        "400": { description: Invalid name or user_id }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/api-keys/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    delete:
+      tags: [Admin]
+      summary: Revoke an API key (admin). Immediate; the key stops working.
+      responses: { "204": { description: Revoked }, "403": { $ref: "#/components/responses/Forbidden" }, "404": { $ref: "#/components/responses/NotFound" } }
+
+  # ─────────────────────────── Health ───────────────────────────
+  /api/health:
+    get: { tags: [Health], summary: Liveness (cheap static "ok"), security: [], responses: { "200": { description: ok } } }
+  /api/ready:
+    get: { tags: [Health], summary: Readiness (real DB + storage round-trip), security: [], responses: { "200": { description: ready }, "503": { description: not ready } } }
+
+  # ─────────────────────────── Baskets (settings) ───────────────────────────
+  /api/baskets/{id}/settings:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string }, description: "Basket id (systems.id)" }]
+    get:
+      tags: [Baskets]
+      summary: Categories, fields, statuses (+ moves), policy of a basket
+      responses:
+        "200": { description: Settings, content: { application/json: { schema: { $ref: "#/components/schemas/BasketSettings" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [Baskets]
+      summary: Replace a basket's settings (Manage on the basket)
+      description: |
+        One transaction. Exactly one initial status. A status still used by files
+        can't be removed. A Vault keeps encrypt=true, public_links=false and
+        stamp_downloads=true whatever is sent.
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/BasketSettings" } } } }
+      responses:
+        "200": { description: Saved settings, content: { application/json: { schema: { $ref: "#/components/schemas/BasketSettings" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/files/{id}/status:
+    parameters: [{ $ref: "#/components/parameters/FileId" }]
+    get:
+      tags: [Baskets]
+      summary: Statuses the caller may move this file to now
+      responses: { "200": { description: "[{code, label, color}]" } }
+    post:
+      tags: [Baskets]
+      summary: Change status (allowed moves and required level come from the basket)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [to], properties: { to: { type: string, example: Review }, comment: { type: string } } } } }
+      responses:
+        "200": { description: "{id, status, label}" }
+        "400": { description: Move not allowed by the basket }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/move:
+    post:
+      tags: [Folders]
+      summary: Move files and/or whole folders (same or another basket)
+      description: Edit on every source and on the destination. A folder can't move into itself. Files moved into a folder that requires encryption are encrypted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_system_id]
+              properties:
+                file_ids: { type: array, items: { type: string, format: uuid } }
+                folder_ids: { type: array, items: { type: string } }
+                target_system_id: { type: string }
+                target_folder_id: { type: string, nullable: true, description: "null = basket root" }
+      responses: { "200": { description: "{moved_files, moved_folders, target}" }, "400": { $ref: "#/components/responses/BadRequest" } }
+  /api/folders/{id}/policy:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+    get:
+      tags: [Folders]
+      summary: A folder's own policy and the effective one (with inheritance)
+      responses: { "200": { description: "{own, effective, server_has_key}" } }
+    put:
+      tags: [Folders]
+      summary: Set a folder's policy (Manage). encrypt=true encrypts files already inside.
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Policy" } } } }
+      responses: { "200": { description: "{encrypted_now}" } }
+  /api/files/{id}/encrypt:
+    parameters: [{ $ref: "#/components/parameters/FileId" }]
+    post:
+      tags: [Files]
+      summary: Encrypt one stored file and its earlier versions (Manage)
+      responses: { "200": { description: "{encrypted, changed}" } }
+  /api/files/{id}/preview:
+    parameters: [{ $ref: "#/components/parameters/FileId" }]
+    get:
+      tags: [Files]
+      summary: View the file in the browser — PDF as is; Word/Excel/PowerPoint converted to PDF
+      description: Stamped (see Stamp) where the basket stamps downloads. Range supported for PDFs.
+      responses: { "200": { description: application/pdf }, "404": { $ref: "#/components/responses/NotFound" } }
+  /api/files/{id}/activity:
+    parameters: [{ $ref: "#/components/parameters/FileId" }]
+    get: { tags: [Files], summary: Activity of one file (views/downloads of Vault files included), responses: { "200": { description: Activity rows } } }
+  # ─────────────────────────── Access ───────────────────────────
+  /api/acl/{rtype}/{rid}:
+    parameters:
+      - { name: rtype, in: path, required: true, schema: { type: string, enum: [basket, folder, file] } }
+      - { name: rid, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Access]
+      summary: Grants on a basket/folder/file, inherited grants, and the caller's level
+      responses: { "200": { description: "{entries, inherited, inherit, my_level}" } }
+    put:
+      tags: [Access]
+      summary: Replace the grants on one resource (Manage; Edit may only add View = forward)
+      description: |
+        Principals: `user:<id>`, `org:<org id>`, `iamx:<ROLE>`, `role:<admin|editor|viewer>`, `everyone`.
+        Levels: view · edit · manage. `notify: true` sends a notification to people added (Forward).
+        Folders: `inherit: false` stops grants from above applying.
+        Vault: never `everyone`/`role:`; always at least one manage.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [entries]
+              properties:
+                entries: { type: array, items: { type: object, properties: { principal: { type: string, example: "org:org_mof" }, level: { type: string, enum: [view, edit, manage] }, expires_at: { type: string, format: date-time } } } }
+                inherit: { type: boolean }
+                notify: { type: boolean }
+                message: { type: string }
+      responses: { "200": { description: Same as GET }, "400": { $ref: "#/components/responses/BadRequest" }, "403": { $ref: "#/components/responses/Forbidden" } }
+  /api/acl/{rtype}/{rid}/effective:
+    parameters:
+      - { name: rtype, in: path, required: true, schema: { type: string, enum: [basket, folder, file] } }
+      - { name: rid, in: path, required: true, schema: { type: string } }
+    get: { tags: [Access], summary: "The caller's level and allowed actions", responses: { "200": { description: "{level, actions[]}" } } }
+  /api/principals:
+    get:
+      tags: [Access]
+      summary: Search people, agencies, roles, IAMX roles to share with
+      parameters: [{ name: q, in: query, schema: { type: string } }]
+      responses: { "200": { description: "[{principal, label, kind, detail}]" } }
+  /api/me/shared:
+    get: { tags: [Access], summary: Files and folders shared with the caller directly or through agency/IAMX role, responses: { "200": { description: Rows } } }
+  /api/me/review:
+    get: { tags: [Access], summary: "Files in an 'awaits review' status the caller can approve (Manage), excluding own uploads", responses: { "200": { description: Rows } } }
+  # ─────────────────────────── Virtual baskets ───────────────────────────
+  /api/vbaskets:
+    get: { tags: [Virtual baskets], summary: Virtual baskets the caller can open, responses: { "200": { description: List } } }
+    post:
+      tags: [Virtual baskets]
+      summary: Create a virtual basket (rules over files that live in real baskets)
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/VBasketIn" } } } }
+      responses: { "200": { description: Virtual basket }, "400": { $ref: "#/components/responses/BadRequest" } }
+  /api/vbaskets/preview:
+    post:
+      tags: [Virtual baskets]
+      summary: Count and first 20 files that match rules (nothing saved)
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/VBasketIn" } } } }
+      responses: { "200": { description: "{count, bytes, items[]}" } }
+  /api/vbaskets/fields:
+    get:
+      tags: [Virtual baskets]
+      summary: Fields usable in rules and Group by for given sources (system fields + fields all sources share)
+      parameters: [{ name: sources, in: query, schema: { type: string }, description: Comma-separated basket ids }, { name: all, in: query, schema: { type: boolean } }]
+      responses: { "200": { description: "[{key, label, kind, choices, system}]" } }
+  /api/vbaskets/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+    get: { tags: [Virtual baskets], summary: One virtual basket, responses: { "200": { description: Virtual basket } } }
+    put: { tags: [Virtual baskets], summary: Update (creator or admin), requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/VBasketIn" } } } }, responses: { "200": { description: Virtual basket } } }
+    delete: { tags: [Virtual baskets], summary: Delete (files stay where they are), responses: { "204": { description: Deleted } } }
+  /api/vbaskets/{id}/tree:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+      - { name: path, in: query, schema: { type: string }, description: "Group values so far, '/'-separated and URL-encoded; __none__ = no value" }
+      - { name: q, in: query, schema: { type: string } }
+    get: { tags: [Virtual baskets], summary: "Groups at the next level, or files at the last level", responses: { "200": { description: "{level, level_label, path, groups[], items[], total, bytes}" } } }
+  /api/vbaskets/{id}/excludes:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+    post: { tags: [Virtual baskets], summary: Hide one file from this view, requestBody: { content: { application/json: { schema: { type: object, properties: { file_id: { type: string, format: uuid } } } } } }, responses: { "204": { description: Hidden } } }
+  /api/files/{id}/appears-in:
+    parameters: [{ $ref: "#/components/parameters/FileId" }]
+    get: { tags: [Virtual baskets], summary: Virtual baskets this file shows up in, responses: { "200": { description: List } } }
+  /api/me/downloads:
+    get: { tags: [Virtual baskets], summary: The caller's download list, responses: { "200": { description: "[{item, label, files}]" } } }
+    put:
+      tags: [Virtual baskets]
+      summary: Replace the download list
+      requestBody: { required: true, content: { application/json: { schema: { type: array, items: { oneOf: [ { type: object, properties: { kind: { const: file }, id: { type: string } } }, { type: object, properties: { kind: { const: folder }, id: { type: string } } }, { type: object, properties: { kind: { const: vgroup }, vbasket_id: { type: string }, path: { type: array, items: { type: string } } } } ] } } } } }
+      responses: { "200": { description: The list } }
+  /api/me/downloads/zip:
+    post: { tags: [Virtual baskets], summary: Download the list as one zip (only files the caller may view), responses: { "200": { description: application/zip } } }
+  # ─────────────────────────── Upload links ───────────────────────────
+  /api/upload-links:
+    get:
+      tags: [Upload links]
+      summary: Live upload links of a basket or folder (Edit)
+      parameters: [{ name: system_id, in: query, required: true, schema: { type: string } }, { name: folder_id, in: query, schema: { type: string } }]
+      responses: { "200": { description: Links } }
+    post:
+      tags: [Upload links]
+      summary: Create an upload link (people drop files into a folder through a form)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [system_id, title], properties: { system_id: { type: string }, folder_id: { type: string }, title: { type: string }, message: { type: string }, require_login: { type: boolean }, expires_in_days: { type: integer, minimum: 1, maximum: 90 }, max_files: { type: integer } } } } }
+      responses: { "200": { description: "Link (token → /filehub/u/{token})" } }
+  /api/upload/{token}/chunks:
+    parameters: [{ name: token, in: path, required: true, schema: { type: string } }]
+    post:
+      tags: [Upload links]
+      summary: "Public — start a chunked upload through an upload link"
+      description: "Same as POST /api/uploads. Metadata: filename, submitter_name (required unless signed in), submitter_email, category_code, fields. Name, required fields, type and size are checked before any byte is sent."
+      security: []
+      responses: { "201": { description: "Location = chunks/{id}" }, "400": { $ref: "#/components/responses/BadRequest" } }
+  /api/upload/{token}/chunks/{id}:
+    parameters: [{ name: token, in: path, required: true, schema: { type: string } }, { name: id, in: path, required: true, schema: { type: string } }]
+    head: { tags: [Upload links], summary: "Public — how much the server has", security: [], responses: { "200": { description: Upload-Offset } } }
+    patch: { tags: [Upload links], summary: "Public — send the next chunk", security: [], responses: { "204": { description: Stored; the last chunk puts the file in the folder } } }
+    delete: { tags: [Upload links], summary: "Public — cancel", security: [], responses: { "204": { description: Cancelled } } }
+  /api/upload-links/{token}:
+    parameters: [{ name: token, in: path, required: true, schema: { type: string } }]
+    delete: { tags: [Upload links], summary: Turn an upload link off, responses: { "204": { description: Off } } }
+  /api/upload/{token}:
+    parameters: [{ name: token, in: path, required: true, schema: { type: string } }]
+    get: { tags: [Upload links], summary: "Public — form details (title, folder, fields, allowed types)", security: [], responses: { "200": { description: Form } } }
+    post:
+      tags: [Upload links]
+      summary: "Public — send files (multipart with name, email, category_code, fields JSON, file…)"
+      security: []
+      requestBody: { required: true, content: { multipart/form-data: { schema: { type: object, properties: { name: { type: string }, email: { type: string }, fields: { type: string, description: JSON object }, file: { type: string, format: binary } } } } } }
+      responses: { "200": { description: "{uploaded[], failed[]}" }, "400": { $ref: "#/components/responses/BadRequest" } }
+  # ─────────────────────────── Public links (hardened) ───────────────────────────
+  /api/files/{id}/links:
+    parameters: [{ $ref: "#/components/parameters/FileId" }]
+    get: { tags: [Sharing], summary: "Live public links of a file with use counts (Edit)", responses: { "200": { description: Links } } }
+  /api/share-links/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    delete: { tags: [Sharing], summary: Turn a public link off, responses: { "204": { description: Off } } }
+  # ─────────────────────────── S3 keys ───────────────────────────
+  /api/s3-credentials:
+    get: { tags: [S3], summary: S3 access keys (admin), responses: { "200": { description: Keys } } }
+    post:
+      tags: [S3]
+      summary: Create an S3 access key that acts as a user (secret shown once)
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [label], properties: { label: { type: string }, user_id: { type: string } } } } } }
+      responses: { "200": { description: "{access_key_id, secret_access_key}" } }
+  /api/s3-credentials/{ak}:
+    parameters: [{ name: ak, in: path, required: true, schema: { type: string } }]
+    delete: { tags: [S3], summary: Revoke (stops working at once), responses: { "204": { description: Revoked } } }
+  /api/s3-endpoint:
+    get: { tags: [S3], summary: "Where the S3-compatible API listens", responses: { "200": { description: "{enabled, port, public_url}" } } }
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: filehub_session
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: >-
+        Either a FileHub API key (`fhk_…`, a service account made by an admin via
+        POST /api/api-keys) or an IAMX / Keycloak access token (JWT) — the calling
+        system forwards the token of the signed-in person and FileHub acts as
+        that person (same account as their browser SSO, matched by `sub`).
+
+  parameters:
+    FileId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    BadRequest:
+      description: Invalid input or rule broken (message says which)
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Unauthorized:
+      description: No / invalid session
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Forbidden:
+      description: Authenticated but role not permitted
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    NotFound:
+      description: Not found (or not visible to the caller)
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+    Credentials:
+      type: object
+      required: [email, password]
+      properties:
+        email:    { type: string, format: email, example: anong@acme.go.th }
+        password: { type: string, example: anong123 }
+    User:
+      type: object
+      properties:
+        id:           { type: string, example: usr_anong }
+        email:        { type: string, format: email }
+        display_name: { type: string }
+        avatar_tone:  { type: string }
+        role:         { type: string, enum: [admin, editor, viewer] }
+        status:       { type: string, example: active }
+        created_at:   { type: string, format: date-time }
+    File:
+      type: object
+      properties:
+        id:          { type: string, format: uuid }
+        name:        { type: string }
+        file_type:   { type: string, example: pdf }
+        size_bytes:  { type: integer }
+        system_id:   { type: string, example: sys_hr }
+        org_id:      { type: string, nullable: true }
+        folder_id:   { type: string, nullable: true }
+        bucket:      { type: string, example: hr-emp-files }
+        object_key:  { type: string }
+        project:     { type: string, nullable: true }
+        status:      { type: string, enum: [Draft, Review, Approved, Archived] }
+        owner:       { type: string }
+        tags:        { type: string, description: "JSON array string", example: "[\"contract\",\"2026\"]" }
+        version:     { type: integer }
+        metadata:    { type: string, description: "JSON object string" }
+        etag:        { type: string, nullable: true }
+        encrypted:   { type: boolean }
+        created_by:  { type: string, nullable: true }
+        created_at:  { type: string, format: date-time }
+        modified_at: { type: string, format: date-time }
+        deleted_at:  { type: string, format: date-time, nullable: true }
+    Folder:
+      type: object
+      properties:
+        id:        { type: string }
+        name:      { type: string }
+        system_id: { type: string }
+        org_id:    { type: string, nullable: true }
+        color:     { type: string, nullable: true }
+        encrypted: { type: boolean }
+    System:
+      type: object
+      properties:
+        id:          { type: string, example: sys_hr }
+        name:        { type: string }
+        bucket:      { type: string }
+        tone:        { type: string }
+        system_type: { type: string, enum: [shared, personal] }
+    Org:
+      type: object
+      properties:
+        id:        { type: string }
+        name:      { type: string }
+        code:      { type: string }
+        system_id: { type: string }
+    View:
+      type: object
+      properties:
+        id:      { type: string, example: vw_abc123 }
+        name:    { type: string }
+        layout:  { type: string }
+        filters: { type: string, description: "JSON array string of {field,op,value}" }
+        pinned:  { type: boolean }
+        color:   { type: string, nullable: true }
+        created_by: { type: string }
+        created_at: { type: string, format: date-time }
+    Comment:
+      type: object
+      properties:
+        id:           { type: string, format: uuid }
+        file_id:      { type: string, format: uuid }
+        user_id:      { type: string, nullable: true }
+        parent_id:    { type: string, nullable: true }
+        body:         { type: string }
+        display_name: { type: string }
+        avatar_tone:  { type: string }
+        created_at:   { type: string, format: date-time }
+    Activity:
+      type: object
+      properties:
+        id:          { type: string, format: uuid }
+        actor:       { type: string }
+        actor_tone:  { type: string }
+        action:      { type: string }
+        target:      { type: string, nullable: true }
+        target_type: { type: string, nullable: true }
+        file_id:     { type: string, nullable: true }
+        system_id:   { type: string, nullable: true }
+        org_id:      { type: string, nullable: true }
+        created_at:  { type: string, format: date-time }
+    Stats:
+      type: object
+      properties:
+        total_files:       { type: integer }
+        total_size_bytes:  { type: integer }
+        total_quota_bytes: { type: integer }
+        active_orgs:       { type: integer }
+        awaiting_review:   { type: integer }
+        connected_systems: { type: array, items: { type: object } }
+        storage_by_system: { type: array, items: { type: object } }
+    Policy:
+      type: object
+      properties:
+        allowed_ext: { type: array, items: { type: string }, example: [pdf, docx] }
+        max_size_mb: { type: integer }
+        encrypt: { type: boolean }
+        public_links: { type: boolean }
+        stamp_downloads: { type: boolean, description: "Stamp name, time and a copy code on PDFs when downloaded/viewed" }
+        retention_days: { type: integer }
+    BasketSettings:
+      type: object
+      properties:
+        categories: { type: array, items: { type: object, properties: { code: { type: string }, label: { type: string } } } }
+        fields: { type: array, items: { type: object, properties: { key: { type: string }, label: { type: string }, kind: { type: string, enum: [text, number, date, choice] }, required: { type: boolean }, choices: { type: array, items: { type: string } } } } }
+        statuses: { type: array, items: { type: object, properties: { code: { type: string }, label: { type: string }, initial: { type: boolean }, locked: { type: boolean }, awaits_review: { type: boolean }, moves: { type: array, items: { type: string } } } } }
+        policy: { $ref: "#/components/schemas/Policy" }
+    VBasketIn:
+      type: object
+      required: [name, sources]
+      properties:
+        name: { type: string }
+        sources: { type: array, items: { type: string }, description: "Real basket ids" }
+        rules: { type: array, items: { type: object, properties: { field: { type: string, example: sys.format }, op: { type: string, enum: [eq, ne, in, contains, gt, lt, between, empty] }, value: {} } } }
+        group_by: { type: array, items: { type: string }, example: [agency, fiscal_year] }
+        drop_target: { type: object, description: "Basket/folder that files dropped here go to, with fields prefilled from the group" }
