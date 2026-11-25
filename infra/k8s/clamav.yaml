@@ -1,0 +1,113 @@
+# clamd for FileHub's malware scan (CLAMAV_HOST=clamav:3310, CLAMAV_REQUIRED=true).
+# Official image; freshclam runs inside each pod and keeps the signatures current
+# (needs outbound HTTPS to database.clamav.net). Two replicas on different nodes
+# where possible; a pod only receives traffic once clamd has loaded the
+# signatures and answers PING. Each pod keeps its signatures on its own volume,
+# so a restart doesn't download them again.
+# Apply: kubectl -n <namespace> apply -f clamav.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clamav-config
+  labels: { app: clamav }
+data:
+  clamd.conf: |
+    Foreground yes
+    LogTime yes
+    LogClean no
+    DatabaseDirectory /var/lib/clamav
+    LocalSocket /tmp/clamd.sock
+    TCPSocket 3310
+    TCPAddr 0.0.0.0
+    # FileHub streams at most the first 100 MB of a file (scan.rs CLAM_MAX).
+    StreamMaxLength 100M
+    MaxFileSize 100M
+    MaxScanSize 400M
+    # Reload signatures in place, so RAM doesn't double during an update.
+    ConcurrentDatabaseReload no
+    MaxThreads 8
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: clamav
+  labels: { app: clamav }
+spec:
+  serviceName: clamav
+  replicas: 2
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels: { app: clamav }
+  template:
+    metadata:
+      labels: { app: clamav }
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels: { app: clamav }
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: clamav
+          image: clamav/clamav:1.4.7
+          ports:
+            - { name: clamd, containerPort: 3310, protocol: TCP }
+          resources:
+            requests: { cpu: 200m, memory: 1536Mi }
+            limits: { cpu: "2", memory: 3Gi }
+          volumeMounts:
+            - { name: config, mountPath: /etc/clamav/clamd.conf, subPath: clamd.conf }
+            - { name: signatures, mountPath: /var/lib/clamav }
+          # Ready only when clamd has loaded the signatures and answers PING.
+          startupProbe:
+            exec: { command: ["clamdscan", "--no-summary", "--ping", "1"] }
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 90
+          readinessProbe:
+            exec: { command: ["clamdscan", "--no-summary", "--ping", "1"] }
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 2
+          livenessProbe:
+            exec: { command: ["clamdscan", "--no-summary", "--ping", "1"] }
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+      volumes:
+        - name: config
+          configMap: { name: clamav-config }
+  volumeClaimTemplates:
+    - metadata:
+        name: signatures
+        labels: { app: clamav }
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        # NFS: the Cinder driver isn't on every node.
+        storageClassName: nfs-standard
+        resources:
+          requests: { storage: 2Gi }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: clamav
+  labels: { app: clamav }
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: clamav }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clamav
+  labels: { app: clamav }
+spec:
+  selector: { app: clamav }
+  ports:
+    - { name: clamd, port: 3310, targetPort: 3310, protocol: TCP }
