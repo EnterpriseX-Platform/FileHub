@@ -72,6 +72,7 @@ pub async fn by_token(db: &sqlx::PgPool, headers: &HeaderMap) -> ApiResult<Optio
         // (the uploading page's path prefix) rather than the catch-all connector,
         // so each app's calls, files and service account are its own.
         c = by_referer(db, headers).await?;
+        if c.is_none() { c = by_source_header(db, headers).await?; }
         if c.is_none() {
             c = sqlx::query_as(&format!("SELECT {COLS} FROM connectors WHERE kind = $1 AND enabled AND trust_callers ORDER BY created_at LIMIT 1"))
                 .bind(LEGACY).fetch_optional(db).await?;
@@ -91,6 +92,19 @@ async fn by_referer(db: &sqlx::PgPool, headers: &HeaderMap) -> ApiResult<Option<
     ).bind(LEGACY).fetch_all(db).await?;
     let Some(id) = rows.into_iter().find(|(_, p)| prefix_matches(&referer, p)).map(|(id, _)| id) else { return Ok(None) };
     Ok(sqlx::query_as(&format!("SELECT {COLS} FROM connectors WHERE id = $1")).bind(id).fetch_optional(db).await?)
+}
+
+/// The connector of the source system a caller names in `x-filehub-source`
+/// (e.g. `PDP`, `C1`) — for back-ends that upload without a page `Referer`.
+/// The system's page prefixes (layout sources) pick the connector.
+async fn by_source_header(db: &sqlx::PgPool, headers: &HeaderMap) -> ApiResult<Option<Connector>> {
+    let Some(code) = headers.get("x-filehub-source").and_then(|v| v.to_str().ok()).map(str::trim).filter(|v| !v.is_empty()) else { return Ok(None) };
+    Ok(sqlx::query_as(&format!(
+        "SELECT {COLS} FROM connectors c WHERE c.kind = $1 AND c.enabled AND EXISTS (\
+           SELECT 1 FROM layout_sources ls, unnest(ls.path_prefixes) p \
+           WHERE upper(ls.code) = upper($2) AND lower(p) = ANY (SELECT lower(x) FROM unnest(c.path_prefixes) x)) \
+         ORDER BY c.created_at LIMIT 1"
+    )).bind(LEGACY).bind(code).fetch_optional(db).await?)
 }
 
 /// The lower-cased `Referer`, if any.
