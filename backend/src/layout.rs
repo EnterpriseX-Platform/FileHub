@@ -80,6 +80,11 @@ impl Hint {
     pub fn is_empty(&self) -> bool { self.org_code.is_none() && self.source_code.is_none() }
 }
 
+impl Settings {
+    /// Folder for files whose organisation is not known yet.
+    pub fn unassigned_name(&self) -> String { "Unassigned organisation".into() }
+}
+
 /// The basket that has a layout (one per deployment).
 pub async fn settings(db: &PgPool) -> Option<Settings> {
     sqlx::query_as("SELECT system_id, current_year, fy_start_month, year_offset, main_name, support_name FROM layout_settings WHERE enabled ORDER BY system_id LIMIT 1")
@@ -104,7 +109,9 @@ async fn source_for(db: &PgPool, sys: &str, h: &Hint) -> ApiResult<Option<Source
     let rows: Vec<(String, String)> = sqlx::query_as(
         "SELECT code, lower(p) FROM layout_sources, unnest(path_prefixes) p WHERE system_id = $1",
     ).bind(sys).fetch_all(db).await?;
-    let Some(code) = rows.into_iter().find(|(_, p)| !p.is_empty() && (referer.contains(&format!("/{p}/")) || referer.ends_with(&format!("/{p}"))))
+    let mut rows = rows;
+    rows.sort_by_key(|(_, p)| std::cmp::Reverse(p.len()));
+    let Some(code) = rows.into_iter().find(|(_, p)| crate::connectors::prefix_matches(&referer, p))
         .map(|(c, _)| c) else { return Ok(None) };
     Ok(sqlx::query_as("SELECT code, folder_name, grp, keep_versions FROM layout_sources WHERE system_id = $1 AND code = $2")
         .bind(sys).bind(code).fetch_optional(db).await?)
@@ -218,9 +225,22 @@ pub async fn place(db: &PgPool, h: &Hint, uploader: Option<&User>) -> ApiResult<
         return Ok(Some(Placement { system_id: st.system_id, folder_id: folder, org_id: org.as_ref().map(|o| o.id.clone()), tags, grant_org: org.map(|o| o.id) }));
     }
 
-    let Some(org) = org else { return Ok(None) };
-    let parent = match &org.parent_id { Some(p) => org_by_id(db, p).await?, None => None };
     let sys = st.system_id.as_str();
+    let Some(org) = org else {
+        // The source system is known but not the organisation (a back-end or a
+        // shared account sent no orgCode): file it under the year anyway, in a
+        // closed folder only admins and the uploading account see, never loose
+        // in the basket root.
+        let y = year_folder(db, &st, year).await?;
+        let nf = ensure(db, sys, &format!("y:{year}/o:_none"), Some(&y), &st.unassigned_name(), None, FolderOpts { inherit: false, keep_versions: None }).await?;
+        if let Some(a) = &account { grant_to(db, sys, "folder", &nf, a, 2).await?; }
+        let mf = ensure(db, sys, &format!("y:{year}/o:_none/main"), Some(&nf), &st.main_name, None, FolderOpts { inherit: true, keep_versions: None }).await?;
+        let folder = ensure(db, sys, &format!("y:{year}/o:_none/main/s:{}", src.code), Some(&mf), &src.folder_name, None,
+                            FolderOpts { inherit: true, keep_versions: Some(src.keep_versions) }).await?;
+        tags.push("org:unassigned".into());
+        return Ok(Some(Placement { system_id: st.system_id.clone(), folder_id: folder, org_id: None, tags, grant_org: None }));
+    };
+    let parent = match &org.parent_id { Some(p) => org_by_id(db, p).await?, None => None };
     let y = year_folder(db, &st, year).await?;
     // Organisation folders are closed to everyone but that organisation (and admins).
     let (under, base) = match &parent {

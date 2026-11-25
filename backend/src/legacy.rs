@@ -333,13 +333,15 @@ async fn upload(
         stage_name: up.stage_name.clone(),
         referer: hdr("referer"),
     };
-    let placed = if !hint.is_empty() || up.parent_folder_id.is_none() {
-        match crate::layout::place(&s.db, &hint, Some(&user)).await {
-            Ok(p) => p,
-            Err(e) => { if let Some(st) = up.staged.take() { s.storage.discard(st).await; } return Err(e); }
-        }
-    } else { None };
-    if placed.is_some() { up.parent_folder_id = None; }
+    // Whenever the source system is known (sent, or from the uploading page) the
+    // file goes into the fiscal-year layout — also when the caller names its own
+    // folder: that folder id is kept on the file (tag legacy-folder:<id>) so
+    // getFiles?parentFolderId=<id> still lists it.
+    let placed = match crate::layout::place(&s.db, &hint, Some(&user)).await {
+        Ok(p) => p,
+        Err(e) => { if let Some(st) = up.staged.take() { s.storage.discard(st).await; } return Err(e); }
+    };
+    let legacy_parent = if placed.is_some() { up.parent_folder_id.take() } else { None };
 
     let (folder_id, folder_system) = match up.parent_folder_id.as_deref() {
         Some(v) => match ensure_legacy_folder(&s, v, &user, wanted.as_deref()).await {
@@ -363,6 +365,13 @@ async fn upload(
     }
     if let Some(v) = up.group_id.as_deref() {
         extra.push(format!("group:{v}"));
+    }
+    if let Some(v) = legacy_parent.as_deref().filter(|v| v.len() <= 128) {
+        extra.push(format!("legacy-folder:{v}"));
+    }
+    if placed.is_none() {
+        // Not mapped to a source system yet: keep where it came from, so an admin can map it.
+        if let Some(app) = crate::connectors::referer_app(&headers) { extra.push(format!("from:{app}")); }
     }
     if let Some(p) = &placed {
         system_id = Some(p.system_id.clone());
@@ -413,11 +422,7 @@ async fn ensure_legacy_folder(
     want_system: Option<&str>,
 ) -> ApiResult<(String, String)> {
     if legacy_id.len() > 128 { return Err(ApiError::BadRequest("parentFolderId is too long".into())); }
-    if let Some((id, sys)) = sqlx::query_as::<_, (String, String)>("SELECT id, system_id FROM folders WHERE id = $1 AND deleted_at IS NULL")
-        .bind(legacy_id).fetch_optional(&s.db).await?
-    {
-        return Ok((id, sys));
-    }
+    if let Some(found) = resolve_legacy_folder(s, legacy_id).await? { return Ok(found); }
     let user_default: Option<String> = sqlx::query_scalar("SELECT default_system_id FROM users WHERE id = $1")
         .bind(&user.id).fetch_optional(&s.db).await?.flatten();
     let system_id = want_system.map(|v| v.to_string()).or(user_default)
@@ -435,8 +440,24 @@ async fn ensure_legacy_folder(
     Ok((legacy_id.to_string(), system_id))
 }
 
+/// The FileHub folder for a legacy folder id: a registered alias first (folders
+/// whose ids were re-keyed keep answering to their old id), else the folder with
+/// that very id.
+async fn resolve_legacy_folder(s: &Arc<AppState>, legacy_id: &str) -> ApiResult<Option<(String, String)>> {
+    Ok(sqlx::query_as::<_, (String, String)>(
+        r#"SELECT f.id, f.system_id FROM folders f
+            WHERE f.deleted_at IS NULL
+              AND (f.id = (SELECT a.folder_id FROM legacy_folder_aliases a WHERE a.legacy_id = $1) OR f.id = $1)
+            ORDER BY (f.id = $1) LIMIT 1"#,
+    ).bind(legacy_id).fetch_optional(&s.db).await?)
+}
+
 async fn append_tags(s: &Arc<AppState>, f: &File, extra: &[String]) -> ApiResult<()> {
     let mut tags: Vec<String> = serde_json::from_str(&f.tags).unwrap_or_default();
+    // The layout's system:<source code> is the file's system; drop the basket-name one.
+    if extra.iter().any(|t| t.starts_with("system:")) {
+        tags.retain(|t| !t.starts_with("system:"));
+    }
     for t in extra {
         if !tags.iter().any(|x| x == t) {
             tags.push(t.clone());
@@ -626,6 +647,7 @@ async fn get_files(
     let limit = q.limit_ofset.unwrap_or(50).clamp(1, 500);
     let offset = q.offset.unwrap_or(0).max(0);
     let parent = q.parent_folder_id.clone().filter(|v| !v.trim().is_empty());
+    let parent_resolved = match &parent { Some(p) => resolve_legacy_folder(&s, p).await?.map(|(id, _)| id), None => None };
 
     // Filters are added only when given (no flag guards in SQL).
     let mut sql = String::from(" WHERE deleted_at IS NULL");
@@ -640,7 +662,11 @@ async fn get_files(
         n += 1; sql.push_str(&format!(" AND tags ILIKE ${n}")); strs.push(format!("%{}%", esc(t.trim())));
     }
     if let Some(p) = &parent {
-        n += 1; sql.push_str(&format!(" AND folder_id = ${n}")); strs.push(p.clone());
+        // The folder itself (or the folder its old id now points to), plus files
+        // filed into the fiscal-year layout that were sent with this folder id.
+        n += 1; let a = n; strs.push(parent_resolved.clone().unwrap_or_else(|| p.clone()));
+        n += 1; let b = n; strs.push(format!("%\"legacy-folder:{}\"%", esc(p)));
+        sql.push_str(&format!(" AND (folder_id = ${a} OR tags LIKE ${b})"));
     }
     // What the caller may see — the same set-based rule as FileHub's own lists.
     if let Some(scope) = crate::auth::effective_system_ids(&s.db, &user).await? {
@@ -672,7 +698,7 @@ async fn get_files(
             r#"SELECT f.id, f.name, f.system_id, f.created_at,
                       (SELECT COUNT(*) FROM files x WHERE x.folder_id = f.id AND x.deleted_at IS NULL)
                  FROM folders f WHERE f.parent_id = $1 AND f.deleted_at IS NULL ORDER BY f.name"#,
-        ).bind(p).fetch_all(&s.db).await?;
+        ).bind(parent_resolved.as_deref().unwrap_or(p)).fetch_all(&s.db).await?;
         for (id, name, sys, at, count) in subs {
             if crate::acl::require_folder(&s.db, &user, &sys, Some(&id), crate::acl::VIEW).await.is_err() { continue; }
             data.push(json!({

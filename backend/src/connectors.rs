@@ -68,13 +68,53 @@ pub async fn by_token(db: &sqlx::PgPool, headers: &HeaderMap) -> ApiResult<Optio
     // proxy (it carries X-Forwarded-For, X-Real-IP or Forwarded) is from a
     // browser or the internet and must bring a registered token.
     if c.is_none() && (!via_proxy(headers) || (!presented.is_empty() && crate::jwks::verify_legacy(presented).await.is_some())) {
-        c = sqlx::query_as(&format!("SELECT {COLS} FROM connectors WHERE kind = $1 AND enabled AND trust_callers ORDER BY created_at LIMIT 1"))
-            .bind(LEGACY).fetch_optional(db).await?;
+        // The call is trusted already; record it against the app it came from
+        // (the uploading page's path prefix) rather than the catch-all connector,
+        // so each app's calls, files and service account are its own.
+        c = by_referer(db, headers).await?;
+        if c.is_none() {
+            c = sqlx::query_as(&format!("SELECT {COLS} FROM connectors WHERE kind = $1 AND enabled AND trust_callers ORDER BY created_at LIMIT 1"))
+                .bind(LEGACY).fetch_optional(db).await?;
+        }
     }
     if let Some(c) = &c {
         let _ = sqlx::query("UPDATE connectors SET calls = calls + 1, last_used_at = now() WHERE id = $1").bind(&c.id).execute(db).await;
     }
     Ok(c)
+}
+
+/// The enabled connector whose path prefix matches the uploading page (`Referer`).
+async fn by_referer(db: &sqlx::PgPool, headers: &HeaderMap) -> ApiResult<Option<Connector>> {
+    let Some(referer) = referer(headers) else { return Ok(None) };
+    let rows: Vec<(String, String)> = sqlx::query_as(
+        "SELECT c.id, lower(p) FROM connectors c, unnest(c.path_prefixes) p WHERE c.kind = $1 AND c.enabled ORDER BY length(p) DESC, c.created_at",
+    ).bind(LEGACY).fetch_all(db).await?;
+    let Some(id) = rows.into_iter().find(|(_, p)| prefix_matches(&referer, p)).map(|(id, _)| id) else { return Ok(None) };
+    Ok(sqlx::query_as(&format!("SELECT {COLS} FROM connectors WHERE id = $1")).bind(id).fetch_optional(db).await?)
+}
+
+/// The lower-cased `Referer`, if any.
+pub fn referer(headers: &HeaderMap) -> Option<String> {
+    headers.get(header::REFERER).and_then(|v| v.to_str().ok()).map(str::trim).filter(|v| !v.is_empty()).map(str::to_lowercase)
+}
+
+/// True when `prefix` is a whole path segment of the page URL `referer` (host names never match).
+pub fn prefix_matches(referer: &str, prefix: &str) -> bool {
+    if prefix.is_empty() { return false; }
+    let path = referer.split_once("://").map(|(_, r)| r).unwrap_or(referer);
+    let path = path.find('/').map(|i| &path[i..]).unwrap_or("");
+    let path = path.split(['?', '#']).next().unwrap_or("");
+    path.split('/').any(|seg| seg == prefix)
+}
+
+/// First path segment of the uploading page — recorded on files whose app is not mapped yet.
+pub fn referer_app(headers: &HeaderMap) -> Option<String> {
+    let r = referer(headers)?;
+    let path = r.split_once("://").map(|(_, r)| r).unwrap_or(&r).to_string();
+    let path = path.find('/').map(|i| path[i..].to_string()).unwrap_or_default();
+    path.split(['?', '#']).next().unwrap_or("").split('/').find(|s| !s.is_empty())
+        .filter(|s| s.len() <= 80 && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.'))
+        .map(str::to_string)
 }
 
 /// True when the request passed through the ingress or another proxy.
@@ -86,13 +126,11 @@ pub fn via_proxy(headers: &HeaderMap) -> bool {
 /// …/hr-portal/… → that connector's basket). Path segments only, so a host
 /// name can't match by accident.
 pub async fn system_for_referer(db: &sqlx::PgPool, headers: &HeaderMap) -> Option<String> {
-    let referer = headers.get(header::REFERER).and_then(|v| v.to_str().ok()).unwrap_or("").to_lowercase();
-    if referer.is_empty() { return None; }
+    let referer = referer(headers)?;
     let rows: Vec<(String, String)> = sqlx::query_as(
-        "SELECT lower(p), system_id FROM connectors, unnest(path_prefixes) p WHERE kind = $1 AND enabled AND system_id IS NOT NULL",
+        "SELECT lower(p), system_id FROM connectors, unnest(path_prefixes) p WHERE kind = $1 AND enabled AND system_id IS NOT NULL ORDER BY length(p) DESC",
     ).bind(LEGACY).fetch_all(db).await.unwrap_or_default();
-    rows.into_iter().find(|(p, _)| !p.is_empty() && (referer.contains(&format!("/{p}/")) || referer.ends_with(&format!("/{p}"))))
-        .map(|(_, s)| s)
+    rows.into_iter().find(|(p, _)| prefix_matches(&referer, p)).map(|(_, s)| s)
 }
 
 /// The account a connector acts as — one per connector, so the activity log
@@ -257,4 +295,24 @@ pub async fn remove(State(s): State<Arc<AppState>>, _: AdminUser, Path(id): Path
 pub async fn is_connector_user(db: &sqlx::PgPool, user_id: &str) -> bool {
     sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND connector_id IS NOT NULL)")
         .bind(user_id).fetch_one(db).await.unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn prefixes_match_whole_path_segments_only() {
+        assert!(prefix_matches("https://h.example/app-x/app/page?x=1", "app-x"));
+        assert!(prefix_matches("https://h.example/app", "app"));
+        assert!(!prefix_matches("https://app.example/other", "app"));
+        assert!(!prefix_matches("https://h.example/app-xy/", "app-x"));
+    }
+
+    #[test]
+    fn referer_app_is_the_first_segment() {
+        let mut h = HeaderMap::new();
+        h.insert(header::REFERER, "https://h.example/My-App/x/y".parse().unwrap());
+        assert_eq!(referer_app(&h).as_deref(), Some("my-app"));
+    }
 }
