@@ -91,3 +91,17 @@ export function ThemeSwitch() {
     </div>
   );
 }
+
+/// One icon button for sign-in pages (top-right corner, like the other products):
+/// each click moves light → dark → device setting; the icon shows the current choice.
+export function ThemeToggle() {
+  const { mode, setMode } = useTheme();
+  const next: Record<ThemeMode, ThemeMode> = { light: "dark", dark: "system", system: "light" };
+  const name: Record<ThemeMode, string> = { light: "Light", dark: "Dark", system: "Use device setting" };
+  return (
+    <button type="button" className="cx-theme-toggle" onClick={() => setMode(next[mode])}
+      aria-label={`Theme: ${name[mode]}. Switch to ${name[next[mode]]}`} title={`Theme: ${name[mode]}`}>
+      <svg viewBox="0 0 32 32" width="20" height="20" aria-hidden="true" fill="currentColor">{ICONS[mode]}</svg>
+    </button>
+  );
+}

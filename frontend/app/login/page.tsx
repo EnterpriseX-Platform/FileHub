@@ -1,6 +1,6 @@
 "use client";
 
-import { ThemeSwitch } from "@/lib/theme-context";
+import { ThemeToggle } from "@/lib/theme-context";
 
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -87,6 +87,7 @@ function LoginInner() {
   const tagline = brand.workspace_display && brand.workspace_display.replace(/\s/g, "").toLowerCase() !== "filehub" ? brand.workspace_display : "Central document platform";
   return (
     <main className="cx-app cx-login">
+      <div className="cx-login-corner"><ThemeToggle /></div>
       <div className="cx-login-stack">
         <form onSubmit={submit} noValidate className="cx-login-card cx-on-layer">
           <div className="cx-login-brand">
@@ -104,8 +105,9 @@ function LoginInner() {
             required autoComplete="current-password" />
           {error && <Note kind="error">{error}</Note>}
           <button type="submit" className="cx-btn cx-btn-primary cx-login-submit" disabled={busy}>{busy ? "กำลังเข้าสู่ระบบ" : "เข้าสู่ระบบ"}</button>
-          <div className="cx-login-theme"><ThemeSwitch /></div>
-          {brand.self_signup === "on" && <p className="cx-login-foot">No account? <Link href="/signup">Sign up</Link></p>}
+          {brand.self_signup === "on"
+            ? <p className="cx-login-foot">No account? <Link href="/signup">Sign up</Link></p>
+            : <p className="cx-login-foot">No account yet? Contact your administrator.</p>}
         </form>
         {SHOW_DEMO_ACCOUNTS && (
           <div className="cx-login-card cx-on-layer">

@@ -617,7 +617,7 @@ html.dark {
 .cx-login-brand { display: flex; align-items: center; gap: 10px; font-size: 18px; line-height: 28px; font-weight: 600; margin-bottom: 8px; }
 .cx-login-title { margin: 0; font-size: 24px; line-height: 32px; font-weight: 600; }
 .cx-login-tagline { margin: -12px 0 8px; font-size: 14px; line-height: 20px; color: var(--cx-text-secondary); }
-.cx-login-foot { margin: 8px 0 0; text-align: center; font-size: 14px; color: var(--cx-text-secondary); }
+.cx-login-foot { margin: 8px 0 0; text-align: left; font-size: 14px; color: var(--cx-text-secondary); }
 .cx-login-foot a { color: var(--cx-interactive); text-decoration: none; }
 .cx-login-foot a:hover { text-decoration: underline; }
 
@@ -652,5 +652,8 @@ html.dark {
 .cx-theme-switch button[aria-checked="true"] { background: var(--cx-layer); color: var(--cx-text-primary); box-shadow: inset 0 0 0 1px var(--cx-border-subtle); }
 .cx-theme-switch button:focus-visible { outline: 2px solid var(--cx-focus); outline-offset: -2px; }
 .cx-menu-theme { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 16px; border-bottom: 1px solid var(--cx-border-subtle); font-size: 12px; color: var(--cx-text-secondary); }
-.cx-login-theme { position: absolute; top: 16px; right: 16px; }
-.cx-login-card { position: relative; }
+.cx-login { position: relative; }
+.cx-login-corner { position: absolute; top: 24px; right: max(24px, env(safe-area-inset-right, 0px)); }
+.cx-theme-toggle { width: 40px; height: 40px; display: grid; place-items: center; border: 0; background: transparent; color: var(--cx-text-primary); cursor: pointer; }
+.cx-theme-toggle:hover { background: var(--cx-layer-hover); }
+.cx-theme-toggle:focus-visible { outline: 2px solid var(--cx-focus); outline-offset: -2px; }

@@ -1,6 +1,6 @@
 "use client";
 
-import { ThemeSwitch } from "@/lib/theme-context";
+import { ThemeToggle } from "@/lib/theme-context";
 
 import * as React from "react";
 import Link from "next/link";
@@ -38,6 +38,7 @@ export default function SignUpPage() {
 
   return (
     <main className="cx-app cx-login">
+      <div className="cx-login-corner"><ThemeToggle /></div>
       <div className="cx-login-stack">
         <form onSubmit={submit} className="cx-login-card cx-on-layer">
           <div className="cx-login-brand">
@@ -62,7 +63,6 @@ export default function SignUpPage() {
             {error && <Note kind="error">{error}</Note>}
             <button type="submit" className="cx-btn cx-btn-primary cx-login-submit" disabled={busy}>{busy ? "Creating account…" : "Create account"}</button>
           </>)}
-          <div className="cx-login-theme"><ThemeSwitch /></div>
           <p className="cx-login-foot">Already have an account? <Link href="/login">Sign in</Link></p>
         </form>
       </div>
