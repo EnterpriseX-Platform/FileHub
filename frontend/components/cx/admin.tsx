@@ -4,16 +4,14 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { api, bytes, choiceList, when, type Basket, type Category, type FieldDef, type Settings, type StatusDef, type TagColor, type Transition } from "@/lib/fh";
+import { api, bytes, choiceList, fromGbField, toGbField, when, type Basket, type Category, type FieldDef, type Settings, type StatusDef, type TagColor, type Transition } from "@/lib/fh";
 import { useAuth } from "@/lib/auth-context";
 import { loadSettings } from "./basket-view";
-import { ShareModal } from "./modals";
 import { AdminConnectors } from "./connectors";
 import { useNav } from "./shell";
 import { AdminAgencies, AdminApiKeys, AdminLog, AdminPeople, AdminSettings } from "./admin-tabs";
-import { Btn, Check, Dropdown, I, Modal, Note, Tabs, Tag, TextField, useToast } from "./ui";
+import { basketColor, BASKET_COLORS, Btn, Dropdown, I, Modal, Note, Tag, TextField, Toggle, useToast } from "./ui";
 
-type TabId = "categories" | "fields" | "statuses" | "policy" | "access" | "folder" | "basket";
 const COLORS: { value: TagColor; label: string }[] = [
   { value: "gray", label: "Gray" }, { value: "blue", label: "Blue" }, { value: "green", label: "Green" }, { value: "orange", label: "Orange" }, { value: "red", label: "Red" },
 ];
@@ -23,25 +21,35 @@ const TYPES = [
 ];
 const LEVEL = [{ value: "1", label: "View" }, { value: "2", label: "Edit" }, { value: "3", label: "Manage" }];
 
-/// AD-02 Basket settings: Categories · Fields · Statuses · Policy · Access.
-export function BasketSettings({ id }: { id: string }) {
+/// AD-02 Basket settings, in the basket page's Settings tab: a section menu on
+/// the left (Statuses & review flow · Fields · Categories · Policy · Folder
+/// layout · General), the section's cards on the right.
+type Section = "statuses" | "fields" | "categories" | "policy" | "layout" | "general";
+const SECTIONS: { id: Section; label: string }[] = [
+  { id: "statuses", label: "Statuses & review flow" }, { id: "fields", label: "Fields" }, { id: "categories", label: "Categories" },
+  { id: "policy", label: "Policy" }, { id: "layout", label: "Folder layout" }, { id: "general", label: "General" },
+];
+export function BasketSettings({ id, embedded }: { id: string; embedded?: boolean }) {
   const nav = useNav();
   const { user } = useAuth();
   const toast = useToast();
+  const isAdmin = user?.role === "admin";
   const [basket, setBasket] = React.useState<Basket | null>(null);
   const [s, setS] = React.useState<Settings | null>(null);
-  const [tab, setTab] = React.useState<TabId>("categories");
+  const saved = React.useRef<Settings | null>(null);
+  const [sec, setSec] = React.useState<Section>("statuses");
   const [err, setErr] = React.useState<string | null>(null);
   const [dirty, setDirty] = React.useState(false);
-  const [share, setShare] = React.useState(false);
   const [extText, setExtText] = React.useState("");
 
+  const loadBasket = React.useCallback(() => api<Basket[]>("/systems").then((all) => setBasket(all.find((b) => b.id === id) ?? null)), [id]);
   React.useEffect(() => {
-    Promise.all([api<Basket[]>("/systems"), api<Settings>(`/baskets/${id}/settings`)]).then(([all, st]) => {
-      setBasket(all.find((b) => b.id === id) ?? null); setS(st); setExtText((st.policy.allowed_ext ?? []).join(", "));
+    Promise.all([loadBasket(), api<Settings>(`/baskets/${id}/settings`)]).then(([, st]) => {
+      saved.current = st; setS(st); setExtText((st.policy.allowed_ext ?? []).join(", "));
     }).catch((e) => setErr(e.message));
-  }, [id]);
+  }, [id, loadBasket]);
   const upd = (f: (x: Settings) => Settings) => { setS((x) => (x ? f(x) : x)); setDirty(true); };
+  const pol = (p: Partial<Settings["policy"]>) => upd((x) => ({ ...x, policy: { ...x.policy, ...p } }));
 
   const save = async () => {
     if (!s) return;
@@ -49,64 +57,223 @@ export function BasketSettings({ id }: { id: string }) {
     const allowed = extText.split(/[,\s]+/).map((x) => x.replace(/^\./, "").trim().toLowerCase()).filter(Boolean);
     try {
       const out = await api<Settings>(`/baskets/${id}/settings`, { method: "PUT", json: { ...s, policy: { ...s.policy, allowed_ext: allowed.length ? allowed : null } } });
-      setS(out); setDirty(false); loadSettings(id, true); toast({ text: "Basket settings saved." });
+      saved.current = out; setS(out); setDirty(false); loadSettings(id, true); toast({ text: "Basket settings saved." });
     } catch (e) { setErr((e as Error).message); }
   };
+  const discard = () => { if (saved.current) { setS(saved.current); setExtText((saved.current.policy.allowed_ext ?? []).join(", ")); } setDirty(false); setErr(null); };
+  const vault = !!basket?.vault;
 
-  if (err && !s) return <div className="cx-page"><Note kind="error">{err}</Note></div>;
-  return (
-    <div className="cx-page" style={{ maxWidth: 1100 }}>
-      <div className="cx-crumbs"><Link href="/admin">Admin</Link><span>/</span><Link href={`/b/${id}`}>{basket?.name ?? id}</Link></div>
-      <div className="cx-title-row">
-        <h1 className="cx-title">{basket?.name ?? " "} settings</h1>
-        <span className="cx-spacer" />
-        {dirty && <span className="cx-sub">Unsaved changes</span>}
-        <Btn kind="primary" disabled={!dirty} onClick={save}>Save</Btn>
-      </div>
-      <div style={{ background: "var(--cx-layer)" }}>
-        <Tabs<TabId> value={tab} onChange={setTab} tabs={[
-          { id: "categories", label: "Categories" }, { id: "fields", label: "Fields" }, { id: "statuses", label: "Statuses" },
-          { id: "policy", label: "Policy" }, { id: "access", label: "Access" },
-          ...(user?.role === "admin" && !basket?.vault ? [{ id: "folder" as TabId, label: "Mounted folder" }] : []),
-        ]} />
-        {err && <div style={{ padding: 12 }}><Note kind="error">{err}</Note></div>}
-        {!s && <div style={{ padding: 16 }}><span className="cx-skel" style={{ width: "40%" }} /></div>}
-        {s && tab === "categories" && <Categories list={s.categories} onChange={(c) => upd((x) => ({ ...x, categories: c }))} />}
-        {s && tab === "fields" && <Fields list={s.fields} onChange={(f) => upd((x) => ({ ...x, fields: f }))} />}
-        {s && tab === "statuses" && <Statuses list={s.statuses} transitions={s.transitions}
-          onChange={(st, tr) => upd((x) => ({ ...x, statuses: st, transitions: tr }))} />}
-        {s && tab === "policy" && (
-          <div className="cx-on-layer" style={{ padding: 16, display: "flex", flexDirection: "column", gap: 16, maxWidth: 640 }}>
-            <TextField label="Allowed file types"
-              value={extText} onChange={(e) => { setExtText(e.target.value); setDirty(true); }} placeholder="pdf, docx, xlsx, pptx, png, jpg, wav" />
-            <TextField label="Largest file (MB)" inputMode="numeric" placeholder="Workspace limit"
+  if (err && !s) return <div className={embedded ? "" : "cx-page"}><Note kind="error">{err}</Note></div>;
+  const body = (
+    <div className="cx-sideset">
+      <nav className="cx-setnav" aria-label="Settings sections">
+        {SECTIONS.map((x) => <button key={x.id} aria-current={sec === x.id ? "page" : undefined} onClick={() => setSec(x.id)}>{x.label}</button>)}
+      </nav>
+      <div className="cx-cards">
+        {!s && <div className="cx-card"><div className="cx-card-b"><span className="cx-skel" style={{ width: "40%" }} /><span className="cx-skel" style={{ width: "70%" }} /></div></div>}
+        {s && sec === "statuses" && (
+          <div className="cx-card">
+            <div className="cx-card-h"><span><b>Statuses &amp; review flow</b></span>
+              <Btn kind="tertiary" md icon={<I.add />} onClick={() => upd((x) => ({ ...x, statuses: [...x.statuses, { code: `S${x.statuses.length + 1}`, label: "", color: "gray", is_initial: x.statuses.length === 0, locks_content: false }] }))}>Add status</Btn></div>
+            <Flow list={s.statuses} transitions={s.transitions} />
+            <Statuses list={s.statuses} transitions={s.transitions} onChange={(st, tr) => upd((x) => ({ ...x, statuses: st, transitions: tr }))} />
+          </div>
+        )}
+        {s && sec === "fields" && (
+          <div className="cx-card">
+            <div className="cx-card-h"><span><b>Fields</b></span>
+              <Btn kind="tertiary" md icon={<I.add />} onClick={() => upd((x) => ({ ...x, fields: [...x.fields, { key: `field_${x.fields.length + 1}`, label: "", field_type: "text", required: false, choices: [], searchable: true, show_in_list: false }] }))}>Add field</Btn></div>
+            <Fields list={s.fields} onChange={(f) => upd((x) => ({ ...x, fields: f }))} />
+          </div>
+        )}
+        {s && sec === "categories" && (
+          <div className="cx-card">
+            <div className="cx-card-h"><span><b>Categories</b></span>
+              <Btn kind="tertiary" md icon={<I.add />} onClick={() => upd((x) => ({ ...x, categories: [...x.categories, { code: `CAT_${x.categories.length + 1}`, name: "", parent_code: null }] }))}>Add category</Btn></div>
+            <Categories list={s.categories} onChange={(c) => upd((x) => ({ ...x, categories: c }))} />
+          </div>
+        )}
+        {s && sec === "policy" && (
+          <div className="cx-card cx-on-layer">
+            <div className="cx-card-h"><span><b>Policy</b></span></div>
+            <Opt title="Encrypt files stored in this basket"><Toggle label="Encrypt files" on={vault || !!s.policy.encrypt} disabled={vault} onChange={(v) => pol({ encrypt: v })} /></Opt>
+            <Opt title="Uploaders may encrypt single files" side={!vault && s.policy.file_encrypt_choice ? (
+              <Dropdown value={s.policy.file_encrypt_mode ?? "symmetric"}
+                options={[{ value: "symmetric", label: "Symmetric (AES-256)" }, { value: "asymmetric", label: "Asymmetric (RSA)" }]}
+                onChange={(v) => pol({ file_encrypt_mode: v })} />) : undefined}>
+              <Toggle label="Per-file encryption" on={!!s.policy.file_encrypt_choice} disabled={vault}
+                onChange={(v) => pol({ file_encrypt_choice: v, file_encrypt_mode: v ? (s.policy.file_encrypt_mode ?? "symmetric") : s.policy.file_encrypt_mode })} />
+            </Opt>
+            <Opt title="Stamp downloads"><Toggle label="Stamp downloads" on={vault || !!s.policy.stamp_downloads} disabled={vault} onChange={(v) => pol({ stamp_downloads: v })} /></Opt>
+            <Opt title="Allow public links"><Toggle label="Allow public links" on={!vault && s.policy.public_links !== false} disabled={vault} onChange={(v) => pol({ public_links: v })} /></Opt>
+            <Opt title="Allowed file types" side={<TextField aria-label="Allowed file types" value={extText} placeholder="pdf, docx, xlsx" onChange={(e) => { setExtText(e.target.value); setDirty(true); }} />} />
+            <Opt title="Largest file (MB)" side={<TextField aria-label="Largest file (MB)" inputMode="numeric" placeholder="Workspace limit"
               value={s.policy.max_file_bytes ? String(Math.round(s.policy.max_file_bytes / 1048576)) : ""}
-              onChange={(e) => { const n = parseInt(e.target.value, 10); upd((x) => ({ ...x, policy: { ...x.policy, max_file_bytes: Number.isFinite(n) && n > 0 ? n * 1048576 : null } })); }} />
-            {basket?.vault ? <Note>Vault: files are always encrypted, downloads are stamped and public links are off.</Note> : <>
-            <Check label="Stamp downloads (PDF and Office files download as PDF with who, when and a copy code on every page)" checked={!!s.policy.stamp_downloads} onChange={(v) => upd((x) => ({ ...x, policy: { ...x.policy, stamp_downloads: v } }))} />
-            <Check label="Encrypt files stored in this basket" checked={!!s.policy.encrypt} onChange={(v) => upd((x) => ({ ...x, policy: { ...x.policy, encrypt: v } }))} />
-            <Check label="Let uploaders choose to encrypt individual files" checked={!!s.policy.file_encrypt_choice}
-              onChange={(v) => upd((x) => ({ ...x, policy: { ...x.policy, file_encrypt_choice: v, file_encrypt_mode: v ? (x.policy.file_encrypt_mode ?? "symmetric") : x.policy.file_encrypt_mode } }))} />
-            {s.policy.file_encrypt_choice && (
-              <div style={{ maxWidth: 360, paddingLeft: 28 }}>
-                <Dropdown label="Encrypt selected files with" value={s.policy.file_encrypt_mode ?? "symmetric"}
-                  options={[{ value: "symmetric", label: "Symmetric (AES-256)", hint: "Server key" }, { value: "asymmetric", label: "Asymmetric (RSA)", hint: "Per-file key, wrapped with RSA" }]}
-                  onChange={(v) => upd((x) => ({ ...x, policy: { ...x.policy, file_encrypt_mode: v } }))} />
-              </div>
-            )}
-            <Check label="Allow public links (people outside the organization)" checked={s.policy.public_links !== false} onChange={(v) => upd((x) => ({ ...x, policy: { ...x.policy, public_links: v } }))} />
-            </>}
-            {s.policy.max_file_bytes ? <span className="cx-helper">Current limit {bytes(s.policy.max_file_bytes)}.</span> : null}
+              onChange={(e) => { const n = parseInt(e.target.value, 10); pol({ max_file_bytes: Number.isFinite(n) && n > 0 ? n * 1048576 : null }); }} />} />
           </div>
         )}
-        {tab === "folder" && basket && <MountedFolder basket={basket} onChanged={() => { nav.reload(); api<Basket[]>("/systems").then((all) => setBasket(all.find((b) => b.id === id) ?? null)); }} />}
-        {s && tab === "access" && (
-          <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12, alignItems: "flex-start" }}>
-            <Btn kind="tertiary" onClick={() => setShare(true)}>Manage basket access</Btn>
+        {sec === "layout" && (
+          <>
+            <FiscalLayout basketId={id} isAdmin={isAdmin} />
+            {isAdmin && !vault && basket && (
+              <div className="cx-card"><div className="cx-card-h"><span><b>Mounted folder</b></span></div>
+                <MountedFolder basket={basket} onChanged={() => { nav.reload(); loadBasket(); }} /></div>
+            )}
+          </>
+        )}
+        {sec === "general" && basket && <General basket={basket} isAdmin={isAdmin} onSaved={() => { nav.reload(); loadBasket(); }} />}
+        {err && <Note kind="error">{err}</Note>}
+        {s && sec !== "general" && sec !== "layout" && (
+          <div className="cx-savebar">
+            {dirty && <span className="cx-sub">Unsaved changes</span>}
+            <Btn kind="secondary" md disabled={!dirty} onClick={discard}>Discard</Btn>
+            <Btn kind="primary" md disabled={!dirty} onClick={save}>Save changes</Btn>
           </div>
         )}
       </div>
-      {share && basket && <ShareModal rtype="basket" rid={id} name={basket.name} onClose={() => { setShare(false); nav.reload(); }} />}
+    </div>
+  );
+  if (embedded) return body;
+  return (
+    <div className="cx-page" style={{ maxWidth: 1200 }}>
+      <div className="cx-crumbs"><Link href="/baskets">Baskets</Link><I.chevronRight size={12} /><Link href={`/b/${id}`}>{basket?.name ?? id}</Link></div>
+      <div className="cx-ph"><div><h1 className="cx-title">Settings</h1></div></div>
+      {body}
+    </div>
+  );
+}
+
+function Opt({ title, children, side }: { title: string; children?: React.ReactNode; side?: React.ReactNode }) {
+  return <div className="cx-opt"><div className="cx-opt-tx"><b>{title}</b></div>{side && <div className="cx-opt-side">{side}</div>}{children}</div>;
+}
+
+/// The review flow drawn from the transitions: the main path from the initial
+/// status first, then every other move on its own line; the level needed sits under each arrow.
+function Flow({ list, transitions }: { list: StatusDef[]; transitions: Transition[] }) {
+  const byCode = new Map(list.map((x) => [x.code, x]));
+  const lvl = (n: number) => LEVEL.find((l) => l.value === String(n))?.label ?? "";
+  const used = new Set<string>();
+  const key = (t: Transition) => `${t.from_code}>${t.to_code}`;
+  const rows: Transition[][] = [];
+  const start = list.find((x) => x.is_initial)?.code;
+  if (start) {
+    const path: Transition[] = [];
+    const seen = new Set([start]);
+    let cur = start;
+    for (let g = 0; g < 32; g++) {
+      const next = transitions.find((t) => t.from_code === cur && !seen.has(t.to_code) && byCode.has(t.to_code));
+      if (!next) break;
+      path.push(next); used.add(key(next)); seen.add(next.to_code); cur = next.to_code;
+    }
+    if (path.length) rows.push(path);
+  }
+  for (const t of transitions) {
+    if (used.has(key(t))) continue;
+    used.add(key(t));
+    const last = rows[rows.length - 1];
+    if (last && rows.length > 1 && last[last.length - 1].to_code === t.from_code) last.push(t); else rows.push([t]);
+  }
+  const tag = (code: string, k: string) => { const x = byCode.get(code); return <Tag key={k} color={x?.color ?? "gray"}>{x?.label || code}</Tag>; };
+  if (!list.length) return null;
+  return (
+    <div className="cx-flow" aria-label="Review flow">
+      {rows.length === 0 && start && tag(start, "only")}
+      {rows.map((r, i) => (
+        <React.Fragment key={i}>
+          {i > 0 && <span className="cx-flow-br" />}
+          {tag(r[0].from_code, `${i}-s`)}
+          {r.map((t, j) => (
+            <React.Fragment key={j}>
+              <span className="cx-flow-arr" title={`Needs ${lvl(t.required_level)}`}><I.move size={14} /><span>{lvl(t.required_level)}</span></span>
+              {tag(t.to_code, `${i}-${j}`)}
+            </React.Fragment>
+          ))}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+/// Fiscal-year folder layout (workspace-wide, one basket). Shown here when this basket has it.
+function FiscalLayout({ basketId, isAdmin }: { basketId: string; isAdmin: boolean }) {
+  const toast = useToast();
+  type L = { enabled: boolean; current_year?: number; settings?: { system_id: string; main_name: string; support_name: string }; sources?: { code: string; folder_name: string; group: string }[] };
+  const [l, setL] = React.useState<L | null>(null);
+  React.useEffect(() => { if (isAdmin) api<L>("/admin/layout").then(setL).catch(() => setL({ enabled: false })); else setL({ enabled: false }); }, [isAdmin]);
+  const mine = l?.enabled && l.settings?.system_id === basketId;
+  return (
+    <div className="cx-card">
+      <div className="cx-card-h"><span><b>Fiscal-year layout</b></span>
+        {mine && <Btn kind="tertiary" md onClick={async () => { try { await api("/admin/layout/prepare", { method: "POST" }); toast({ text: "Year folders are ready." }); } catch (e) { toast({ text: (e as Error).message, error: true }); } }}>Create year folders</Btn>}</div>
+      {l == null && <div className="cx-card-b"><span className="cx-skel" style={{ width: "50%" }} /></div>}
+      {l && !mine && <div className="cx-opt"><div className="cx-opt-tx"><span>Off</span></div></div>}
+      {mine && l.settings && (
+        <div className="cx-layout-tree">
+          <b>{l.current_year}</b>{"\n"}
+          {(l.sources ?? []).filter((x) => x.group === "main").length > 0 && <>├─ {l.settings.main_name} / &lt;agency&gt; / &lt;department&gt;{"\n"}</>}
+          {(l.sources ?? []).filter((x) => x.group === "main").map((x) => <React.Fragment key={x.code}>│   ├─ {x.folder_name}{"\n"}</React.Fragment>)}
+          └─ {l.settings.support_name}{"\n"}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/// Name, about, color, limit and intake of the basket (admins); delete an empty basket.
+function General({ basket, isAdmin, onSaved }: { basket: Basket; isAdmin: boolean; onSaved: () => void }) {
+  const toast = useToast();
+  const router = useRouter();
+  const nav = useNav();
+  const [name, setName] = React.useState(basket.name);
+  const [about, setAbout] = React.useState(basket.description ?? "");
+  const [tone, setTone] = React.useState(basket.tone ?? "purple");
+  const [gb, setGb] = React.useState(toGbField(basket.quota_bytes));
+  const [live, setLive] = React.useState(basket.status === "live");
+  const [err, setErr] = React.useState<string | null>(null);
+  const [del, setDel] = React.useState(false);
+  const changed = name !== basket.name || about !== (basket.description ?? "") || tone !== (basket.tone ?? "purple") || gb !== toGbField(basket.quota_bytes) || live !== (basket.status === "live");
+  const save = async () => {
+    setErr(null);
+    try {
+      await api(`/systems/${basket.id}`, { method: "PATCH", json: { name: name.trim(), description: about, tone, quota_bytes: fromGbField(gb), status: live ? "live" : "paused" } });
+      toast({ text: "Basket saved." }); onSaved();
+    } catch (e) { setErr((e as Error).message); }
+  };
+  return (
+    <>
+      <div className="cx-card cx-on-layer">
+        <div className="cx-card-h"><span><b>General</b></span></div>
+        <div className="cx-card-b">
+          <div className="cx-form-grid">
+            <TextField label="Name" value={name} disabled={!isAdmin} onChange={(e) => setName(e.target.value)} />
+            <TextField label="Storage key" value={basket.bucket} readOnly className="cx-mono" />
+            <TextField label="About" className="cx-span" value={about} disabled={!isAdmin} onChange={(e) => setAbout(e.target.value)} />
+            <TextField label="Limit (GB)" inputMode="numeric" placeholder="Workspace limit" value={gb} disabled={!isAdmin} onChange={(e) => setGb(e.target.value.replace(/[^\d.]/g, ""))} />
+          </div>
+          <div className="cx-field"><span className="cx-label">Color</span><Swatches value={tone} onChange={isAdmin ? setTone : () => {}} /></div>
+        </div>
+        <Opt title="Accepting files"><Toggle label="Accepting files" on={live} disabled={!isAdmin} onChange={setLive} /></Opt>
+      </div>
+      {err && <Note kind="error">{err}</Note>}
+      {isAdmin && (
+        <div className="cx-savebar">
+          <Btn kind="danger-ghost" md onClick={() => setDel(true)}>Delete basket</Btn>
+          <span className="cx-spacer" style={{ flex: 1 }} />
+          <Btn kind="primary" md disabled={!changed || !name.trim()} onClick={save}>Save changes</Btn>
+        </div>
+      )}
+      {del && <DeleteBasketModal basket={basket} onClose={() => setDel(false)} onDeleted={() => { setDel(false); nav.reload(); router.push("/baskets"); }} />}
+    </>
+  );
+}
+
+export function Swatches({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="cx-swatches" role="radiogroup" aria-label="Color">
+      {BASKET_COLORS.map((c) => (
+        <button key={c.value} type="button" role="radio" aria-checked={basketColor(value) === c.color} aria-label={c.value}
+          className="cx-swatch" style={{ background: c.color }} onClick={() => onChange(c.value)} />
+      ))}
     </div>
   );
 }
@@ -128,7 +295,6 @@ function Categories({ list, onChange }: { list: Category[]; onChange: (c: Catego
           ))}
         </tbody>
       </table>
-      <div style={{ background: "var(--cx-layer)" }}><Btn kind="ghost" onClick={() => onChange([...list, { code: `CAT_${list.length + 1}`, name: "", parent_code: null }])}>Add category</Btn></div>
     </div>
   );
 }
@@ -157,20 +323,14 @@ function Fields({ list, onChange }: { list: FieldDef[]; onChange: (f: FieldDef[]
           ))}
         </tbody>
       </table>
-      <div style={{ background: "var(--cx-layer)" }}><Btn kind="ghost" onClick={() => onChange([...list, { key: `field_${list.length + 1}`, label: "", field_type: "text", required: false, choices: [], searchable: true, show_in_list: false }])}>Add field</Btn></div>
     </div>
   );
 }
 
 function Statuses({ list, transitions, onChange }: { list: StatusDef[]; transitions: Transition[]; onChange: (s: StatusDef[], t: Transition[]) => void }) {
   const set = (i: number, p: Partial<StatusDef>) => onChange(list.map((c, j) => (j === i ? { ...c, ...p } : p.is_initial ? { ...c, is_initial: false } : c)), transitions);
-  const initial = list.find((s) => s.is_initial);
   return (
     <div>
-      <div style={{ padding: "12px 16px", display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-        {initial && <Tag color={initial.color}>{initial.label}</Tag>}
-        {list.filter((s) => !s.is_initial).map((s) => <React.Fragment key={s.code}><I.chevronRight size={12} /><Tag color={s.color}>{s.label}{s.locks_content && <> <I.lock size={10} /></>}</Tag></React.Fragment>)}
-      </div>
       <div className="cx-table-scroll">
         <table className="cx-table cx-edit-table">
           <thead><tr><th>Label</th><th>Code</th><th>Color</th><th>Initial</th><th>Locks file</th><th>Awaits review</th><th>Can move to</th><th style={{ width: 32 }} /></tr></thead>
@@ -211,7 +371,6 @@ function Statuses({ list, transitions, onChange }: { list: StatusDef[]; transiti
             })}
           </tbody>
         </table>
-        <div style={{ background: "var(--cx-layer)" }}><Btn kind="ghost" onClick={() => onChange([...list, { code: `S${list.length + 1}`, label: "", color: "gray", is_initial: list.length === 0, locks_content: false }], transitions)}>Add status</Btn></div>
       </div>
     </div>
   );
@@ -228,18 +387,18 @@ function AdminBaskets() {
   const [deleting, setDeleting] = React.useState<Basket | null>(null);
   return (
     <>
-      <div className="cx-toolbar"><span className="cx-spacer" /><Btn kind="primary" onClick={() => setCreating(true)}>Create basket</Btn></div>
+      <div className="cx-toolbar"><span className="cx-spacer" /><Btn kind="primary" icon={<I.add />} onClick={() => setCreating(true)}>New basket</Btn></div>
       <div className="cx-table-scroll">
         <table className="cx-table">
           <thead><tr><th>Basket</th><th>Storage key</th><th>Status</th><th className="cx-right">Quota</th><th /></tr></thead>
           <tbody>
             {nav.baskets.map((b) => (
               <tr key={b.id}>
-                <td className="cx-name"><Link className="cx-filelink" href={`/b/${b.id}`}>{b.vault ? <I.lock /> : <I.basket />}<span>{b.name}</span></Link>{b.vault && <> <Tag color="blue">Vault</Tag></>}</td>
+                <td className="cx-name"><Link className="cx-filelink" href={`/b/${b.id}`}><span className="cx-bdot" style={{ background: basketColor(b.tone) }} /><span>{b.name}</span></Link>{b.vault && <> <Tag color="red">Vault</Tag></>}</td>
                 <td className="cx-num">{b.bucket}</td>
                 <td><Tag color={b.status === "live" ? "green" : "gray"}>{b.status === "live" ? "Accepting files" : "Paused"}</Tag></td>
                 <td className="cx-right cx-num">{b.quota_bytes ? bytes(b.quota_bytes) : "Workspace"}</td>
-                <td className="cx-right"><Link className="cx-btn cx-btn-ghost" href={`/admin/baskets/${b.id}`}>Settings</Link>
+                <td className="cx-right"><Link className="cx-btn cx-btn-ghost" href={`/b/${b.id}?tab=settings`}>Settings</Link>
                   {isAdmin && <Btn kind="danger-ghost" onClick={() => setDeleting(b)}>Delete</Btn>}</td>
               </tr>
             ))}
@@ -247,7 +406,7 @@ function AdminBaskets() {
         </table>
       </div>
       {creating && <NewBasketModal onClose={() => { setCreating(false); if (params.get("new")) router.replace("/admin?tab=baskets"); }}
-        onCreated={(id) => { nav.reload(); router.push(`/admin/baskets/${id}`); }} />}
+        onCreated={(id) => { nav.reload(); router.push(`/b/${id}`); }} />}
       {deleting && <DeleteBasketModal basket={deleting} onClose={() => setDeleting(null)} onDeleted={() => { setDeleting(null); nav.reload(); }} />}
     </>
   );
@@ -282,32 +441,64 @@ function DeleteBasketModal({ basket, onClose, onDeleted }: { basket: Basket; onC
   );
 }
 
-function NewBasketModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
+type Template = "review" | "plain" | "vault";
+const TEMPLATES: { id: Template; label: string; sub: string }[] = [
+  { id: "review", label: "Review flow", sub: "Draft → In review → Approved" },
+  { id: "plain", label: "Plain", sub: "One status" },
+  { id: "vault", label: "Vault", sub: "Encrypted · people you add" },
+];
+/// Statuses and moves a template sets right after the basket is made.
+function templateSettings(t: Template, cur: Settings): Settings {
+  if (t === "review") return { ...cur,
+    statuses: [
+      { code: "Draft", label: "Draft", color: "gray", is_initial: true, locks_content: false, awaits_review: false, sort: 1 },
+      { code: "Review", label: "In review", color: "blue", is_initial: false, locks_content: true, awaits_review: true, sort: 2 },
+      { code: "Approved", label: "Approved", color: "green", is_initial: false, locks_content: true, awaits_review: false, sort: 3 },
+      { code: "Rejected", label: "Rejected", color: "red", is_initial: false, locks_content: false, awaits_review: false, sort: 4 },
+    ],
+    transitions: [
+      { from_code: "Draft", to_code: "Review", required_level: 2 }, { from_code: "Review", to_code: "Approved", required_level: 3 },
+      { from_code: "Review", to_code: "Rejected", required_level: 3 }, { from_code: "Rejected", to_code: "Draft", required_level: 2 },
+    ] };
+  return { ...cur,
+    statuses: [{ code: "Stored", label: "Stored", color: "gray", is_initial: true, locks_content: false, awaits_review: false, sort: 1 }],
+    transitions: [] };
+}
+
+export function NewBasketModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const toast = useToast();
   const [name, setName] = React.useState("");
   const [bucket, setBucket] = React.useState("");
-  const [vault, setVault] = React.useState(false);
+  const [tone, setTone] = React.useState("purple");
+  const [tpl, setTpl] = React.useState<Template>("review");
   const [err, setErr] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const key = bucket || name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   const create = async () => {
     setErr(null); setBusy(true);
     try {
-      const r = await api<{ id: string }>("/systems", { method: "POST", json: { name: name.trim(), vault, bucket: key, tone: "slate" } });
+      const r = await api<{ id: string }>("/systems", { method: "POST", json: { name: name.trim(), vault: tpl === "vault", bucket: key || undefined, tone } });
+      try {
+        const cur = await api<Settings>(`/baskets/${r.id}/settings`);
+        await api(`/baskets/${r.id}/settings`, { method: "PUT", json: templateSettings(tpl, cur) });
+      } catch (e) { toast({ text: `Basket created; its statuses weren't set: ${(e as Error).message}`, error: true }); }
       toast({ text: `Basket ${name.trim()} created.` }); onCreated(r.id);
     } catch (e) { setErr((e as Error).message); setBusy(false); }
   };
   return (
-    <Modal title="Create basket" onClose={onClose} footer={<>
+    <Modal label="Basket" title="New basket" onClose={onClose} footer={<>
       <Btn kind="secondary" onClick={onClose}>Cancel</Btn>
-      <Btn kind="primary" disabled={!name.trim() || busy} onClick={create}>Create basket</Btn>
+      <Btn kind="primary" disabled={!name.trim() || busy} onClick={create}>{busy ? "Creating…" : "Create basket"}</Btn>
     </>}>
-      <div className="cx-form-grid">
-        <TextField label="Name" required value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-        <TextField label="Storage key" value={bucket} placeholder={key || "e.g. hr-documents"}
-          onChange={(e) => setBucket(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))} />
+      <TextField label="Name" required value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+      <TextField label="Storage key" className="cx-mono" value={bucket} placeholder={key || "hr-documents"}
+        onChange={(e) => setBucket(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))} />
+      <div className="cx-field"><span className="cx-label">Color</span><Swatches value={tone} onChange={setTone} /></div>
+      <div className="cx-field"><span className="cx-label">Template</span>
+        <div className="cx-tpl" role="radiogroup" aria-label="Template">
+          {TEMPLATES.map((t) => <button key={t.id} type="button" role="radio" aria-checked={tpl === t.id} onClick={() => setTpl(t.id)}><b>{t.label}</b><span>{t.sub}</span></button>)}
+        </div>
       </div>
-      <Check label="Vault: always encrypted, only people you add, no public links, every open is logged" checked={vault} onChange={setVault} />
       {err && <Note kind="error">{err}</Note>}
     </Modal>
   );

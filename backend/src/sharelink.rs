@@ -122,6 +122,36 @@ pub async fn list(State(s): State<Arc<AppState>>, user: AuthUser, Path(file_id):
     ).bind(file_id).fetch_all(&s.db).await?))
 }
 
+#[derive(Debug, Serialize, FromRow)]
+pub struct BasketLinkRow {
+    id: Id,
+    token: String,
+    file_id: Id,
+    file_name: String,
+    expires_at: Option<DateTime<Utc>>,
+    created_by: String,
+    created_at: DateTime<Utc>,
+    max_downloads: Option<i32>,
+    download_count: i32,
+    has_password: bool,
+    last_access_at: Option<DateTime<Utc>>,
+    access: String,
+    require_login: bool,
+}
+
+/// GET /api/baskets/:id/share-links — live public links of every file in one
+/// basket (the basket's Access tab). Manage on the basket required.
+pub async fn list_for_basket(State(s): State<Arc<AppState>>, user: AuthUser, Path(sys): Path<String>) -> ApiResult<Json<Vec<BasketLinkRow>>> {
+    crate::acl::require_folder(&s.db, &user.0, &sys, None, crate::acl::MANAGE).await?;
+    Ok(Json(sqlx::query_as(
+        "SELECT l.id, l.token, l.file_id, f.name AS file_name, l.expires_at, l.created_by, l.created_at, l.max_downloads, l.download_count,
+                l.password_hash IS NOT NULL AS has_password, l.last_access_at, l.access, l.require_login
+           FROM share_links l JOIN files f ON f.id = l.file_id
+          WHERE f.system_id = $1 AND f.deleted_at IS NULL AND l.revoked_at IS NULL AND (l.expires_at IS NULL OR l.expires_at > now())
+          ORDER BY l.created_at DESC LIMIT 200",
+    ).bind(&sys).fetch_all(&s.db).await?))
+}
+
 pub async fn revoke(State(s): State<Arc<AppState>>, user: AuthUser, Path(id): Path<Id>) -> ApiResult<StatusCode> {
     let row: Option<(Id,)> = sqlx::query_as("SELECT file_id FROM share_links WHERE id = $1 AND revoked_at IS NULL").bind(id).fetch_optional(&s.db).await?;
     let (fid,) = row.ok_or(ApiError::NotFound)?;

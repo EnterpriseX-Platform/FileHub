@@ -11,7 +11,7 @@ import * as React from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useBranding } from "@/lib/branding";
 import Link from "next/link";
-import { Note, TextField } from "@/components/cx/ui";
+import { Mark, Note, TextField } from "@/components/cx/ui";
 import "../carbon.css";
 
 export const dynamic = "force-dynamic";
@@ -92,10 +92,7 @@ function LoginInner() {
       <div className="cx-login-stack">
         <form onSubmit={submit} noValidate className="cx-login-card cx-on-layer">
           <div className="cx-login-brand">
-            <svg viewBox="0 0 32 32" width="32" height="32" aria-hidden="true">
-              <rect x="2" y="2" width="28" height="28" rx="7" fill="#0f62fe" />
-              <path d="M9 11.5h5l1.5 2H23v8.5H9z" fill="none" stroke="#fff" strokeWidth="2" strokeLinejoin="round" />
-            </svg>
+            <Mark size={32} />
             <span>{brand.brand_name}</span>
           </div>
           <h1 className="cx-login-title">Sign in</h1>

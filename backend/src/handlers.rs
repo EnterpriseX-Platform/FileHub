@@ -1501,8 +1501,9 @@ pub async fn search_files(
     State(s): State<Arc<AppState>>,
     user: AuthUser,
     Query(q): Query<SearchQuery>,
-) -> ApiResult<Json<Vec<File>>> {
+) -> ApiResult<(axum::http::HeaderMap, Json<Vec<File>>)> {
     let limit = q.limit.unwrap_or(50).min(500).max(1);
+    let offset = q.offset.unwrap_or(0).max(0);
     let term = q.q.trim().to_string();
     let creator = q.creator.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(str::to_string);
     let types: Vec<String> = q.types.as_deref().unwrap_or("").split(',').map(|t| t.trim().to_lowercase()).filter(|t| !t.is_empty()).collect();
@@ -1572,16 +1573,30 @@ pub async fn search_files(
     }
     if let Some(d) = from { n += 1; sql.push_str(&format!(" AND created_at >= (${n}::date)::timestamp AT TIME ZONE 'Asia/Bangkok'")); date_binds.push(d); }
     if let Some(d) = to   { n += 1; sql.push_str(&format!(" AND created_at < ((${n}::date) + 1)::timestamp AT TIME ZONE 'Asia/Bangkok'")); date_binds.push(d); }
-    n += 1;
-    sql.push_str(&format!(" ORDER BY modified_at DESC LIMIT ${n}"));
+    // Total matching rows (for pagination) — same filters, no order/limit/offset.
+    let count_sql = format!("SELECT COUNT(*) FROM ({sql}) t");
+    let mut cq = sqlx::query_scalar::<_, i64>(&count_sql);
+    for b in &str_binds { cq = cq.bind(b); }
+    for b in &vec_binds { cq = cq.bind(b); }
+    for b in &date_binds { cq = cq.bind(b); }
+    let total: i64 = cq.fetch_one(&s.db).await?;
+
+    n += 1; let limit_n = n;
+    n += 1; let offset_n = n;
+    sql.push_str(&format!(" ORDER BY modified_at DESC, id DESC LIMIT ${limit_n} OFFSET ${offset_n}"));
 
     let mut query = sqlx::query_as::<_, File>(&sql);
     for b in &str_binds { query = query.bind(b); }
     for b in &vec_binds { query = query.bind(b); }
     for b in &date_binds { query = query.bind(b); }
-    query = query.bind(limit);
+    query = query.bind(limit).bind(offset);
 
-    Ok(Json(query.fetch_all(&s.db).await?))
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(
+        axum::http::HeaderName::from_static("x-total-count"),
+        axum::http::HeaderValue::from_str(&total.to_string()).unwrap(),
+    );
+    Ok((headers, Json(query.fetch_all(&s.db).await?)))
 }
 
 #[derive(Debug, Deserialize)]

@@ -300,6 +300,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/files/:id/share",        axum::routing::post(sharelink::create))
         .route("/api/files/:id/links",        get(sharelink::list))
         .route("/api/share-links/:id",        axum::routing::delete(sharelink::revoke))
+        .route("/api/baskets/:id/share-links", get(sharelink::list_for_basket))
         .route("/api/folders",                get(handlers::list_folders).post(handlers::create_folder))
         .route("/api/folders/:id",            get(basket::folder_detail).delete(handlers::delete_folder).patch(basket::patch_folder))
         .route("/api/folders/:id/zip",        get(vbasket::folder_zip))

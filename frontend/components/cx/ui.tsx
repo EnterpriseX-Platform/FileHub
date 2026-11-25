@@ -4,65 +4,114 @@ import * as React from "react";
 
 import type { StatusDef, TagColor } from "@/lib/fh";
 
-// ── Icons (Carbon-style 16px strokes) ─────────────────────────────────────
-type IP = { size?: number; className?: string };
-const svg = (d: React.ReactNode) => function Icon({ size = 16, className }: IP) {
-  return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden className={className}>{d}</svg>;
+// ── Icons (@carbon/icons, 32px grid, filled) ─────────────────────────────
+type IP = { size?: number; className?: string; style?: React.CSSProperties };
+const svg = (d: React.ReactNode) => function Icon({ size = 16, className, style }: IP) {
+  return <svg width={size} height={size} viewBox="0 0 32 32" fill="currentColor" aria-hidden className={className} style={style}>{d}</svg>;
+};
+const P = {
+  folder: <path d="M11.17,6l3.42,3.41.58.59H28V26H4V6h7.17m0-2H4A2,2,0,0,0,2,6V26a2,2,0,0,0,2,2H28a2,2,0,0,0,2-2V10a2,2,0,0,0-2-2H16L12.59,4.59A2,2,0,0,0,11.17,4Z" />,
+  folderOpen: <path d="M28,8H16L12.59,4.59A2,2,0,0,0,11.17,4H4A2,2,0,0,0,2,6V26a2,2,0,0,0,2,2H28a2,2,0,0,0,2-2V10A2,2,0,0,0,28,8Zm0,18H4V12H28Z" />,
+  doc: <path d="M25.7,9.3l-7-7A.91.91,0,0,0,18,2H8A2,2,0,0,0,6,4V28a2,2,0,0,0,2,2H24a2,2,0,0,0,2-2V10A.91.91,0,0,0,25.7,9.3ZM18,4.4,23.6,10H18ZM24,28H8V4h8v6a2,2,0,0,0,2,2h6Z" />,
+  filter: <path d="M18,28H14a2,2,0,0,1-2-2V18.41L4.59,11A2,2,0,0,1,4,9.59V6A2,2,0,0,1,6,4H26a2,2,0,0,1,2,2V9.59A2,2,0,0,1,27.41,11L20,18.41V26A2,2,0,0,1,18,28ZM6,6V9.59l8,8V26h4V17.59l8-8V6Z" />,
+  share: <path d="M23,20a5,5,0,0,0-3.89,1.89L11.8,17.32a4.46,4.46,0,0,0,0-2.64l7.31-4.57A5,5,0,1,0,18,7a4.79,4.79,0,0,0,.2,1.32l-7.31,4.57a5,5,0,1,0,0,6.22l7.31,4.57A4.79,4.79,0,0,0,18,25a5,5,0,1,0,5-5ZM23,4a3,3,0,1,1-3,3A3,3,0,0,1,23,4ZM7,19a3,3,0,1,1,3-3A3,3,0,0,1,7,19Zm16,9a3,3,0,1,1,3-3A3,3,0,0,1,23,28Z" />,
 };
 export const I = {
-  chevronDown: svg(<path d="M4 6l4 4 4-4" />),
-  chevronRight: svg(<path d="M6 4l4 4-4 4" />),
-  close: svg(<path d="M4 4l8 8M12 4l-8 8" />),
-  add: svg(<path d="M8 3v10M3 8h10" />),
-  search: svg(<><circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5L14 14" /></>),
-  menu: svg(<path d="M2 4h12M2 8h12M2 12h12" />),
-  bell: svg(<><path d="M4 11V7a4 4 0 0 1 8 0v4l1 1.5H3z" /><path d="M6.5 14a1.5 1.5 0 0 0 3 0" /></>),
-  hub: svg(<><rect x="2" y="2" width="5" height="5" /><rect x="9" y="2" width="5" height="5" /><rect x="2" y="9" width="5" height="5" /><path d="M9 11.5h5M11.5 9v5" /></>),
-  folder: svg(<path d="M1.5 3.5h5l1.5 1.5h6.5v8h-13z" />),
-  vfolder: svg(<path d="M1.5 3.5h5l1.5 1.5h6.5v8h-13z" strokeDasharray="2 1.5" />),
-  basket: svg(<><path d="M2 6h12l-1.2 7.5H3.2z" /><path d="M5 6l3-4 3 4" /></>),
-  vbasket: svg(<><path d="M2 6h12l-1.2 7.5H3.2z" strokeDasharray="2 1.5" /><path d="M5 6l3-4 3 4" /></>),
-  upload: svg(<><path d="M8 11V3M4.5 6.5L8 3l3.5 3.5" /><path d="M2.5 13.5h11" /></>),
-  download: svg(<><path d="M8 3v8M4.5 7.5L8 11l3.5-3.5" /><path d="M2.5 13.5h11" /></>),
-  overflow: svg(<><circle cx="8" cy="3.5" r=".8" fill="currentColor" /><circle cx="8" cy="8" r=".8" fill="currentColor" /><circle cx="8" cy="12.5" r=".8" fill="currentColor" /></>),
-  edit: svg(<path d="M3 11.5V13h1.5l7-7L10 4.5l-7 7zM9.5 5L11 6.5" />),
-  trash: svg(<><path d="M3 4.5h10M6 4.5V3h4v1.5M4.5 4.5l.7 9h5.6l.7-9" /></>),
-  lock: svg(<><rect x="3.5" y="7" width="9" height="6.5" /><path d="M5.5 7V5a2.5 2.5 0 015 0v2" /></>),
-  user: svg(<><circle cx="8" cy="5.5" r="2.5" /><path d="M3 14c.5-3 2.5-4.5 5-4.5s4.5 1.5 5 4.5" /></>),
-  recent: svg(<><circle cx="8" cy="8" r="6" /><path d="M8 4.5V8l2.5 1.5" /></>),
-  shared: svg(<><circle cx="5" cy="6" r="2" /><circle cx="11" cy="6" r="2" /><path d="M1.5 13c.3-2 1.6-3 3.5-3s3.2 1 3.5 3M7.5 13c.3-2 1.6-3 3.5-3s3.2 1 3.5 3" /></>),
-  review: svg(<><path d="M3 2.5h10v11H3z" /><path d="M5.5 8l2 2 3-3.5" /></>),
-  settings: svg(<><circle cx="8" cy="8" r="2" /><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" /></>),
-  link: svg(<path d="M6.5 9.5l3-3M7 4.5l1-1a2.5 2.5 0 013.5 3.5l-1 1M9 11.5l-1 1A2.5 2.5 0 014.5 9l1-1" />),
-  arrowUp: svg(<path d="M8 13V3M4 7l4-4 4 4" />),
-  arrowDown: svg(<path d="M8 3v10M4 9l4 4 4-4" />),
-  sort: svg(<path d="M5 3v10M3 11l2 2 2-2M11 13V3M9 5l2-2 2 2" />),
-  warning: svg(<><path d="M8 2l6.5 12h-13z" /><path d="M8 6.5v3.5M8 11.5v.5" /></>),
-  check: svg(<path d="M3 8.5l3 3 7-7" />),
-  move: svg(<path d="M2 8h12M10 4l4 4-4 4" />),
-  rules: svg(<path d="M2 4h7M2 8h12M2 12h5M11 2v4M13 10v4" />),
-  doc: svg(<><path d="M3.5 1.5h6l3 3v10h-9z" /><path d="M9.5 1.5v3h3M5.5 8h5M5.5 10.5h5" /></>),
-  star: svg(<path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" />),
-  starFilled: svg(<path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" fill="currentColor" />),
-  copy: svg(<><rect x="5" y="5" width="8.5" height="8.5" /><path d="M3 10.5V2.5h8" /></>),
+  chevronDown: svg(<polygon points="16 22 6 12 7.4 10.6 16 19.2 24.6 10.6 26 12 16 22" />),
+  chevronRight: svg(<polygon points="22 16 12 26 10.6 24.6 19.2 16 10.6 7.4 12 6 22 16" />),
+  chevronLeft: svg(<polygon points="10 16 20 6 21.4 7.4 12.8 16 21.4 24.6 20 26 10 16" />),
+  close: svg(<polygon points="24 9.4 22.6 8 16 14.6 9.4 8 8 9.4 14.6 16 8 22.6 9.4 24 16 17.4 22.6 24 24 22.6 17.4 16 24 9.4" />),
+  add: svg(<polygon points="17 15 17 8 15 8 15 15 8 15 8 17 15 17 15 24 17 24 17 17 24 17 24 15 17 15" />),
+  search: svg(<path d="M29,27.59l-7.55-7.56a11,11,0,1,0-1.41,1.41L27.59,29ZM4,13a9,9,0,1,1,9,9A9,9,0,0,1,4,13Z" />),
+  menu: svg(<><rect x="4" y="6" width="24" height="2" /><rect x="4" y="24" width="24" height="2" /><rect x="4" y="12" width="24" height="2" /><rect x="4" y="18" width="24" height="2" /></>),
+  bell: svg(<path d="M28.71,19.29,26,16.59V13a10,10,0,0,0-9-9.94V1H15V3.06A10,10,0,0,0,6,13v3.59L3.29,19.29A1,1,0,0,0,3,20v3a1,1,0,0,0,1,1h7v.78a5.21,5.21,0,0,0,4.5,5.22A5,5,0,0,0,21,25V24h7a1,1,0,0,0,1-1V20A1,1,0,0,0,28.71,19.29ZM19,25a3,3,0,0,1-6,0V24h6Zm8-3H5V20.41L7.71,17.71A1,1,0,0,0,8,17V13a8,8,0,0,1,16,0v4a1,1,0,0,0,.29.71L27,20.41Z" />),
+  hub: svg(P.folder),
+  folder: svg(P.folder),
+  folderOpen: svg(P.folderOpen),
+  vfolder: svg(P.filter),
+  basket: svg(P.folder),
+  vbasket: svg(P.filter),
+  filter: svg(P.filter),
+  upload: svg(<><path d="M6,18,7.41,19.41,15,11.83V30h2V11.83l7.59,7.58L26,18,16,8Z" /><path d="M6,8V4H26V8h2V4a2,2,0,0,0-2-2H6A2,2,0,0,0,4,4V8Z" /></>),
+  download: svg(<><path d="M26,24v4H6V24H4v4a2,2,0,0,0,2,2H26a2,2,0,0,0,2-2V24Z" /><path d="M26,14l-1.41-1.41L17,20.17V2H15V20.17L7.41,12.59,6,14,16,24Z" /></>),
+  overflow: svg(<><circle cx="16" cy="8" r="2" /><circle cx="16" cy="16" r="2" /><circle cx="16" cy="24" r="2" /></>),
+  edit: svg(<><rect x="2" y="26" width="28" height="2" /><path d="M25.4,9c.8-.8.8-2,0-2.8l-3.6-3.6c-.8-.8-2-.8-2.8,0l-15,15V24h6.4Zm-5-5L24,7.6l-3,3L17.4,7ZM6,22V18.4l10-10L19.6,12l-10,10Z" /></>),
+  trash: svg(<><rect x="12" y="12" width="2" height="12" /><rect x="18" y="12" width="2" height="12" /><path d="M4,6V8H6V28a2,2,0,0,0,2,2H24a2,2,0,0,0,2-2V8h2V6ZM8,28V8H24V28Z" /><rect x="12" y="2" width="8" height="2" /></>),
+  lock: svg(<path d="M24,14H22V8A6,6,0,0,0,10,8v6H8a2,2,0,0,0-2,2V28a2,2,0,0,0,2,2H24a2,2,0,0,0,2-2V16A2,2,0,0,0,24,14ZM12,8a4,4,0,0,1,8,0v6H12ZM24,28H8V16H24Z" />),
+  user: svg(<><path d="M16,4a5,5,0,1,1-5,5,5,5,0,0,1,5-5m0-2a7,7,0,1,0,7,7A7,7,0,0,0,16,2Z" /><path d="M26,30H24V25a5,5,0,0,0-5-5H13a5,5,0,0,0-5,5v5H6V25a7,7,0,0,1,7-7h6a7,7,0,0,1,7,7Z" /></>),
+  recent: svg(<><path d="M20.59,22,15,16.41V7h2v8.58l5,5.01Z" /><path d="M16,2A13.94,13.94,0,0,0,6,6.23V2H4v8h8V8H7.08A12,12,0,1,1,4,16H2A14,14,0,1,0,16,2Z" /></>),
+  shared: svg(P.share),
+  share: svg(P.share),
+  review: svg(<><polygon points="14 21.414 9 16.413 10.413 15 14 18.586 21.585 11 23 12.415 14 21.414" /><path d="M16,2A14,14,0,1,0,30,16,14,14,0,0,0,16,2Zm0,26A12,12,0,1,1,28,16,12,12,0,0,1,16,28Z" /></>),
+  settings: svg(<><path d="M27,16.76c0-.25,0-.5,0-.76s0-.51,0-.77l1.92-1.68A2,2,0,0,0,29.3,11L26.94,7a2,2,0,0,0-1.73-1,2,2,0,0,0-.64.1l-2.43.82a11.35,11.35,0,0,0-1.31-.75l-.51-2.52a2,2,0,0,0-2-1.61H13.64a2,2,0,0,0-2,1.61l-.51,2.52a11.48,11.48,0,0,0-1.32.75L7.43,6.06A2,2,0,0,0,6.79,6,2,2,0,0,0,5.06,7L2.7,11a2,2,0,0,0,.41,2.51L5,15.24c0,.25,0,.5,0,.76s0,.51,0,.77L3.11,18.45A2,2,0,0,0,2.7,21L5.06,25a2,2,0,0,0,1.73,1,2,2,0,0,0,.64-.1l2.43-.82a11.35,11.35,0,0,0,1.31.75l.51,2.52a2,2,0,0,0,2,1.61h4.72a2,2,0,0,0,2-1.61l.51-2.52a11.48,11.48,0,0,0,1.32-.75l2.42.82a2,2,0,0,0,.64.1,2,2,0,0,0,1.73-1L29.3,21a2,2,0,0,0-.41-2.51ZM25.21,24l-3.43-1.16a8.86,8.86,0,0,1-2.71,1.57L18.36,28H13.64l-.71-3.55a9.36,9.36,0,0,1-2.7-1.57L6.79,24,4.43,20l2.72-2.4a8.9,8.9,0,0,1,0-3.13L4.43,12,6.79,8l3.43,1.16a8.86,8.86,0,0,1,2.71-1.57L13.64,4h4.72l.71,3.55a9.36,9.36,0,0,1,2.7,1.57L25.21,8,27.57,12l-2.72,2.4a8.9,8.9,0,0,1,0,3.13L27.57,20Z" /><path d="M16,22a6,6,0,1,1,6-6A5.94,5.94,0,0,1,16,22Zm0-10a3.91,3.91,0,0,0-4,4,3.91,3.91,0,0,0,4,4,3.91,3.91,0,0,0,4-4A3.91,3.91,0,0,0,16,12Z" /></>),
+  link: svg(<><path d="M29.25,6.76a6,6,0,0,0-8.5,0l1.42,1.42a4,4,0,1,1,5.67,5.67l-8,8a4,4,0,1,1-5.67-5.66l1.41-1.42-1.41-1.42-1.42,1.42a6,6,0,0,0,0,8.5A6,6,0,0,0,17,25a6,6,0,0,0,4.27-1.76l8-8A6,6,0,0,0,29.25,6.76Z" /><path d="M4.19,24.82a4,4,0,0,1,0-5.67l8-8a4,4,0,0,1,5.67,0A3.94,3.94,0,0,1,19,14a4,4,0,0,1-1.17,2.85L15.71,19l1.42,1.42,2.12-2.12a6,6,0,0,0-8.51-8.51l-8,8a6,6,0,0,0,0,8.51A6,6,0,0,0,7,28a6.07,6.07,0,0,0,4.28-1.76L9.86,24.82A4,4,0,0,1,4.19,24.82Z" /></>),
+  arrowUp: svg(<polygon points="16 4 6 14 7.41 15.41 15 7.83 15 28 17 28 17 7.83 24.59 15.41 26 14 16 4" />),
+  arrowDown: svg(<polygon points="24.59 16.59 17 24.17 17 4 15 4 15 24.17 7.41 16.59 6 18 16 28 26 18 24.59 16.59" />),
+  sort: svg(<><polygon points="16 28 9 21 10.41 19.59 16 25.17 21.59 19.59 23 21 16 28" /><polygon points="16 4 23 11 21.59 12.41 16 6.83 10.41 12.41 9 11 16 4" /></>),
+  warning: svg(<><path d="M16,23a1.5,1.5,0,1,0,1.5,1.5A1.5,1.5,0,0,0,16,23Z" /><rect x="15" y="12" width="2" height="9" /><path d="M29,30H3a1,1,0,0,1-.8872-1.4614l13-25a1,1,0,0,1,1.7744,0l13,25A1,1,0,0,1,29,30ZM4.6507,28H27.3493l.002-.0033L16.002,6.1714h-.004L4.6487,27.9967Z" /></>),
+  check: svg(<polygon points="13 24 4 15 5.414 13.586 13 21.171 26.586 7.586 28 9 13 24" />),
+  move: svg(<polygon points="18 6 16.57 7.393 24.15 15 4 15 4 17 24.15 17 16.57 24.573 18 26 28 16 18 6" />),
+  rules: svg(<><rect x="10" y="18" width="8" height="2" /><rect x="10" y="13" width="12" height="2" /><rect x="10" y="23" width="5" height="2" /><path d="M25,5H22V4a2,2,0,0,0-2-2H12a2,2,0,0,0-2,2V5H7A2,2,0,0,0,5,7V28a2,2,0,0,0,2,2H25a2,2,0,0,0,2-2V7A2,2,0,0,0,25,5ZM12,4h8V8H12ZM25,28H7V7h3v3H22V7h3Z" /></>),
+  doc: svg(P.doc),
+  star: svg(<path d="M16,6.52l2.76,5.58.46,1,1,.15,6.16.89L22,18.44l-.75.73.18,1,1.05,6.13-5.51-2.89L16,23l-.93.49L9.56,26.34l1-6.13.18-1L10,18.44,5.58,14.09l6.16-.89,1-.15.46-1L16,6.52M16,2l-4.55,9.22L1.28,12.69l7.36,7.18L6.9,30,16,25.22,25.1,30,23.36,19.87l7.36-7.17L20.55,11.22Z" />),
+  starFilled: svg(<path d="M16,2l-4.55,9.22L1.28,12.69l7.36,7.18L6.9,30,16,25.22,25.1,30,23.36,19.87l7.36-7.17L20.55,11.22Z" />),
+  copy: svg(<><path d="M28,10V28H10V10H28m0-2H10a2,2,0,0,0-2,2V28a2,2,0,0,0,2,2H28a2,2,0,0,0,2-2V10a2,2,0,0,0-2-2Z" /><path d="M4,18H2V4A2,2,0,0,1,4,2H18V4H4Z" /></>),
+  success: svg(<path d="M16,2A14,14,0,1,0,30,16,14,14,0,0,0,16,2ZM14,21.5908l-5-5L10.5906,15,14,18.4092,21.41,11l1.5957,1.5859Z" />),
+  error: svg(<path d="M16,2C8.3,2,2,8.3,2,16s6.3,14,14,14s14-6.3,14-14C30,8.3,23.7,2,16,2z M21.4,23L16,17.6L10.6,23L9,21.4l5.4-5.4L9,10.6L10.6,9l5.4,5.4L21.4,9l1.6,1.6L17.6,16l5.4,5.4L21.4,23z" />),
+  grid: svg(<path d="M12,4H6A2,2,0,0,0,4,6v6a2,2,0,0,0,2,2h6a2,2,0,0,0,2-2V6A2,2,0,0,0,12,4Zm0,8H6V6h6Zm14-8H20a2,2,0,0,0-2,2v6a2,2,0,0,0,2,2h6a2,2,0,0,0,2-2V6A2,2,0,0,0,26,4Zm0,8H20V6h6ZM12,18H6a2,2,0,0,0-2,2v6a2,2,0,0,0,2,2h6a2,2,0,0,0,2-2V20A2,2,0,0,0,12,18Zm0,8H6V20h6Zm14-8H20a2,2,0,0,0-2,2v6a2,2,0,0,0,2,2h6a2,2,0,0,0,2-2V20A2,2,0,0,0,26,18Zm0,8H20V20h6Z" />),
+  list: svg(<><rect x="4" y="6" width="24" height="2" /><rect x="4" y="12" width="24" height="2" /><rect x="4" y="18" width="24" height="2" /><rect x="4" y="24" width="24" height="2" /></>),
 };
+
+/// FileHub mark: purple square with the folder glyph (identity only).
+export function Mark({ size = 22 }: { size?: number }) {
+  return <span className="cx-mark" style={{ width: size, height: size }}><I.folder size={Math.round(size * 0.64)} /></span>;
+}
+
+/// File-type tile: colored page with the extension (PDF / XLS / DOC / ZIP / IMG …).
+const FT: Record<string, string> = {
+  pdf: "pdf", xls: "xls", xlsx: "xls", csv: "xls", ods: "xls", doc: "doc", docx: "doc", odt: "doc", rtf: "doc", txt: "doc", ppt: "ppt", pptx: "ppt", odp: "ppt",
+  zip: "zip", rar: "zip", "7z": "zip", gz: "zip", tar: "zip", png: "img", jpg: "img", jpeg: "img", gif: "img", webp: "img", svg: "img", bmp: "img", tif: "img", tiff: "img",
+  mp3: "av", wav: "av", mp4: "av", mov: "av",
+};
+export function fileKind(name: string): string {
+  const m = /\.([^./]+)$/.exec(name);
+  return FT[(m?.[1] ?? "").toLowerCase()] ?? "file";
+}
+export function FileTile({ name }: { name: string }) {
+  const m = /\.([^./]+)$/.exec(name);
+  const e = (m?.[1] ?? "").toUpperCase().slice(0, 4) || "FILE";
+  return <span className={`cx-ftile cx-ft-${fileKind(name)}`} aria-hidden><span>{e}</span></span>;
+}
+
+/// Basket color (systems.tone): the palette the New basket dialog offers, plus older tone names.
+export const BASKET_COLORS: { value: string; color: string }[] = [
+  { value: "purple", color: "var(--cx-brand)" }, { value: "blue", color: "#1192e8" }, { value: "green", color: "#198038" },
+  { value: "brown", color: "#8a3800" }, { value: "red", color: "#da1e28" }, { value: "teal", color: "#007d79" }, { value: "magenta", color: "#d02670" },
+];
+const TONE_ALIAS: Record<string, string> = { violet: "purple", fuchsia: "magenta", rose: "red", cyan: "blue", sky: "blue", emerald: "green", amber: "brown", orange: "brown" };
+export function basketColor(tone: string | null | undefined): string {
+  if (!tone) return "var(--cx-brand)";
+  if (/^#[0-9a-f]{3,8}$/i.test(tone)) return tone;
+  const t = TONE_ALIAS[tone] ?? tone;
+  return BASKET_COLORS.find((c) => c.value === t)?.color ?? (tone === "slate" ? "#6f6f6f" : "var(--cx-brand)");
+}
 
 // ── Button ────────────────────────────────────────────────────────────────
 type BtnKind = "primary" | "secondary" | "tertiary" | "ghost" | "danger" | "danger-ghost";
-export function Btn({ kind = "secondary", icon, iconOnly, children, className = "", ...p }:
-  React.ButtonHTMLAttributes<HTMLButtonElement> & { kind?: BtnKind; icon?: React.ReactNode; iconOnly?: boolean }) {
+export function Btn({ kind = "secondary", icon, iconOnly, md, children, className = "", ...p }:
+  React.ButtonHTMLAttributes<HTMLButtonElement> & { kind?: BtnKind; icon?: React.ReactNode; iconOnly?: boolean; md?: boolean }) {
   return (
-    <button type="button" {...p} className={`cx-btn cx-btn-${kind}${iconOnly ? " cx-btn-icon" : ""} ${className}`}>
-      {children}{icon}
+    <button type="button" {...p} className={`cx-btn cx-btn-${kind}${iconOnly ? " cx-btn-icon" : ""}${md ? " cx-btn-md" : ""}${kind === "ghost" && icon ? " cx-btn-lead" : ""} ${className}`}>
+      {kind === "ghost" && icon && !iconOnly ? <>{icon}{children}</> : <>{children}{icon}</>}
     </button>
   );
 }
 
 // ── Tag ───────────────────────────────────────────────────────────────────
-export function Tag({ color = "gray", children, onRemove, title }: { color?: TagColor; children: React.ReactNode; onRemove?: () => void; title?: string }) {
+export function Tag({ color = "gray", children, onRemove, title, dot = true }: { color?: TagColor | "purple"; children: React.ReactNode; onRemove?: () => void; title?: string; dot?: boolean }) {
   return (
     <span className={`cx-tag cx-tag-${color}`} title={title}>
-      {children}
+      {dot && <span className="cx-tag-dot" aria-hidden />}{children}
       {onRemove && <button aria-label="Remove" onClick={onRemove}><I.close size={10} /></button>}
     </span>
   );
@@ -244,9 +293,10 @@ export function ToastHost({ children }: { children: React.ReactNode }) {
       <div className="cx-toasts" aria-live="polite">
         {list.map((t) => (
           <div key={t.id} className={`cx-toast${t.error ? " cx-toast-error" : ""}`}>
+            {t.error ? <I.error size={20} /> : <I.success size={20} />}
             <span>{t.text}</span>
             {t.undo && <button onClick={() => { t.undo?.(); setList((l) => l.filter((x) => x.id !== t.id)); }}>Undo</button>}
-            <button aria-label="Dismiss" onClick={() => setList((l) => l.filter((x) => x.id !== t.id))}><I.close size={12} /></button>
+            <button aria-label="Dismiss" onClick={() => setList((l) => l.filter((x) => x.id !== t.id))}><I.close size={16} /></button>
           </div>
         ))}
       </div>
@@ -255,9 +305,9 @@ export function ToastHost({ children }: { children: React.ReactNode }) {
 }
 
 // ── Tabs ──────────────────────────────────────────────────────────────────
-export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { id: T; label: string }[]; value: T; onChange: (t: T) => void }) {
+export function Tabs<T extends string>({ tabs, value, onChange, className }: { tabs: { id: T; label: string }[]; value: T; onChange: (t: T) => void; className?: string }) {
   return (
-    <div className="cx-tabs" role="tablist">
+    <div className={`cx-tabs${className ? ` ${className}` : ""}`} role="tablist">
       {tabs.map((t) => (
         <button key={t.id} role="tab" aria-selected={t.id === value} className="cx-tab" onClick={() => onChange(t.id)}>{t.label}</button>
       ))}
@@ -294,7 +344,8 @@ export function useOutside<T extends HTMLElement>(open: boolean, close: () => vo
 }
 
 /// Small overflow menu anchored to a button.
-export function OverflowMenu({ items, label = "More actions" }: { items: ({ label: string; onClick: () => void; danger?: boolean } | "sep")[]; label?: string }) {
+export type MenuItem = { label: string; onClick: () => void; danger?: boolean; icon?: React.ReactNode };
+export function OverflowMenu({ items, label = "More actions" }: { items: (MenuItem | "sep")[]; label?: string }) {
   const [open, setOpen] = React.useState(false);
   // Fixed to the viewport so a scrolling table around the button can't clip it.
   const [at, setAt] = React.useState<{ top: number; right: number } | null>(null);
@@ -319,7 +370,7 @@ export function OverflowMenu({ items, label = "More actions" }: { items: ({ labe
       {open && at && (
         <div className="cx-menu" role="menu" style={{ position: "fixed", right: at.right, top: at.top, zIndex: 90 }}>
           {items.map((it, i) => it === "sep" ? <hr key={i} /> : (
-            <button key={i} role="menuitem" className={it.danger ? "cx-danger" : ""} onClick={(e) => { e.stopPropagation(); setOpen(false); it.onClick(); }}>{it.label}</button>
+            <button key={i} role="menuitem" className={it.danger ? "cx-danger" : ""} onClick={(e) => { e.stopPropagation(); setOpen(false); it.onClick(); }}>{it.icon}{it.label}</button>
           ))}
         </div>
       )}
@@ -342,8 +393,9 @@ export function SearchBar({ value, onChange, placeholder, children }: {
 }) {
   return (
     <div className="cx-toolbar">
-      <input className="cx-search cx-grow" style={{ paddingLeft: 12 }} placeholder={placeholder} aria-label={placeholder}
-        value={value} onChange={(e) => onChange(e.target.value)} />
+      <div className="cx-grow cx-search-wrap"><I.search />
+        <input className="cx-search" placeholder={placeholder} aria-label={placeholder}
+          value={value} onChange={(e) => onChange(e.target.value)} /></div>
       {children}
     </div>
   );
@@ -355,4 +407,52 @@ export function useFilter<T>(rows: T[] | null | undefined, query: string, text: 
   return React.useMemo(() => (rows ?? []).filter((r) => !q || text(r).toLowerCase().includes(q)),
     // `text` is an inline lambda; the result only depends on rows and the query.
     [rows, q]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+// ── Pagination (Carbon): items per page · range · page · prev/next ─────────
+export const PAGE_SIZES = [25, 50, 100];
+export function Pager({ page, size, total, onPage, onSize, more }: {
+  page: number; size: number; total: number | null; onPage: (p: number) => void; onSize: (n: number) => void;
+  /// When the total is unknown: whether a next page exists.
+  more?: boolean;
+}) {
+  const from = total === 0 ? 0 : page * size + 1;
+  const pages = total == null ? null : Math.max(1, Math.ceil(total / size));
+  const to = total == null ? page * size + size : Math.min(total, (page + 1) * size);
+  const hasNext = pages == null ? !!more : page + 1 < pages;
+  return (
+    <div className="cx-pager" role="navigation" aria-label="Pagination">
+      <span className="cx-pager-seg cx-pager-size">Items per page:
+        <Dropdown value={String(size)} up options={PAGE_SIZES.map((n) => ({ value: String(n), label: String(n) }))} onChange={(v) => onSize(Number(v))} triggerClassName="cx-pager-dd" />
+      </span>
+      <span className="cx-pager-seg cx-num cx-hide-sm">{total == null ? `${from}–${to}` : `${from}–${to} of ${total} item${total === 1 ? "" : "s"}`}</span>
+      <span className="cx-spacer" />
+      {pages != null && <span className="cx-pager-seg cx-num">Page {page + 1} of {pages}</span>}
+      <button className="cx-pager-nb" aria-label="Previous page" disabled={page === 0} onClick={() => onPage(page - 1)}><I.chevronLeft /></button>
+      <button className="cx-pager-nb" aria-label="Next page" disabled={!hasNext} onClick={() => onPage(page + 1)}><I.chevronRight /></button>
+    </div>
+  );
+}
+
+/// Page size remembered per list in this browser (25 / 50 / 100).
+export function usePageSize(key: string, initial = 50): [number, (n: number) => void] {
+  const [n, setN] = React.useState(initial);
+  React.useEffect(() => { try { const v = Number(localStorage.getItem(`fh.page.${key}`)); if (PAGE_SIZES.includes(v)) setN(v); } catch { /* storage off */ } }, [key]);
+  return [n, (v: number) => { setN(v); try { localStorage.setItem(`fh.page.${key}`, String(v)); } catch { /* storage off */ } }];
+}
+
+/// Empty state: brand mark + one short line (no how-to text).
+export function Empty({ children, icon, action }: { children: React.ReactNode; icon?: React.ReactNode; action?: React.ReactNode }) {
+  return (
+    <div className="cx-empty">
+      <div className="cx-empty-mk">{icon ?? <I.folder size={20} />}</div>
+      <strong>{children}</strong>
+      {action}
+    </div>
+  );
+}
+
+/// On/off switch (Carbon toggle, small).
+export function Toggle({ on, onChange, label, disabled }: { on: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
+  return <button type="button" role="switch" aria-checked={on} aria-label={label} disabled={disabled} className="cx-switch" onClick={() => onChange(!on)} />;
 }

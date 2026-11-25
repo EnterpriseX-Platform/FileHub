@@ -147,6 +147,8 @@ pub struct AclEntryView {
     pub principal_label: String,
     /// Where the grant comes from when it is inherited (folder/basket name).
     pub inherited_from: Option<String>,
+    /// Who added the grant (display name; the stored value when the account is gone).
+    pub granted_by_label: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -207,7 +209,14 @@ async fn principal_label(db: &PgPool, p: &str) -> String {
 
 async fn view_of(db: &PgPool, e: AclEntry, inherited_from: Option<String>) -> AclEntryView {
     let label = principal_label(db, &e.principal).await;
-    AclEntryView { level_name: level_name(e.level as i32), principal_label: label, inherited_from, entry: e }
+    let granted_by_label = match e.granted_by.as_deref() {
+        None => None,
+        Some(g) => Some(
+            sqlx::query_scalar::<_, String>("SELECT display_name FROM users WHERE id = $1")
+                .bind(g).fetch_optional(db).await.ok().flatten().unwrap_or_else(|| g.to_string()),
+        ),
+    };
+    AclEntryView { level_name: level_name(e.level as i32), principal_label: label, inherited_from, granted_by_label, entry: e }
 }
 
 pub async fn get_acl(

@@ -8,7 +8,7 @@ import { Btn, Check, Dropdown, Note, TextArea, TextField, useToast } from "./ui"
 type Link = { token: string; title: string; message: string | null; require_login: boolean; expires_at: string; max_files: number | null; upload_count: number };
 
 /// "Upload link" section of the Share dialog for a basket or folder.
-export function UploadLinks({ systemId, folderId, placeName }: { systemId: string; folderId: string | null; placeName: string }) {
+export function UploadLinks({ systemId, folderId, placeName, bare }: { systemId: string; folderId: string | null; placeName: string; bare?: boolean }) {
   const toast = useToast();
   const [rows, setRows] = React.useState<Link[] | null>(null);
   const [open, setOpen] = React.useState(false);
@@ -37,9 +37,9 @@ export function UploadLinks({ systemId, folderId, placeName }: { systemId: strin
     } catch (e) { setErr((e as Error).message); }
   };
   return (
-    <div style={{ borderTop: "1px solid var(--cx-border-subtle)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={bare ? { display: "flex", flexDirection: "column", gap: 8 } : { borderTop: "1px solid var(--cx-border-subtle)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <div style={{ flex: 1 }}><div>Upload link</div><div className="cx-helper">People with the link can add files to {placeName}. They can&apos;t see what&apos;s already here.</div></div>
+        <div style={{ flex: 1 }}>{!bare && <div>Upload link</div>}{rows && rows.length === 0 && bare && <span className="cx-sub">No active links</span>}</div>
         {!open && <Btn kind="tertiary" onClick={() => setOpen(true)}>Create upload link</Btn>}
       </div>
       {rows && rows.length > 0 && (

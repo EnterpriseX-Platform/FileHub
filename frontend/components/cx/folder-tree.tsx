@@ -40,10 +40,10 @@ export function FolderTree({ basketId, rootLabel, folders, current }: { basketId
         <div className="cx-ftree-row" data-current={current === f.id || undefined} style={{ paddingLeft: 8 + depth * 16 }}>
           {kids.length ? (
             <button type="button" className="cx-ftree-twisty" aria-label={isOpen ? `Collapse ${f.name}` : `Expand ${f.name}`} onClick={() => toggle(f.id)}>
-              {isOpen ? <I.chevronDown size={12} /> : <I.chevronRight size={12} />}
+              <I.chevronRight size={12} style={isOpen ? { transform: "rotate(90deg)" } : undefined} />
             </button>
           ) : <span className="cx-ftree-twisty" />}
-          <Link href={`/b/${basketId}?folder=${f.id}`} className="cx-ftree-link" title={f.name}><I.folder size={16} /><span>{f.name}</span></Link>
+          <Link href={`/b/${basketId}?folder=${f.id}`} className="cx-ftree-link" title={f.name}>{isOpen && kids.length ? <I.folderOpen size={16} /> : <I.folder size={16} />}<span>{f.name}</span></Link>
         </div>
         {isOpen && kids.length > 0 && <ul role="group">{kids.map((k) => <Node key={k.id} f={k} depth={depth + 1} />)}</ul>}
       </li>
@@ -56,8 +56,8 @@ export function FolderTree({ basketId, rootLabel, folders, current }: { basketId
       <ul role="tree">
         <li role="treeitem" aria-selected={!current}>
           <div className="cx-ftree-row" data-current={!current || undefined} style={{ paddingLeft: 8 }}>
-            <span className="cx-ftree-twisty" />
-            <Link href={`/b/${basketId}`} className="cx-ftree-link" title={rootLabel}><I.basket size={16} /><span>{rootLabel}</span></Link>
+            <span className="cx-ftree-twisty"><I.chevronRight size={12} style={{ transform: "rotate(90deg)" }} /></span>
+            <Link href={`/b/${basketId}`} className="cx-ftree-link" title={rootLabel}><I.folderOpen size={16} /><span>{rootLabel}</span></Link>
           </div>
           <ul role="group">{(byParent.get(null) ?? []).map((f) => <Node key={f.id} f={f} depth={1} />)}</ul>
         </li>

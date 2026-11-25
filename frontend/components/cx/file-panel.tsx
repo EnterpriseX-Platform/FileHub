@@ -8,7 +8,7 @@ import Link from "next/link";
 import { api, bytes, meta, when, BASE_PATH, type Effective, type FileRow, type Settings } from "@/lib/fh";
 import { cleanFields, FieldInputs } from "./modals";
 import { useAuth } from "@/lib/auth-context";
-import { Btn, I, Note, StatusTag, Tabs, TextArea, useToast } from "./ui";
+import { Btn, FileTile, fileKind, I, Note, StatusTag, Tabs, TextArea, useToast } from "./ui";
 
 type Version = { id: string; version: number; size_bytes: number; uploaded_by: string | null; note: string | null; created_at: string };
 type Act = { id: string; actor: string; action: string; target: string | null; created_at: string };
@@ -128,15 +128,18 @@ export function FilePanel({ fileId, settingsFor, onClose, onChanged, onShare, on
   return (
     <aside className="cx-panel" aria-label="File details">
       <div className="cx-panel-head">
-        <h2>{f?.name ?? (err ? "File" : <span className="cx-skel" style={{ width: 180, height: 14 }} />)}</h2>
+        {f && <FileTile name={f.name} />}
+        <h2>{f?.name ?? (err ? "File" : <span className="cx-skel" style={{ width: 180, height: 14 }} />)}
+          {f && <small className="cx-num">{bytes(f.size_bytes)} · Version {f.version}</small>}</h2>
         <button className="cx-close" aria-label="Close details" onClick={onClose}><I.close /></button>
       </div>
+      {f && <Preview f={f} />}
       {f && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 0, borderBottom: "1px solid var(--cx-border-subtle)" }}>
-          <a className="cx-btn cx-btn-ghost" href={`${BASE_PATH}/api/files/${f.id}/download`}>Download</a>
-          <Link className="cx-btn cx-btn-ghost" href={`/view/${f.id}`}>Open</Link>
-          {can("change_status") && <Btn kind="ghost" onClick={() => onStatus(f)}>Change status</Btn>}
-          {(can("share") || can("forward")) && <Btn kind="ghost" onClick={() => onShare(f)}>Share</Btn>}
+        <div className="cx-panel-acts">
+          <a className="cx-btn cx-btn-ghost cx-btn-lead" href={`${BASE_PATH}/api/files/${f.id}/download`}><I.download />Download</a>
+          <Link className="cx-btn cx-btn-ghost cx-btn-lead" href={`/view/${f.id}`}><I.doc />Open</Link>
+          {can("change_status") && <Btn kind="ghost" icon={<I.review />} onClick={() => onStatus(f)}>Status</Btn>}
+          {(can("share") || can("forward")) && <Btn kind="ghost" icon={<I.share />} onClick={() => onShare(f)}>Share</Btn>}
         </div>
       )}
       <Tabs<TabId> value={tab} onChange={setTab} tabs={[
@@ -249,6 +252,21 @@ export function FilePanel({ fileId, settingsFor, onClose, onChanged, onShare, on
         )}
       </div>
     </aside>
+  );
+}
+
+/// Preview area: the server thumbnail for images and PDFs; the type mark otherwise.
+function Preview({ f }: { f: FileRow }) {
+  const kind = fileKind(f.name);
+  const [failed, setFailed] = React.useState(false);
+  React.useEffect(() => setFailed(false), [f.id]);
+  const thumb = (kind === "img" || kind === "pdf") && !failed;
+  return (
+    <div className="cx-preview">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {thumb ? <img src={`${BASE_PATH}/api/files/${f.id}/thumb?w=300`} alt="" onError={() => setFailed(true)} />
+        : <span className={`cx-ft-${kind}`} style={kind === "file" ? { color: "var(--cx-text-helper)" } : undefined}><I.doc size={40} /></span>}
+    </div>
   );
 }
 

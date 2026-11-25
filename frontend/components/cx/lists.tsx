@@ -4,92 +4,117 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { api, bytes, ext, when, BASE_PATH, type Basket, type DlEntry, type DlItem, type FileRow, type Settings } from "@/lib/fh";
+import { api, bytes, messageFor, BASE_PATH, type Basket, type DlEntry, type DlItem, type FileRow, type Settings } from "@/lib/fh";
 import { loadSettings } from "./basket-view";
 import { useNav } from "./shell";
-import { Btn, Dropdown, I, Note, SkeletonRows, StatusTag, TextField, useToast, When } from "./ui";
+import { Btn, Dropdown, Empty, FileTile, I, Note, Pager, SkeletonRows, StatusTag, TextField, useToast, usePageSize, When } from "./ui";
 
 type Row = {
   kind: "file" | "folder"; id: string; name: string; system_id: string; basket_name?: string; folder_id: string | null;
   status?: string | null; size_bytes?: number | null; modified_at?: string | null; level?: number; granted_by?: string | null;
+  owner?: string | null; version?: number;
 };
 
-/// Recent · Shared with me · Awaiting my review · Search results — one table shape.
+/// GET a list and the server's total (x-total-count) for paging.
+async function apiPage<T>(path: string): Promise<{ rows: T[]; total: number | null }> {
+  const r = await fetch(`${BASE_PATH}/api${path}`, { cache: "no-store", credentials: "same-origin" });
+  const text = await r.text();
+  let data: unknown = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  if (!r.ok) throw new Error(messageFor(r.status, data));
+  const t = r.headers.get("x-total-count");
+  return { rows: data as T[], total: t == null ? null : Number(t) };
+}
+
+/// Recent · Shared with me · Awaiting my review · Search results — one table shape, paged.
 export function FileList({ kind, q, filters = "" }: { kind: "recent" | "shared" | "review" | "search"; q?: string; filters?: string }) {
   const nav = useNav();
   const router = useRouter();
   const [rows, setRows] = React.useState<Row[] | null>(null);
+  const [total, setTotal] = React.useState<number | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
   const [statuses, setStatuses] = React.useState<Settings["statuses"]>([]);
+  const [page, setPage] = React.useState(0);
+  const [size, setSize] = usePageSize(kind === "search" ? "search" : "recent");
+  React.useEffect(() => { setPage(0); }, [kind, q, filters, size]);
 
   React.useEffect(() => {
     let off = false;
     setRows(null); setErr(null);
     const names = new Map<string, string>([...nav.baskets.map((b): [string, string] => [b.id, b.name]), ...(nav.drive ? [[nav.drive.id, "My Drive"] as [string, string]] : [])]);
-    const load = async (): Promise<Row[]> => {
-      if (kind === "shared") return api<Row[]>("/me/shared");
-      if (kind === "review") return api<Row[]>("/me/review");
-      const files = kind === "search"
-        ? await api<FileRow[]>(`/search?q=${encodeURIComponent(q ?? "")}&limit=200${filters}`)
-        : await api<FileRow[]>("/files?sort=modified&dir=desc&limit=50");
-      // Folders match by name too (not by file type).
-      const folders: Row[] = kind === "search" && q && !/[?&]types=/.test(filters)
+    const off0 = page * size;
+    const load = async (): Promise<{ rows: Row[]; total: number }> => {
+      if (kind === "shared" || kind === "review") {
+        // These lists come whole; page them here.
+        const all = await api<Row[]>(kind === "shared" ? "/me/shared" : "/me/review");
+        return { rows: all.slice(off0, off0 + size), total: all.length };
+      }
+      const res = kind === "search"
+        ? await apiPage<FileRow>(`/search?q=${encodeURIComponent(q ?? "")}&limit=${size}&offset=${off0}${filters}`)
+        : await apiPage<FileRow>(`/files?sort=modified&dir=desc&limit=${size}&offset=${off0}`);
+      // Folders match by name too (not by file type); they head the first page.
+      const folders: Row[] = kind === "search" && q && page === 0 && !/[?&]types=/.test(filters)
         ? (await api<{ id: string; system_id: string; parent_id: string | null; name: string; created_at: string }[]>(`/search/folders?q=${encodeURIComponent(q)}${filters}`))
           .map((d) => ({ kind: "folder", id: d.id, name: d.name, system_id: d.system_id, basket_name: names.get(d.system_id) ?? d.system_id, folder_id: d.parent_id, modified_at: d.created_at }))
         : [];
-      return [...folders, ...files.map((f) => ({ kind: "file", id: f.id, name: f.name, system_id: f.system_id, basket_name: names.get(f.system_id) ?? "Personal drive",
-        folder_id: f.folder_id, status: f.status, size_bytes: f.size_bytes, modified_at: f.modified_at } as Row))];
+      return { rows: [...folders, ...res.rows.map((f) => ({ kind: "file", id: f.id, name: f.name, system_id: f.system_id, basket_name: names.get(f.system_id) ?? "Personal drive",
+        folder_id: f.folder_id, status: f.status, size_bytes: f.size_bytes, modified_at: f.modified_at, owner: f.owner, version: f.version } as Row))], total: res.total ?? res.rows.length };
     };
-    load().then(async (r) => {
+    load().then(async ({ rows: r, total: t }) => {
       if (off) return;
-      setRows(r);
+      setRows(r); setTotal(t);
       const ids = [...new Set(r.map((x) => x.system_id))];
       const ss = await Promise.all(ids.map((i) => loadSettings(i)));
       const m = new Map<string, Settings["statuses"][number]>();
       for (const s of ss) for (const st of s?.statuses ?? []) if (!m.has(st.code)) m.set(st.code, st);
       if (!off) setStatuses([...m.values()]);
-    }).catch((e) => { if (!off) { setErr(e.message); setRows([]); } });
+    }).catch((e) => { if (!off) { setErr(e.message); setRows([]); setTotal(0); } });
     return () => { off = true; };
-  }, [kind, q, filters, nav.baskets, nav.drive]);
+  }, [kind, q, filters, nav.baskets, nav.drive, page, size]);
 
   const title = { recent: "Recent", shared: "Shared with me", review: "Awaiting my review", search: q ? `Results for “${q}”` : "Search results" }[kind];
   const empty = {
-    recent: "No files yet.", shared: "Nothing has been shared with you directly.",
-    review: "Nothing is waiting for your review.", search: "No files or folders match your search.",
+    recent: "No files yet", shared: "Nothing has been shared with you",
+    review: "Nothing is waiting for your review", search: "No files or folders match",
   }[kind];
   const open = (r: Row) => r.kind === "folder"
     ? router.push(`/b/${r.system_id}?folder=${r.id}`)
     : router.push(`/b/${r.system_id}?${r.folder_id ? `folder=${r.folder_id}&` : ""}file=${r.id}`);
   return (
     <div className="cx-page">
-      <div className="cx-crumbs" />
-      <div className="cx-title-row"><h1 className="cx-title">{title}</h1><span className="cx-sub cx-num">{rows ? `${rows.length} item${rows.length === 1 ? "" : "s"}` : ""}</span></div>
+      <div className="cx-ph" style={{ marginTop: 0 }}>
+        <div><h1 className="cx-title">{title}</h1><div className="cx-sub cx-num">{total != null ? `${total} item${total === 1 ? "" : "s"}` : ""}</div></div>
+      </div>
       {kind === "search" && <SearchBox initial={q ?? ""} />}
       {kind === "search" && <SearchFilters />}
       {err && <Note kind="error">{err}</Note>}
+      <div style={{ border: "1px solid var(--cx-border-subtle)" }}>
       <div className="cx-table-scroll">
         <table className="cx-table">
           <thead><tr>
             <th>Name</th><th className="cx-hide-sm cx-hide-md">Basket</th><th>Status</th>
             {kind === "shared" && <th className="cx-hide-sm">Shared by</th>}
-            <th>Modified</th><th className="cx-right cx-hide-sm cx-hide-md">Size</th>
+            <th className="cx-hide-sm">Modified</th><th className="cx-right cx-hide-sm cx-hide-md">Size</th>
           </tr></thead>
           <tbody>
             {!rows && <SkeletonRows cols={kind === "shared" ? 6 : 5} />}
             {rows?.map((r) => (
               <tr key={`${r.kind}-${r.id}`} onDoubleClick={() => open(r)}>
-                <td className="cx-name"><button className="cx-filelink" onClick={() => open(r)}>
-                  {r.kind === "folder" ? <I.folder /> : <span className="cx-ftype">{ext(r.name)}</span>}<span>{r.name}</span></button></td>
+                <td className="cx-name"><button className="cx-fname" onClick={() => open(r)}>
+                  {r.kind === "folder" ? <I.folder size={20} className="cx-folder-ic" /> : <FileTile name={r.name} />}
+                  <span><span className="cx-fname-t">{r.name}</span><span className="cx-fname-meta cx-num">{r.version && r.version > 1 ? `Version ${r.version} · ` : ""}{r.owner ?? ""}</span></span></button></td>
                 <td className="cx-hide-sm cx-hide-md"><Link href={`/b/${r.system_id}`} style={{ color: "inherit" }}>{r.basket_name}</Link></td>
                 <td>{r.status ? <StatusTag code={r.status} statuses={statuses} /> : null}</td>
                 {kind === "shared" && <td className="cx-hide-sm">{r.granted_by ?? ""}</td>}
-                <td><When iso={r.modified_at} /></td>
+                <td className="cx-hide-sm"><When iso={r.modified_at} /></td>
                 <td className="cx-right cx-num cx-hide-sm cx-hide-md">{bytes(r.size_bytes)}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        {rows && rows.length === 0 && !err && <div className="cx-state"><strong>{empty}</strong></div>}
+        {rows && rows.length === 0 && !err && <Empty icon={kind === "review" ? <I.review size={20} /> : kind === "shared" ? <I.share size={20} /> : kind === "search" ? <I.search size={20} /> : <I.recent size={20} />}>{empty}</Empty>}
+      </div>
+      {rows && (total ?? 0) > 0 && <Pager page={page} size={size} total={total} onPage={setPage} onSize={setSize} />}
       </div>
     </div>
   );
@@ -197,7 +222,7 @@ export function DownloadList() {
             {!rows && <SkeletonRows cols={4} rows={3} />}
             {rows?.map((r, i) => (
               <tr key={i}>
-                <td className="cx-name">{r.item.kind === "vgroup" ? <I.vfolder /> : r.item.kind === "folder" ? <I.folder /> : <span className="cx-ftype">{ext(r.label)}</span>} {r.label}</td>
+                <td className="cx-name"><span className="cx-fname" style={{ cursor: "default" }}>{r.item.kind === "vgroup" ? <I.filter size={20} className="cx-folder-ic" /> : r.item.kind === "folder" ? <I.folder size={20} className="cx-folder-ic" /> : <FileTile name={r.label} />}<span>{r.label}</span></span></td>
                 <td>{r.item.kind === "vgroup" ? "Virtual basket" : r.item.kind === "folder" ? "Folder" : "File"}</td>
                 <td className="cx-right cx-num">{r.files}</td>
                 <td><button className="cx-close" aria-label={`Remove ${r.label}`} onClick={() => save(rows.filter((_, j) => j !== i).map((x) => x.item))}><I.close /></button></td>
@@ -205,7 +230,7 @@ export function DownloadList() {
             ))}
           </tbody>
         </table>
-        {rows && rows.length === 0 && <div className="cx-state"><strong>Your download list is empty.</strong></div>}
+        {rows && rows.length === 0 && <Empty icon={<I.download size={20} />}>Your download list is empty</Empty>}
       </div>
     </div>
   );

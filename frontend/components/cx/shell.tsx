@@ -8,7 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 import { api, bytes, type Basket, type VBasket } from "@/lib/fh";
 import { ThemeSwitch } from "@/lib/theme-context";
 import { useBranding } from "@/lib/branding";
-import { I, ToastHost } from "./ui";
+import { basketColor, I, Mark, ToastHost } from "./ui";
 
 type NavData = {
   baskets: Basket[];
@@ -110,9 +110,10 @@ function Header({ onMenu }: { onMenu: () => void }) {
   return (
     <header className="cx-header">
       <button className="cx-header-btn" aria-label="Menu" onClick={onMenu}><I.menu size={20} /></button>
-      <Link href="/recent" className="cx-header-brand"><I.hub size={20} /><span>{brandName}</span></Link>
+      <Link href="/recent" className="cx-header-brand"><Mark /><span>{brandName}</span></Link>
       {here && <><span className="cx-header-div" /><span className="cx-header-here">{here}</span></>}
       <span className="cx-spacer" />
+      <Link href="/search" className="cx-header-btn" aria-label="Search"><I.search size={20} /></Link>
       <Link href="/notifications" className="cx-header-btn" aria-label={nav.unread ? `Notifications, ${nav.unread} unread` : "Notifications"}>
         <I.bell size={20} />{nav.unread > 0 && <i className="cx-header-dot" />}
       </Link>
@@ -139,7 +140,7 @@ function NavLink({ href, icon, label, count, current, sub, depth = 0, twisty }: 
 }) {
   return (
     <Link href={href} className={`cx-nav-item${sub ? " cx-sub" : ""}`} aria-current={current ? "page" : undefined}
-      style={depth ? { paddingLeft: 12 + depth * 14 } : undefined}>
+      style={depth ? { paddingLeft: 16 + depth * 14 } : undefined}>
       {twisty}{icon}<span className="cx-nav-label">{label}</span>
       {count != null && count !== 0 && <span className="cx-nav-count cx-num">{count}</span>}
     </Link>
@@ -174,21 +175,21 @@ function SideNav() {
         <NavLink href="/review" icon={<I.review />} label="Awaiting my review" current={cur("/review")} />
 
         <div className="cx-nav-group"><span>Baskets</span>
-          {isAdmin && <Link href="/admin/baskets/new" aria-label="New basket" className="cx-nav-twisty" style={{ width: 16, height: 16 }}><I.add size={14} /></Link>}
+          {isAdmin && <Link href="/baskets?new=1" aria-label="New basket" className="cx-nav-twisty" style={{ width: 16, height: 16 }}><I.add size={16} /></Link>}
         </div>
         {pick(nav.baskets, "basket", pathname.startsWith("/b/") ? pathname.slice(3) : "", nav.stars).map((b) => (
-          <NavLink key={b.id} href={`/b/${b.id}`} label={b.name} current={pathname === `/b/${b.id}`} icon={b.vault ? <I.lock /> : <I.basket />} />
+          <NavLink key={b.id} href={`/b/${b.id}`} label={b.name} current={pathname === `/b/${b.id}`} icon={<span className="cx-bdot" style={{ background: basketColor(b.tone) }} />} />
         ))}
-        {nav.baskets.length > NAV_MAX && <NavLink href="/baskets" label={`All baskets (${nav.baskets.length})`} sub current={cur("/baskets")} />}
+        <NavLink href="/baskets" icon={<I.grid />} label="All baskets" count={nav.baskets.length} current={cur("/baskets")} />
 
         <div className="cx-nav-group"><span>Virtual baskets</span>
-          <Link href="/v/new" aria-label="New virtual basket" className="cx-nav-twisty" style={{ width: 16, height: 16 }}><I.add size={14} /></Link>
+          <Link href="/v/new" aria-label="New virtual basket" className="cx-nav-twisty" style={{ width: 16, height: 16 }}><I.add size={16} /></Link>
         </div>
         {nav.vbaskets.length === 0 && <div className="cx-nav-item cx-sub" style={{ cursor: "default", color: "var(--cx-text-helper)" }}>None yet</div>}
         {pick(nav.vbaskets, "vbasket", pathname.startsWith("/v/") ? pathname.slice(3) : "", nav.stars).map((v) => (
           <NavLink key={v.id} href={`/v/${v.id}`} icon={<I.vbasket />} label={v.name} sub current={pathname === `/v/${v.id}`} />
         ))}
-        {nav.vbaskets.length > NAV_MAX && <NavLink href="/baskets?tab=virtual" label={`All virtual baskets (${nav.vbaskets.length})`} sub current={false} />}
+        {nav.vbaskets.length > NAV_MAX && <NavLink href="/baskets?tab=virtual" label="All virtual baskets" count={nav.vbaskets.length} sub current={false} />}
 
         <div className="cx-nav-group"><span>More</span></div>
         <NavLink href="/downloads" icon={<I.download />} label="Download list" count={nav.downloads} current={cur("/downloads")} />
@@ -214,10 +215,10 @@ function NavSearch() {
   const router = useRouter();
   const [q, setQ] = React.useState("");
   return (
-    <form role="search" style={{ padding: "8px 12px" }} onSubmit={(e) => { e.preventDefault(); if (q.trim()) router.push(`/search?q=${encodeURIComponent(q.trim())}`); }}>
+    <form role="search" style={{ padding: "0 16px 8px" }} onSubmit={(e) => { e.preventDefault(); if (q.trim()) router.push(`/search?q=${encodeURIComponent(q.trim())}`); }}>
       <div className="cx-search-wrap">
         <I.search />
-        <input className="cx-input" style={{ paddingLeft: 32, background: "var(--cx-field)" }} placeholder="Search all files" aria-label="Search all files"
+        <input className="cx-input" style={{ paddingLeft: 40, background: "var(--cx-field)" }} placeholder="Search all files" aria-label="Search all files"
           value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
     </form>

@@ -265,6 +265,7 @@ pub struct SearchQuery {
     /// Created on/before this date (YYYY-MM-DD, Thai time).
     pub to: Option<String>,
     pub limit: Option<i64>,
+    pub offset: Option<i64>,
 }
 
 /// Distinguish "key absent" from "explicit null".

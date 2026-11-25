@@ -1,2 +1,2 @@
 import { redirect } from "next/navigation";
-export default function Page() { redirect("/admin?tab=baskets&new=1"); }
+export default function Page() { redirect("/baskets?new=1"); }

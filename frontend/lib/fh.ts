@@ -63,7 +63,7 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
 }
 
 export type Basket = {
-  id: string; name: string; bucket: string; status: string; description: string | null;
+  id: string; name: string; bucket: string; status: string; description: string | null; tone?: string;
   system_type: "shared" | "personal"; owner_user_id: string | null; quota_bytes: number; vault?: boolean;
   mount_path?: string | null; mount_scanned_at?: string | null;
 };
@@ -90,7 +90,7 @@ export type TagColor = "gray" | "blue" | "green" | "orange" | "red";
 
 export type AclEntry = {
   id: string; resource_type: string; resource_id: string; principal: string; level: number; level_name: string;
-  principal_label: string; inherited_from: string | null; expires_at: string | null;
+  principal_label: string; inherited_from: string | null; expires_at: string | null; granted_by_label?: string | null;
 };
 export type AclResponse = { resource_type: string; resource_id: string; inherit: boolean; entries: AclEntry[]; inherited: AclEntry[]; my_level: string };
 export type Principal = { principal: string; label: string; kind: string; detail: string | null };
