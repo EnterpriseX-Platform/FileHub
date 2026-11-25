@@ -2297,7 +2297,7 @@ pub async fn report_by_time(
 /// for the app shell.  Only presentation keys — never quotas or policies.
 pub async fn branding(State(s): State<Arc<AppState>>) -> ApiResult<Json<serde_json::Value>> {
     const KEYS: &[&str] = &["workspace_display", "org_name", "brand_accent", "login_email_placeholder",
-                            "portal_url", "portal_label", "access_help", "self_signup"];
+                            "portal_url", "portal_label", "access_help", "self_signup", "brand_name"];
     let rows: Vec<(String, String)> = sqlx::query_as("SELECT key, value FROM workspace_config WHERE key = ANY($1)")
         .bind(KEYS.iter().map(|k| k.to_string()).collect::<Vec<_>>())
         .fetch_all(&s.db).await?;

@@ -354,7 +354,7 @@ export function AdminSettings() {
   if (!v) return err ? <Note kind="error">{err}</Note> : <div className="cx-table-scroll"><table className="cx-table"><tbody><SkeletonRows cols={2} rows={4} /></tbody></table></div>;
   const save = async () => {
     setErr(null);
-    const keys = ["workspace_display", "org_name", "office_viewer", "collabora_url", "fiscal_year_start_month", "fiscal_year_era", "portal_url", "portal_label", "access_help", "self_signup"];
+    const keys = ["brand_name", "workspace_display", "org_name", "office_viewer", "collabora_url", "fiscal_year_start_month", "fiscal_year_era", "portal_url", "portal_label", "access_help", "self_signup"];
     const values = Object.fromEntries(keys.filter((k) => (v[k] ?? "") !== (saved.current[k] ?? "")).map((k) => [k, v[k] ?? ""]));
     if (Object.keys(values).length === 0) { toast({ text: "Settings saved." }); return; }
     try { const x = await api<Record<string, string>>("/workspace", { method: "PATCH", json: { values } }); saved.current = x; setV((o) => ({ ...x, ...(o ?? {}) })); toast({ text: "Settings saved." }); }
@@ -364,7 +364,8 @@ export function AdminSettings() {
     <div className="cx-on-layer" style={{ background: "var(--cx-layer)", padding: 16, display: "flex", flexDirection: "column", gap: 16, maxWidth: 760 }}>
       <div style={{ fontWeight: 600 }}>Workspace</div>
       <div className="cx-form-grid">
-        <TextField label="App name" value={v.workspace_display ?? ""} onChange={(e) => set("workspace_display")(e.target.value)} />
+        <TextField label="Product name" value={v.brand_name ?? ""} onChange={(e) => set("brand_name")(e.target.value)} />
+        <TextField label="Workspace name" value={v.workspace_display ?? ""} onChange={(e) => set("workspace_display")(e.target.value)} />
         <TextField label="Organisation" value={v.org_name ?? ""} onChange={(e) => set("org_name")(e.target.value)} />
         <TextField label="Back-to-portal link" value={v.portal_url ?? ""} onChange={(e) => set("portal_url")(e.target.value)} />
         <TextField label="Back-to-portal label" value={v.portal_label ?? ""} onChange={(e) => set("portal_label")(e.target.value)} />

@@ -1,5 +1,7 @@
 "use client";
 
+import { useBranding } from "@/lib/branding";
+
 import * as React from "react";
 
 import { UploadError, uploadChunked } from "@/lib/chunked";
@@ -19,6 +21,7 @@ type Q = { file: File; error?: string; progress: number; done?: boolean };
 /// Public upload form behind an upload link (/u/:token). No access to the folder's
 /// contents — people can only add files.
 export default function UploadLinkPage() {
+  const brand = useBranding();
   const { token } = useParams<{ token: string }>();
   const [m, setM] = React.useState<Meta | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
@@ -90,7 +93,7 @@ export default function UploadLinkPage() {
 
   return (
     <div className="cx-app" style={{ display: "block" }}>
-      <div className="cx-nav-head">FileHub</div>
+      <div className="cx-nav-head">{brand.brand_name}</div>
       <div className="cx-page" style={{ maxWidth: 720, margin: "0 auto", paddingTop: 24 }}>
         {err && <div className="cx-note cx-note-error" role="alert">{err}</div>}
         {!err && !m && <div style={{ background: "var(--cx-layer)", padding: 16 }}><span className="cx-skel" style={{ width: "50%" }} /></div>}

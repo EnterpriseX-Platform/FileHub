@@ -1,5 +1,7 @@
 "use client";
 
+import { useBranding } from "@/lib/branding";
+
 import * as React from "react";
 import { useParams } from "next/navigation";
 
@@ -20,6 +22,7 @@ const MSG: Record<string, string> = {
 /// Public link page. The token is the credential; links can also need sign-in
 /// and/or a password (sent in the body, never in the URL), and can be view-only.
 export default function PublicLink() {
+  const brand = useBranding();
   const { token } = useParams<{ token: string }>();
   const [m, setM] = React.useState<Meta | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
@@ -63,7 +66,7 @@ export default function PublicLink() {
   const canDownload = m?.access !== "view";
   return (
     <div className="cx-app" style={{ display: "block" }}>
-      <div className="cx-nav-head">FileHub</div>
+      <div className="cx-nav-head">{brand.brand_name}</div>
       <div className="cx-page" style={{ maxWidth: view ? 1000 : 640, margin: "0 auto", paddingTop: 32 }}>
         {err ? <div className="cx-note cx-note-error" role="alert">{err}</div> : needLogin ? (
           <div className="cx-on-layer" style={{ background: "var(--cx-layer)", padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>

@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { api, bytes, type Basket, type VBasket } from "@/lib/fh";
 import { ThemeSwitch } from "@/lib/theme-context";
+import { useBranding } from "@/lib/branding";
 import { I, ToastHost } from "./ui";
 
 type NavData = {
@@ -94,6 +95,7 @@ function Header({ onMenu }: { onMenu: () => void }) {
   const { user, logout } = useAuth();
   const pathname = usePathname() || "";
   const [me, setMe] = React.useState(false);
+  const brandName = useBranding().brand_name;
   const here = React.useMemo(() => {
     const id = pathname.split("/")[2];
     if (pathname.startsWith("/b/")) return nav.drive?.id === id ? "My Drive" : nav.baskets.find((b) => b.id === id)?.name ?? "";
@@ -108,7 +110,7 @@ function Header({ onMenu }: { onMenu: () => void }) {
   return (
     <header className="cx-header">
       <button className="cx-header-btn" aria-label="Menu" onClick={onMenu}><I.menu size={20} /></button>
-      <Link href="/recent" className="cx-header-brand"><I.hub size={20} /><span>FileHub</span></Link>
+      <Link href="/recent" className="cx-header-brand"><I.hub size={20} /><span>{brandName}</span></Link>
       {here && <><span className="cx-header-div" /><span className="cx-header-here">{here}</span></>}
       <span className="cx-spacer" />
       <Link href="/notifications" className="cx-header-btn" aria-label={nav.unread ? `Notifications, ${nav.unread} unread` : "Notifications"}>

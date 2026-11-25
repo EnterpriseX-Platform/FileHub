@@ -11,6 +11,7 @@ export type Branding = {
   access_help: string;
   self_signup: string;
   env_label: string;
+  brand_name: string;
 };
 
 export const DEFAULT_BRANDING: Branding = {
@@ -23,6 +24,7 @@ export const DEFAULT_BRANDING: Branding = {
   access_help: "Ask your administrator to grant you access.",
   self_signup: "off",
   env_label: "",
+  brand_name: "FileHub",
 };
 
 export function withDefaults(b: Partial<Branding> | null | undefined): Branding {

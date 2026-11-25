@@ -47,7 +47,7 @@ export default function SignUpPage() {
               <rect x="2" y="2" width="28" height="28" rx="7" fill="#0f62fe" />
               <path d="M9 11.5h5l1.5 2H23v8.5H9z" fill="none" stroke="#fff" strokeWidth="2" strokeLinejoin="round" />
             </svg>
-            <span>FileHub</span>
+            <span>{brand.brand_name}</span>
           </div>
           <h1 className="cx-login-title">Create account</h1>
           <p className="cx-login-tagline">{tagline}</p>
