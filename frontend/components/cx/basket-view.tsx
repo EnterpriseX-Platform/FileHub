@@ -256,7 +256,7 @@ export function BasketView({ basketId }: { basketId: string }) {
               <Dropdown className="cx-hide-sm" value={status} placeholder="Status" renderValue={status ? settings?.statuses.find((s) => s.code === status)?.label : undefined}
                 options={[{ value: "", label: "All statuses" }, ...(settings?.statuses ?? []).map((s) => ({ value: s.code, label: s.label }))]} onChange={setStatus} />
               {canEdit && <Btn kind="ghost" className="cx-hide-sm" onClick={() => setModal(<NewFolderModal onClose={() => setModal(null)}
-                onSubmit={async ({ name, versioning, encrypted, encryption }) => { await api("/folders", { method: "POST", json: { name, system_id: basketId, parent_id: folderId, versioning, encrypted, encryption } }); toast({ text: `สร้างโฟลเดอร์ ${name} แล้ว` }); refresh(); nav.reload(); }} />)}>New folder</Btn>}
+                onSubmit={async ({ name, versioning, encrypted, encryption }) => { await api("/folders", { method: "POST", json: { name, system_id: basketId, parent_id: folderId, versioning, encrypted, encryption } }); toast({ text: `Folder ${name} created` }); refresh(); nav.reload(); }} />)}>New folder</Btn>}
               {canEdit && <Btn kind="primary" icon={<I.upload />} onClick={() => doUpload()}>Upload</Btn>}
             </div>
           )}
@@ -295,8 +295,8 @@ export function BasketView({ basketId }: { basketId: string }) {
                         ...(canEdit ? [{ label: "Rename", onClick: () => setModal(<NameModal title="Rename folder" action="Rename" initial={f.name} onClose={() => setModal(null)}
                           onSubmit={async (name) => { await api(`/folders/${f.id}`, { method: "PATCH", json: { name } }); toast({ text: "Folder renamed." }); refresh(); nav.reload(); }} />) },
                           { label: "Move", onClick: () => doMove([], [f.id]) }] : []),
-                        { label: "รายละเอียด", onClick: () => setModal(<FolderDetailsModal folderId={f.id} onClose={() => setModal(null)} />) },
-                        { label: "ดาวน์โหลดทั้งโฟลเดอร์ (zip)", onClick: () => { window.location.href = `${BASE_PATH}/api/folders/${f.id}/zip`; } },
+                        { label: "Details", onClick: () => setModal(<FolderDetailsModal folderId={f.id} onClose={() => setModal(null)} />) },
+                        { label: "Download folder (zip)", onClick: () => { window.location.href = `${BASE_PATH}/api/folders/${f.id}/zip`; } },
                         { label: "Share", onClick: () => doShare("folder", f.id, f.name) },
                         { label: "Add to download list", onClick: () => addToDownloads([{ kind: "folder", id: f.id }]) },
                         ...(canEdit ? ["sep" as const, { label: "Delete", danger: true, onClick: () => doDelete([], [f.id]) }] : []),

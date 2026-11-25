@@ -805,7 +805,7 @@ pub async fn folder_zip(State(s): State<Arc<AppState>>, user: AuthUser, Path(id)
     let r = zip_items(&s, &user, vec![DlItem::Folder { id }], Some(name)).await;
     match r {
         Ok(v) => Ok(v.into_response()),
-        Err(ApiError::BadRequest(m)) if m.starts_with("None of the files") => Err(ApiError::BadRequest("โฟลเดอร์นี้ไม่มีไฟล์ให้ดาวน์โหลด".into())),
+        Err(ApiError::BadRequest(m)) if m.starts_with("None of the files") => Err(ApiError::BadRequest("This folder has no files to download.".into())),
         Err(e) => Err(e),
     }
 }

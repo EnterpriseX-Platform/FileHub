@@ -52,10 +52,10 @@ export function FileList({ kind, q, filters = "" }: { kind: "recent" | "shared" 
     return () => { off = true; };
   }, [kind, q, filters, nav.baskets, nav.drive]);
 
-  const title = { recent: "Recent", shared: "Shared with me", review: "Awaiting my review", search: q ? `ผลการค้นหา “${q}”` : "ผลการค้นหา" }[kind];
+  const title = { recent: "Recent", shared: "Shared with me", review: "Awaiting my review", search: q ? `Results for “${q}”` : "Search results" }[kind];
   const empty = {
     recent: "No files yet.", shared: "Nothing has been shared with you directly.",
-    review: "Nothing is waiting for your review.", search: "ไม่พบไฟล์หรือโฟลเดอร์ที่ตรงกับคำค้น",
+    review: "Nothing is waiting for your review.", search: "No files or folders match your search.",
   }[kind];
   const open = (r: Row) => r.kind === "folder"
     ? router.push(`/b/${r.system_id}?folder=${r.id}`)
@@ -101,21 +101,21 @@ function SearchBox({ initial }: { initial: string }) {
   return (
     <form className="cx-toolbar" onSubmit={(e) => { e.preventDefault(); const p = new URLSearchParams(window.location.search); p.set("q", v.trim()); router.push(`/search?${p}`); }}>
       <div className="cx-grow cx-search-wrap"><I.search />
-        <input className="cx-search" value={v} onChange={(e) => setV(e.target.value)} placeholder="ค้นหาชื่อไฟล์ โฟลเดอร์ เจ้าของ แท็ก หรือข้อความในเอกสาร" aria-label="ค้นหา" /></div>
-      <Btn kind="primary" type="submit">ค้นหา</Btn>
+        <input className="cx-search" value={v} onChange={(e) => setV(e.target.value)} placeholder="Search file names, folders, owners, tags, or document text" aria-label="Search" /></div>
+      <Btn kind="primary" type="submit">Search</Btn>
     </form>
   );
 }
 
 const TYPE_GROUPS: { value: string; label: string; types: string }[] = [
-  { value: "", label: "ทุกประเภทไฟล์", types: "" },
+  { value: "", label: "All file types", types: "" },
   { value: "pdf", label: "PDF", types: "pdf" },
   { value: "word", label: "Word", types: "doc,docx" },
   { value: "excel", label: "Excel", types: "xls,xlsx,csv" },
   { value: "ppt", label: "PowerPoint", types: "ppt,pptx" },
-  { value: "image", label: "รูปภาพ", types: "png,jpg,jpeg,gif,img,webp" },
-  { value: "zip", label: "ไฟล์บีบอัด", types: "zip,rar,7z" },
-  { value: "text", label: "ข้อความ", types: "txt" },
+  { value: "image", label: "Images", types: "png,jpg,jpeg,gif,img,webp" },
+  { value: "zip", label: "Archives", types: "zip,rar,7z" },
+  { value: "text", label: "Text", types: "txt" },
 ];
 
 /// Search filters: file type, creator, created between. Kept in the URL.
@@ -134,11 +134,11 @@ function SearchFilters() {
   };
   return (
     <form className="cx-toolbar" onSubmit={(e) => { e.preventDefault(); apply(); }} style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
-      <Dropdown label="ประเภทไฟล์" value={type} options={TYPE_GROUPS.map(({ value, label }) => ({ value, label }))} onChange={(v) => { setType(v); apply(v); }} />
-      <TextField label="ผู้สร้าง" value={creator} onChange={(e) => setCreator(e.target.value)} />
-      <TextField label="สร้างตั้งแต่วันที่" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-      <TextField label="ถึงวันที่" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-      <Btn kind="tertiary" type="submit">ใช้ตัวกรอง</Btn>
+      <Dropdown label="File type" value={type} options={TYPE_GROUPS.map(({ value, label }) => ({ value, label }))} onChange={(v) => { setType(v); apply(v); }} />
+      <TextField label="Created by" value={creator} onChange={(e) => setCreator(e.target.value)} />
+      <TextField label="Created from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+      <TextField label="Created to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+      <Btn kind="tertiary" type="submit">Apply filters</Btn>
     </form>
   );
 }

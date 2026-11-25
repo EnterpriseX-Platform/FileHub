@@ -414,7 +414,7 @@ pub async fn check_upload_policy(db: &PgPool, sys: &str, folder: Option<&str>, n
         let max = default_max_file_bytes();
         if max > 0 && size > max {
             return Err(ApiError::Coded(axum::http::StatusCode::PAYLOAD_TOO_LARGE, "too_large",
-                format!("ไฟล์ \"{name}\" มีขนาด {} เกินขนาดสูงสุด {} ที่อัปโหลดได้", human_bytes(size), human_bytes(max))));
+                format!("\"{name}\" is {}, which exceeds the {} upload limit.", human_bytes(size), human_bytes(max))));
         }
     }
     Ok(p)

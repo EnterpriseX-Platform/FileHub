@@ -22,12 +22,12 @@ export function messageFor(status: number, body: unknown): string {
   const server = body && typeof body === "object" && "error" in body ? String((body as { error: unknown }).error) : "";
   // A 403 page that is not ours (HTML from the edge WAF) is not a permission problem.
   if (!server && status === 403 && typeof body === "string" && /<html|cloudflare/i.test(body))
-    return "ระบบความปลอดภัยของเครือข่ายปฏิเสธคำขอนี้ กรุณาแจ้งผู้ดูแลระบบ";
-  return server || (status === 401 ? "หมดเวลาการใช้งาน กรุณาเข้าสู่ระบบอีกครั้ง"
-    : status === 403 ? "คุณไม่มีสิทธิ์ทำรายการนี้"
-    : status === 404 ? "ไม่พบรายการนี้ หรือคุณไม่มีสิทธิ์เข้าถึง"
-    : status === 413 ? "ไฟล์มีขนาดเกินที่กำหนด"
-    : `ทำรายการไม่สำเร็จ (${status})`);
+    return "The network security system blocked this request. Contact your administrator.";
+  return server || (status === 401 ? "Your session has expired. Sign in again."
+    : status === 403 ? "You don't have permission to do this."
+    : status === 404 ? "This item doesn't exist or you don't have access to it."
+    : status === 413 ? "The file is too large."
+    : `Request failed (${status})`);
 }
 
 export async function api<T = unknown>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {

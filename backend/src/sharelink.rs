@@ -181,7 +181,7 @@ fn viewable(t: &str) -> bool {
 }
 
 fn need_login() -> ApiError {
-    ApiError::Coded(StatusCode::UNAUTHORIZED, "login_required", "ลิงก์นี้ใช้ได้เฉพาะผู้ที่เข้าสู่ระบบแล้ว กรุณาเข้าสู่ระบบก่อน".into())
+    ApiError::Coded(StatusCode::UNAUTHORIZED, "login_required", "This link is only available to signed-in users. Sign in first.".into())
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -205,16 +205,16 @@ pub async fn view_post(State(s): State<Arc<AppState>>, user: MaybeAuthUser, head
 async fn unlock(s: &Arc<AppState>, h: &HeaderMap, l: &Live, password: Option<String>, signed_in: bool) -> ApiResult<()> {
     if l.require_login && !signed_in { return Err(need_login()); }
     if let Some(hash) = &l.password_hash {
-        crate::ratelimit::hit(&s.db, &format!("share-pw:{}", l.id), 10, "ใส่รหัสผ่านผิดหลายครั้งเกินไป กรุณารอ 1 นาทีแล้วลองใหม่").await?;
+        crate::ratelimit::hit(&s.db, &format!("share-pw:{}", l.id), 10, "Too many wrong passwords. Wait 1 minute and try again.").await?;
         let given = password.filter(|p| !p.is_empty());
         let Some(p) = given else {
-            return Err(ApiError::Coded(StatusCode::UNAUTHORIZED, "password_required", "ลิงก์นี้ต้องใส่รหัสผ่านก่อน กรุณาใส่รหัสผ่าน".into()));
+            return Err(ApiError::Coded(StatusCode::UNAUTHORIZED, "password_required", "This link requires a password. Enter the password.".into()));
         };
         let hash = hash.clone();
         let ok = tokio::task::spawn_blocking(move || crate::auth::verify_password(&p, &hash)).await.unwrap_or(false);
         if !ok {
             let _ = miss(&s.db, h).await;
-            return Err(ApiError::Coded(StatusCode::UNAUTHORIZED, "wrong_password", "รหัสผ่านไม่ถูกต้อง".into()));
+            return Err(ApiError::Coded(StatusCode::UNAUTHORIZED, "wrong_password", "Incorrect password.".into()));
         }
     }
     Ok(())
@@ -225,7 +225,7 @@ async fn view(s: &Arc<AppState>, h: &HeaderMap, token: &str, password: Option<St
     let l = live(s, token, h).await?;
     unlock(s, h, &l, password, signed_in).await?;
     if !viewable(&l.file.file_type) {
-        return Err(ApiError::Coded(StatusCode::UNSUPPORTED_MEDIA_TYPE, "not_viewable", "ไฟล์ประเภทนี้เปิดดูในเบราว์เซอร์ไม่ได้".into()));
+        return Err(ApiError::Coded(StatusCode::UNSUPPORTED_MEDIA_TYPE, "not_viewable", "This file type can't be viewed in the browser.".into()));
     }
     let addr = client_addr(h);
     let _ = sqlx::query(
@@ -248,7 +248,7 @@ async fn view(s: &Arc<AppState>, h: &HeaderMap, token: &str, password: Option<St
                 crate::jobs::fits_in_memory(l.file.size_bytes, "preview")?;
                 let (body, _) = s.storage.get(&l.file.object_key, l.file.encrypted).await?.ok_or(ApiError::NotFound)?;
                 crate::jobs::office_to_pdf(l.file.name.clone(), body.to_vec()).await
-                    .ok_or_else(|| ApiError::Coded(StatusCode::UNSUPPORTED_MEDIA_TYPE, "not_viewable", "แปลงไฟล์นี้เพื่อเปิดดูไม่สำเร็จ".into()))?
+                    .ok_or_else(|| ApiError::Coded(StatusCode::UNSUPPORTED_MEDIA_TYPE, "not_viewable", "Couldn't convert this file for viewing.".into()))?
             }
         };
         let mut hm = HeaderMap::new();
@@ -274,7 +274,7 @@ async fn serve(s: &Arc<AppState>, h: &HeaderMap, token: &str, password: Option<S
     let l = live(s, token, h).await?;
     unlock(s, h, &l, password, signed_in).await?;
     if l.access == "view" {
-        return Err(ApiError::Coded(StatusCode::FORBIDDEN, "view_only", "ลิงก์นี้ให้เปิดดูได้อย่างเดียว ดาวน์โหลดไม่ได้".into()));
+        return Err(ApiError::Coded(StatusCode::FORBIDDEN, "view_only", "This link is view-only. Downloads aren't allowed.".into()));
     }
     // Count first, atomically, so a limit can't be raced past.
     let n = sqlx::query("UPDATE share_links SET download_count = download_count + 1, last_access_at = now()

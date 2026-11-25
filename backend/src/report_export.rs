@@ -69,7 +69,7 @@ fn xlsx(sheets: &[(&str, String)]) -> Result<Vec<u8>, ApiError> {
 
 pub async fn export(State(s): State<Arc<AppState>>, user: AuthUser, Query(q): Query<ExportQuery>) -> ApiResult<axum::response::Response> {
     let format = q.format.as_deref().unwrap_or("xlsx");
-    if !matches!(format, "xlsx" | "pdf") { return Err(ApiError::BadRequest("format ต้องเป็น xlsx หรือ pdf".into())); }
+    if !matches!(format, "xlsx" | "pdf") { return Err(ApiError::BadRequest("format must be xlsx or pdf".into())); }
     let by = q.by.clone().unwrap_or_else(|| "category".into());
     let bucket = q.bucket.clone().unwrap_or_else(|| "month".into());
     let Json(cats) = crate::handlers::report_by_category(State(s.clone()), AuthUser(user.0.clone()),
@@ -77,23 +77,23 @@ pub async fn export(State(s): State<Arc<AppState>>, user: AuthUser, Query(q): Qu
     let Json(times) = crate::handlers::report_by_time(State(s.clone()), AuthUser(user.0.clone()),
         Query(ReportTimeQuery { bucket: Some(bucket.clone()), limit: Some(1000), basket: q.basket.clone() })).await?;
     let now = chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(7 * 3600).unwrap());
-    let stamp = format!("ออกรายงานเมื่อ {} โดย {}", now.format("%d/%m/%Y %H:%M"), user.0.display_name);
-    let by_label = match by.as_str() { "format" => "รูปแบบไฟล์", "basket" => "ตะกร้า", "type" => "ประเภทไฟล์", _ => "หมวดหมู่เอกสาร" };
-    let mut a = vec![vec![format!("รายงานพื้นที่จัดเก็บตาม{by_label}"), stamp.clone(), String::new()],
-                     vec![by_label.to_string(), "จำนวนไฟล์".into(), "ขนาด (MB)".into()]];
+    let stamp = format!("Generated {} by {}", now.format("%d/%m/%Y %H:%M"), user.0.display_name);
+    let by_label = match by.as_str() { "format" => "File format", "basket" => "Basket", "type" => "File type", _ => "Document category" };
+    let mut a = vec![vec![format!("Storage by {by_label}"), stamp.clone(), String::new()],
+                     vec![by_label.to_string(), "Files".into(), "Size (MB)".into()]];
     for r in &cats { a.push(vec![r.category.clone(), r.file_count.to_string(), mb(r.size_bytes)]); }
-    a.push(vec!["รวม".into(), cats.iter().map(|r| r.file_count).sum::<i64>().to_string(), mb(cats.iter().map(|r| r.size_bytes).sum())]);
+    a.push(vec!["Total".into(), cats.iter().map(|r| r.file_count).sum::<i64>().to_string(), mb(cats.iter().map(|r| r.size_bytes).sum())]);
     let fmt = match bucket.as_str() { "day" => "%d/%m/%Y", "year" => "%Y", _ => "%m/%Y" };
-    let mut b = vec![vec!["รายงานปริมาณไฟล์ตามช่วงเวลา".to_string(), stamp, String::new()],
-                     vec!["ช่วงเวลา".into(), "จำนวนไฟล์".into(), "ขนาด (MB)".into()]];
+    let mut b = vec![vec!["File volume by period".to_string(), stamp, String::new()],
+                     vec!["Period".into(), "Files".into(), "Size (MB)".into()]];
     for r in &times { b.push(vec![r.bucket.with_timezone(&chrono::FixedOffset::east_opt(7 * 3600).unwrap()).format(fmt).to_string(), r.file_count.to_string(), mb(r.size_bytes)]); }
-    let book = xlsx(&[("ตามหมวดหมู่", sheet(&a, 1)), ("ตามช่วงเวลา", sheet(&b, 1))])?;
+    let book = xlsx(&[("By category", sheet(&a, 1)), ("By period", sheet(&b, 1))])?;
     let day = now.format("%Y%m%d-%H%M");
     let (body, mime, name) = if format == "xlsx" {
         (book, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", format!("filehub-report-{day}.xlsx"))
     } else {
         let pdf = crate::jobs::office_to_pdf("report.xlsx".into(), book).await
-            .ok_or_else(|| ApiError::Coded(StatusCode::SERVICE_UNAVAILABLE, "busy", "สร้างไฟล์ PDF ไม่สำเร็จ กรุณาลองใหม่".into()))?;
+            .ok_or_else(|| ApiError::Coded(StatusCode::SERVICE_UNAVAILABLE, "busy", "Couldn't create the PDF. Try again.".into()))?;
         (pdf, "application/pdf", format!("filehub-report-{day}.pdf"))
     };
     let mut h = HeaderMap::new();

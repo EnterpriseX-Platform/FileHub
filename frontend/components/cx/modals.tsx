@@ -109,9 +109,9 @@ export function UploadModal({ basket, folder, folderLabel, settings, prefill, ti
   const precheck = (f: File): string | undefined => {
     const ext = (/\.([^./]+)$/.exec(f.name)?.[1] ?? "").toLowerCase();
     if (policy?.allowed_ext && policy.allowed_ext.length && !policy.allowed_ext.includes(ext))
-      return `ไม่อนุญาตไฟล์ .${ext || "(ไม่มีนามสกุล)"} ในตะกร้านี้`;
+      return `.${ext || "(no extension)"} files aren't allowed in this basket`;
     const max = policy?.max_file_bytes == null ? DEFAULT_MAX_FILE_BYTES : policy.max_file_bytes;
-    if (max > 0 && f.size > max) return `ไฟล์เกินขนาดสูงสุด ${bytes(max)}`;
+    if (max > 0 && f.size > max) return `File exceeds the maximum size of ${bytes(max)}`;
     return undefined;
   };
   const addWithDirs = (items: { file: File; dir: string }[]) =>
@@ -180,8 +180,8 @@ export function UploadModal({ basket, folder, folderLabel, settings, prefill, ti
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.current?.click(); } }}
         onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
         onDrop={(e) => { e.preventDefault(); setOver(false); const dt = e.dataTransfer; filesFromDrop(dt).then(addWithDirs).catch(() => add(dt.files)); }}>
-        ลากไฟล์หรือโฟลเดอร์มาวางที่นี่ หรือ <b>เลือกไฟล์</b> · <b role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); dirInput.current?.click(); }}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); dirInput.current?.click(); } }}>เลือกโฟลเดอร์</b>
+        Drag files or folders here, or <b>choose files</b> · <b role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); dirInput.current?.click(); }}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); dirInput.current?.click(); } }}>choose a folder</b>
         {policy?.allowed_ext?.length ? <div className="cx-helper" style={{ marginTop: 4 }}>{policy.allowed_ext.map((x) => `.${x}`).join(" ")}{policy.max_file_bytes ? ` · up to ${bytes(policy.max_file_bytes)}` : ""}</div> : null}
         <input ref={input} type="file" multiple hidden onChange={(e) => { if (e.target.files) add(e.target.files); e.target.value = ""; }} />
         <input ref={dirInput} type="file" multiple hidden {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}
@@ -204,7 +204,7 @@ export function UploadModal({ basket, folder, folderLabel, settings, prefill, ti
         </ul>
       )}
       {canChooseEnc && (
-        <Check label={`เข้ารหัสไฟล์ที่อัปโหลดรอบนี้ (${eff?.file_encrypt_mode === "asymmetric" ? "RSA" : "AES-256"})`} checked={encOne} onChange={setEncOne} />
+        <Check label={`Encrypt files in this upload (${eff?.file_encrypt_mode === "asymmetric" ? "RSA" : "AES-256"})`} checked={encOne} onChange={setEncOne} />
       )}
       {(fields.length > 0 || (settings?.categories.length ?? 0) > 0) && (
         <FieldInputs fields={fields} values={vals} errors={errs} locked={locked}
@@ -249,20 +249,20 @@ export function NewFolderModal({ onSubmit, onClose }: {
   const [err, setErr] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const go = async () => {
-    if (!v.trim()) { setErr("กรุณากรอกชื่อโฟลเดอร์"); return; }
+    if (!v.trim()) { setErr("Enter a folder name."); return; }
     setBusy(true); setErr(null);
     try { await onSubmit({ name: v.trim(), versioning: ver === "on", encrypted: enc !== "none",
       encryption: enc === "aes" ? "symmetric" : enc === "rsa" ? "asymmetric" : undefined }); onClose(); } catch (e) { setErr((e as Error).message); setBusy(false); }
   };
   return (
-    <Modal title="สร้างโฟลเดอร์" size="narrow" onClose={onClose} footer={<>
-      <Btn kind="secondary" onClick={onClose}>ยกเลิก</Btn>
-      <Btn kind="primary" disabled={busy} onClick={go}>สร้างโฟลเดอร์</Btn>
+    <Modal title="New folder" size="narrow" onClose={onClose} footer={<>
+      <Btn kind="secondary" onClick={onClose}>Cancel</Btn>
+      <Btn kind="primary" disabled={busy} onClick={go}>Create folder</Btn>
     </>}>
       <form onSubmit={(e) => { e.preventDefault(); go(); }} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <TextField label="ชื่อโฟลเดอร์" value={v} error={err} onChange={(e) => setV(e.target.value)} />
-        <Dropdown label="การควบคุมเวอร์ชัน" value={ver} options={[{ value: "on", label: "เก็บทุกเวอร์ชัน" }, { value: "off", label: "ไม่เก็บเวอร์ชันเก่า" }]} onChange={setVer} />
-        <Dropdown label="การเข้ารหัส" value={enc} options={[{ value: "none", label: "ตามค่าของตะกร้า" }, { value: "aes", label: "เข้ารหัสแบบสมมาตร (AES-256)" }, { value: "rsa", label: "เข้ารหัสแบบกุญแจไม่สมมาตร (RSA)" }]} onChange={setEnc} />
+        <TextField label="Folder name" value={v} error={err} onChange={(e) => setV(e.target.value)} />
+        <Dropdown label="Versioning" value={ver} options={[{ value: "on", label: "Keep all versions" }, { value: "off", label: "Don't keep old versions" }]} onChange={setVer} />
+        <Dropdown label="Encryption" value={enc} options={[{ value: "none", label: "Basket default" }, { value: "aes", label: "Symmetric encryption (AES-256)" }, { value: "rsa", label: "Asymmetric encryption (RSA)" }]} onChange={setEnc} />
       </form>
     </Modal>
   );
@@ -280,16 +280,16 @@ export function FolderDetailsModal({ folderId, onClose }: { folderId: string; on
     api<{ effective: { encrypt: boolean | null; keep_versions?: boolean | null; encrypt_mode?: string | null } }>(`/folders/${folderId}/policy`).then(setPol).catch(() => {});
   }, [folderId]);
   return (
-    <Modal title="รายละเอียดโฟลเดอร์" size="narrow" onClose={onClose} footer={<Btn kind="secondary" onClick={onClose}>ปิด</Btn>}>
+    <Modal title="Folder details" size="narrow" onClose={onClose} footer={<Btn kind="secondary" onClick={onClose}>Close</Btn>}>
       {err && <Note kind="error">{err}</Note>}
       {d && <dl className="cx-kv">
-        <dt>ชื่อ</dt><dd>{d.name}</dd>
-        <dt>ผู้สร้าง</dt><dd>{d.creator_name}{d.creator_email ? ` (${d.creator_email})` : ""}</dd>
-        <dt>วันเวลาที่สร้าง</dt><dd className="cx-num">{when(d.created_at)}</dd>
-        <dt>ขนาดรวม</dt><dd className="cx-num">{bytes(d.total_bytes) || "0 B"}</dd>
-        <dt>จำนวนไฟล์</dt><dd className="cx-num">{d.file_count} ไฟล์ · {d.subfolder_count} โฟลเดอร์ย่อย</dd>
-        {pol && <><dt>การควบคุมเวอร์ชัน</dt><dd>{pol.effective.keep_versions === false ? "ไม่เก็บเวอร์ชันเก่า" : "เก็บทุกเวอร์ชัน"}</dd>
-          <dt>การเข้ารหัส</dt><dd>{pol.effective.encrypt_mode === "asymmetric" ? "เข้ารหัสแบบกุญแจไม่สมมาตร (RSA)" : pol.effective.encrypt ? "เข้ารหัสแบบสมมาตร (AES-256)" : "ไฟล์เข้ารหัสตามค่าของระบบ"}</dd></>}
+        <dt>Name</dt><dd>{d.name}</dd>
+        <dt>Created by</dt><dd>{d.creator_name}{d.creator_email ? ` (${d.creator_email})` : ""}</dd>
+        <dt>Created</dt><dd className="cx-num">{when(d.created_at)}</dd>
+        <dt>Total size</dt><dd className="cx-num">{bytes(d.total_bytes) || "0 B"}</dd>
+        <dt>Files</dt><dd className="cx-num">{d.file_count} files · {d.subfolder_count} subfolders</dd>
+        {pol && <><dt>Versioning</dt><dd>{pol.effective.keep_versions === false ? "Don't keep old versions" : "Keep all versions"}</dd>
+          <dt>Encryption</dt><dd>{pol.effective.encrypt_mode === "asymmetric" ? "Asymmetric encryption (RSA)" : pol.effective.encrypt ? "Symmetric encryption (AES-256)" : "System default"}</dd></>}
       </dl>}
     </Modal>
   );

@@ -107,7 +107,7 @@ export function FilePanel({ fileId, settingsFor, onClose, onChanged, onShare, on
   const encryptNow = async () => {
     if (!f) return;
     setEncBusy(true);
-    try { await api(`/files/${f.id}/encrypt`, { method: "POST" }); toast({ text: "เข้ารหัสไฟล์แล้ว" }); setTick((t) => t + 1); onChanged(); }
+    try { await api(`/files/${f.id}/encrypt`, { method: "POST" }); toast({ text: "File encrypted" }); setTick((t) => t + 1); onChanged(); }
     catch (e) { setErr((e as Error).message); }
     setEncBusy(false);
   };
@@ -165,7 +165,7 @@ export function FilePanel({ fileId, settingsFor, onClose, onChanged, onShare, on
                 <dt>Created</dt><dd className="cx-num">{when(f.created_at)}</dd>
                 <dt>Modified</dt><dd className="cx-num">{when(f.modified_at)}</dd>
                 <dt>Size</dt><dd className="cx-num">{bytes(f.size_bytes)} · version {f.version}</dd>
-                <dt>Encrypted</dt><dd>{f.encrypted ? "Yes" : <>No{can("upload_version") && encChoice && <> · <button className="cx-link" disabled={encBusy} onClick={encryptNow}>เข้ารหัสไฟล์นี้</button></>}</>}</dd>
+                <dt>Encrypted</dt><dd>{f.encrypted ? "Yes" : <>No{can("upload_version") && encChoice && <> · <button className="cx-link" disabled={encBusy} onClick={encryptNow}>Encrypt this file</button></>}</>}</dd>
                 <dt>Your access</dt><dd style={{ textTransform: "capitalize" }}>{eff?.level}</dd>
               </dl>
               {settings && settings.fields.length > 0 && <>
@@ -192,12 +192,12 @@ export function FilePanel({ fileId, settingsFor, onClose, onChanged, onShare, on
             )}
             <ul className="cx-list">
               {(() => { const c = versions?.find((v) => v.version === f.version); return (
-              <li><span className="cx-grow"><b style={{ fontWeight: 600 }}>เวอร์ชัน {f.version}</b> · ปัจจุบัน{c?.note ? ` · ${c.note}` : ""}<div className="cx-helper cx-num">{when(f.modified_at)} · {bytes(f.size_bytes)}{c?.uploaded_by ? ` · ${c.uploaded_by}` : ""}</div></span>
-                <a className="cx-btn cx-btn-ghost" href={`${BASE_PATH}/api/files/${f.id}/download`}>ดาวน์โหลด</a></li>); })()}
+              <li><span className="cx-grow"><b style={{ fontWeight: 600 }}>Version {f.version}</b> · Current{c?.note ? ` · ${c.note}` : ""}<div className="cx-helper cx-num">{when(f.modified_at)} · {bytes(f.size_bytes)}{c?.uploaded_by ? ` · ${c.uploaded_by}` : ""}</div></span>
+                <a className="cx-btn cx-btn-ghost" href={`${BASE_PATH}/api/files/${f.id}/download`}>Download</a></li>); })()}
               {versions == null && <li><span className="cx-skel" style={{ width: "70%" }} /></li>}
               {versions?.filter((v) => v.version !== f.version).map((v) => (
-                <li key={v.id}><span className="cx-grow">เวอร์ชัน {v.version}{v.note ? ` · ${v.note}` : ""}<div className="cx-helper cx-num">{when(v.created_at)} · {bytes(v.size_bytes)}{v.uploaded_by ? ` · ${v.uploaded_by}` : ""}</div></span>
-                  <a className="cx-btn cx-btn-ghost" href={`${BASE_PATH}/api/files/${f.id}/download?version=${v.version}`}>ดาวน์โหลด</a></li>
+                <li key={v.id}><span className="cx-grow">Version {v.version}{v.note ? ` · ${v.note}` : ""}<div className="cx-helper cx-num">{when(v.created_at)} · {bytes(v.size_bytes)}{v.uploaded_by ? ` · ${v.uploaded_by}` : ""}</div></span>
+                  <a className="cx-btn cx-btn-ghost" href={`${BASE_PATH}/api/files/${f.id}/download?version=${v.version}`}>Download</a></li>
               ))}
             </ul>
           </>

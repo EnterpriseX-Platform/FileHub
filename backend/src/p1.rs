@@ -361,7 +361,7 @@ async fn rendition(s: &AppState, file_id: Id, want: u32, req: &HeaderMap) -> Api
         "SELECT object_key, encrypted, etag, file_type, size_bytes, name FROM files WHERE id = $1 AND deleted_at IS NULL")
         .bind(file_id).fetch_optional(&s.db).await?.ok_or(ApiError::NotFound)?;
     if !matches!(ftype.as_str(), "png" | "jpg" | "jpeg" | "img" | "gif" | "webp") {
-        return Err(ApiError::Coded(StatusCode::UNSUPPORTED_MEDIA_TYPE, "not_image", "ไฟล์นี้ไม่ใช่รูปภาพ".into()));
+        return Err(ApiError::Coded(StatusCode::UNSUPPORTED_MEDIA_TYPE, "not_image", "This file isn't an image.".into()));
     }
     let gif_name = ftype == "gif" || name.to_ascii_lowercase().ends_with(".gif");
     let hit: Option<(String, Vec<u8>, Option<String>)> = sqlx::query_as(
@@ -378,7 +378,7 @@ async fn rendition(s: &AppState, file_id: Id, want: u32, req: &HeaderMap) -> Api
             // A GIF stays a GIF (no copy in another format); other images are JPEG.
             let gif = gif_name || owned.starts_with(b"GIF87a") || owned.starts_with(b"GIF89a");
             let (pw, ph, out) = tokio::task::spawn_blocking(move || if gif { make_gif_rendition(&owned, want) } else { make_rendition(&owned, want) }).await
-                .ok().flatten().ok_or_else(|| ApiError::Coded(StatusCode::UNSUPPORTED_MEDIA_TYPE, "not_image", "อ่านรูปภาพนี้ไม่ได้".into()))?;
+                .ok().flatten().ok_or_else(|| ApiError::Coded(StatusCode::UNSUPPORTED_MEDIA_TYPE, "not_image", "This image can't be read.".into()))?;
             let mime = if gif { "image/gif" } else { "image/jpeg" };
             sqlx::query(r#"INSERT INTO image_renditions (file_id, width, etag, mime, px_w, px_h, data) VALUES ($1,$2,$3,$7,$4,$5,$6)
                            ON CONFLICT (file_id, width) DO UPDATE SET etag = EXCLUDED.etag, mime = EXCLUDED.mime, px_w = EXCLUDED.px_w,
@@ -464,7 +464,7 @@ pub async fn get_thumbnail(
     }
     if let Some(w) = tq.w.or(tq.size).or(tq.width) {
         if !RENDITION_SIZES.contains(&w) {
-            return Err(ApiError::BadRequest("ขนาดรูปที่ขอได้คือ 300, 600 หรือ 1024".into()));
+            return Err(ApiError::BadRequest("Size must be 300, 600, or 1024.".into()));
         }
         return rendition(&s, file_id, w, &req).await;
     }

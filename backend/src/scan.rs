@@ -158,10 +158,10 @@ fn matches_ext(e: &str, h: &[u8]) -> bool {
 pub fn check_type(name: &str, head: &[u8], allowed: &[String]) -> Result<(), String> {
     let e = ext(name);
     if is_program(head) && !allowed.iter().any(|a| a.eq_ignore_ascii_case(&e)) {
-        return Err(format!("ไฟล์ \"{name}\" เป็นโปรแกรม ซึ่งอัปโหลดไม่ได้"));
+        return Err(format!("\"{name}\" is an executable and can't be uploaded."));
     }
     if !matches_ext(&e, head) {
-        return Err(format!("เนื้อไฟล์ \"{name}\" ไม่ตรงกับนามสกุล .{e}"));
+        return Err(format!("The content of \"{name}\" doesn't match its .{e} extension."));
     }
     Ok(())
 }
@@ -171,11 +171,11 @@ pub fn refusal(name: &str, v: &Verdict) -> Option<String> {
     match v {
         Verdict::Infected(sig) => {
             tracing::warn!(file = %name, signature = %sig, "upload refused: malware found");
-            Some(format!("ไฟล์ \"{name}\" ไม่ผ่านการตรวจไวรัส ({sig})"))
+            Some(format!("\"{name}\" failed the virus scan ({sig})."))
         }
         Verdict::Unavailable(e) => {
             tracing::error!(file = %name, "upload refused: {e}");
-            Some("ตรวจไวรัสไม่ได้ในขณะนี้ ลองอีกครั้งภายหลัง".into())
+            Some("Virus scanning is unavailable right now. Try again later.".into())
         }
         _ => None,
     }

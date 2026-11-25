@@ -294,7 +294,7 @@ pub async fn delete_system(
         "SELECT COUNT(*)::bigint FROM files WHERE system_id = $1 AND deleted_at IS NULL"
     ).bind(&id).fetch_one(&s.db).await?;
     if alive > 0 {
-        return Err(ApiError::BadRequest(format!("ลบไม่ได้: basket นี้ยังมีไฟล์อยู่ {alive} ไฟล์ ย้ายหรือลบไฟล์ออกก่อน")));
+        return Err(ApiError::BadRequest(format!("Can't delete: this basket still has {alive} files. Move or delete them first.")));
     }
     sqlx::query("UPDATE systems SET deleted_at = now(), status = 'archived' WHERE id = $1")
         .bind(&id).execute(&s.db).await?;
@@ -591,13 +591,13 @@ pub(crate) struct UploadFields {
 /// or when the server has no key for the kind of encryption the policy picks.
 pub(crate) fn check_file_choice(s: &AppState, pol: &crate::basket::Policy) -> ApiResult<()> {
     if !pol.file_choice() {
-        return Err(ApiError::BadRequest("การเข้ารหัสรายไฟล์ไม่ได้เปิดให้ใช้ในโฟลเดอร์นี้".into()));
+        return Err(ApiError::BadRequest("Per-file encryption isn't enabled for this folder.".into()));
     }
     if pol.file_choice_asymmetric() && !s.storage.has_rsa_key() {
-        return Err(ApiError::BadRequest("ยังไม่ได้ตั้งกุญแจ RSA บนเซิร์ฟเวอร์ จึงเข้ารหัสแบบกุญแจไม่สมมาตรไม่ได้".into()));
+        return Err(ApiError::BadRequest("No RSA key is configured on the server, so asymmetric encryption isn't available.".into()));
     }
     if !pol.file_choice_asymmetric() && !s.storage.has_key() {
-        return Err(ApiError::BadRequest("ยังไม่ได้ตั้งกุญแจเข้ารหัสบนเซิร์ฟเวอร์ (STORAGE_ENC_KEY)".into()));
+        return Err(ApiError::BadRequest("No encryption key is configured on the server (STORAGE_ENC_KEY).".into()));
     }
     Ok(())
 }
@@ -1134,11 +1134,11 @@ pub async fn download_file(
         let row: Option<(String, Option<String>, Option<bool>)> = sqlx::query_as(
             "SELECT object_key, etag, encrypted FROM file_versions WHERE file_id = $1 AND version = $2"
         ).bind(file.id).bind(v).fetch_optional(&s.db).await?;
-        let (key, etag, enc) = row.ok_or_else(|| ApiError::Coded(StatusCode::NOT_FOUND, "not_found", format!("ไม่พบเวอร์ชัน {v} ของไฟล์นี้")))?;
+        let (key, etag, enc) = row.ok_or_else(|| ApiError::Coded(StatusCode::NOT_FOUND, "not_found", format!("Version {v} of this file doesn't exist.")))?;
         let pol = crate::basket::effective_policy(&s.db, &file.system_id, file.folder_id.as_deref()).await?;
         let stamp_on = pol.stamp_downloads == Some(true) || crate::basket::is_vault(&s.db, &file.system_id).await?;
         if stamp_on && level < crate::acl::MANAGE {
-            return Err(ApiError::Denied("ไฟล์ในตะกร้านี้ต้องประทับตราเมื่อดาวน์โหลด เวอร์ชันเก่าดาวน์โหลดได้เฉพาะผู้มีสิทธิ์จัดการ".into()));
+            return Err(ApiError::Denied("Files in this basket are watermarked on download. Only managers can download old versions.".into()));
         }
         crate::basket::log_vault_access(&s.db, &user.0, &file.system_id, file.id, &file.name, &format!("downloaded version {v}")).await;
         let (stem, ext) = match file.name.rfind('.') { Some(i) => (&file.name[..i], &file.name[i..]), None => (file.name.as_str(), "") };
@@ -1509,7 +1509,7 @@ pub async fn search_files(
     let date = |v: &Option<String>| -> ApiResult<Option<chrono::NaiveDate>> {
         match v.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
             None => Ok(None),
-            Some(d) => chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").map(Some).map_err(|_| ApiError::BadRequest("วันที่ต้องอยู่ในรูปแบบ ปปปป-ดด-วว".into())),
+            Some(d) => chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").map(Some).map_err(|_| ApiError::BadRequest("Dates must be in YYYY-MM-DD format.".into())),
         }
     };
     let (from, to) = (date(&q.from)?, date(&q.to)?);
@@ -1633,7 +1633,7 @@ pub async fn search_folders(
     let mut dates = Vec::new();
     for (v, op) in [(&q.from, ">="), (&q.to, "<")] {
         if let Some(d) = v.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
-            let d = chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").map_err(|_| ApiError::BadRequest("วันที่ต้องอยู่ในรูปแบบ ปปปป-ดด-วว".into()))?;
+            let d = chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").map_err(|_| ApiError::BadRequest("Dates must be in YYYY-MM-DD format.".into()))?;
             n += 1;
             let plus = if op == "<" { " + 1" } else { "" };
             sql.push_str(&format!(" AND created_at {op} ((${n}::date){plus})::timestamp AT TIME ZONE 'Asia/Bangkok'"));
@@ -2053,10 +2053,10 @@ pub async fn create_folder(
     };
     let enc = if mode.is_some() { Some(true) } else { c.encrypted.filter(|e| *e) };
     if enc.is_some() && !s.storage.has_key() {
-        return Err(ApiError::BadRequest("เซิร์ฟเวอร์ยังไม่ได้ตั้งกุญแจเข้ารหัส จึงสร้างโฟลเดอร์แบบเข้ารหัสไม่ได้".into()));
+        return Err(ApiError::BadRequest("No encryption key is configured on the server, so encrypted folders can't be created.".into()));
     }
     if mode.as_deref() == Some("asymmetric") && !s.storage.has_rsa_key() {
-        return Err(ApiError::BadRequest("เซิร์ฟเวอร์ยังไม่ได้ตั้งกุญแจ RSA จึงสร้างโฟลเดอร์แบบเข้ารหัสกุญแจไม่สมมาตรไม่ได้".into()));
+        return Err(ApiError::BadRequest("No RSA key is configured on the server, so asymmetric-encrypted folders can't be created.".into()));
     }
     if enc.is_some() || c.versioning.is_some() {
         sqlx::query("INSERT INTO basket_policies (scope_type, scope_id, encrypt, keep_versions, encrypt_mode) VALUES ('folder', $1, $2, $3, $4)
@@ -2233,7 +2233,7 @@ pub async fn report_by_category(
     user: AuthUser,
     Query(q): Query<ReportCatQuery>,
 ) -> ApiResult<Json<Vec<CategoryReportRow>>> {
-    // by = category (basket categories, the TOR's "หมวดหมู่เอกสาร") | format | basket | type (old behaviour)
+    // by = category (basket categories, the TOR's "document categories") | format | basket | type (old behaviour)
     let expr = match q.by.as_deref().unwrap_or("category") {
         "category" => "COALESCE((SELECT c.name FROM basket_categories c WHERE c.system_id = f.system_id AND c.code = f.category_code), 'No category')",
         "format" => "fh_format(f.name)",

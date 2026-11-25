@@ -55,10 +55,10 @@ function LoginInner() {
     e.preventDefault();
     setError("");
     // Required fields are checked here, before anything is sent.
-    if (!email.trim() && !password) { setError("กรุณากรอกอีเมลและรหัสผ่าน"); return; }
-    if (!email.trim()) { setError("กรุณากรอกอีเมล"); return; }
-    if (!/^[^\s@]+@[^\s@]+$/.test(email.trim())) { setError("รูปแบบอีเมลไม่ถูกต้อง"); return; }
-    if (!password) { setError("กรุณากรอกรหัสผ่าน"); return; }
+    if (!email.trim() && !password) { setError("Enter your email and password."); return; }
+    if (!email.trim()) { setError("Enter your email."); return; }
+    if (!/^[^\s@]+@[^\s@]+$/.test(email.trim())) { setError("Enter a valid email address."); return; }
+    if (!password) { setError("Enter your password."); return; }
     setBusy(true);
     try {
       const r = await fetch("/filehub/api/auth/login", {
@@ -68,11 +68,11 @@ function LoginInner() {
         body: JSON.stringify({ email, password }),
       });
       if (r.status === 401) {
-        setError("อีเมลหรือรหัสผ่านไม่ถูกต้อง");
+        setError("Incorrect email or password.");
         return;
       }
-      if (r.status === 429) { setError("ลองเข้าสู่ระบบผิดหลายครั้งเกินไป กรุณารอ 1 นาทีแล้วลองใหม่"); return; }
-      if (!r.ok) throw new Error(`เข้าสู่ระบบไม่สำเร็จ (${r.status})`);
+      if (r.status === 429) { setError("Too many failed sign-in attempts. Wait 1 minute and try again."); return; }
+      if (!r.ok) throw new Error(`Sign-in failed (${r.status})`);
       reload();
       router.replace(safeNext(params.get("next")));
     } catch (e) {
@@ -98,14 +98,14 @@ function LoginInner() {
             </svg>
             <span>FileHub</span>
           </div>
-          <h1 className="cx-login-title">เข้าสู่ระบบ</h1>
+          <h1 className="cx-login-title">Sign in</h1>
           <p className="cx-login-tagline">{tagline}</p>
-          <TextField id="email" label="อีเมล" type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+          <TextField id="email" label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)}
             placeholder={brand.login_email_placeholder} autoFocus required autoComplete="username" />
-          <TextField id="password" label="รหัสผ่าน" type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+          <TextField id="password" label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)}
             required autoComplete="current-password" />
           {error && <Note kind="error">{error}</Note>}
-          <button type="submit" className="cx-btn cx-btn-primary cx-login-submit" disabled={busy}>{busy ? "กำลังเข้าสู่ระบบ" : "เข้าสู่ระบบ"}</button>
+          <button type="submit" className="cx-btn cx-btn-primary cx-login-submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
           {brand.self_signup === "on"
             ? <p className="cx-login-foot">No account? <Link href="/signup">Sign up</Link></p>
             : null}

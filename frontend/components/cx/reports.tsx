@@ -52,8 +52,8 @@ export function Reports() {
             : <Dropdown value={bucket} options={[{ value: "day", label: "By day" }, { value: "month", label: "By month" }, { value: "year", label: "By year" }]} onChange={setBucket} />}
           <span style={{ flex: 1 }} />
           {rows && <span className="cx-sub cx-num" style={{ alignSelf: "center", padding: "8px 12px", marginLeft: "auto" }}>{totals.n.toLocaleString()} files · {bytes(totals.b)}</span>}
-          <a className="cx-btn cx-btn-ghost" href={`${BASE_PATH}/api/reports/export?format=xlsx&by=${by}&bucket=${bucket}${basket ? `&basket=${encodeURIComponent(basket)}` : ""}`}>ส่งออก Excel</a>
-          <a className="cx-btn cx-btn-ghost" href={`${BASE_PATH}/api/reports/export?format=pdf&by=${by}&bucket=${bucket}${basket ? `&basket=${encodeURIComponent(basket)}` : ""}`}>ส่งออก PDF</a>
+          <a className="cx-btn cx-btn-ghost" href={`${BASE_PATH}/api/reports/export?format=xlsx&by=${by}&bucket=${bucket}${basket ? `&basket=${encodeURIComponent(basket)}` : ""}`}>Export Excel</a>
+          <a className="cx-btn cx-btn-ghost" href={`${BASE_PATH}/api/reports/export?format=pdf&by=${by}&bucket=${bucket}${basket ? `&basket=${encodeURIComponent(basket)}` : ""}`}>Export PDF</a>
         </div>
         {err && <div style={{ padding: 12 }}><Note kind="error">{err}</Note></div>}
         <div className="cx-table-scroll">

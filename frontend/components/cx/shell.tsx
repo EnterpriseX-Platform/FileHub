@@ -122,7 +122,7 @@ function Header({ onMenu }: { onMenu: () => void }) {
           {me && (
             <div className="cx-menu" role="menu" style={{ right: 0, top: "100%" }} onMouseLeave={() => setMe(false)}>
               <div className="cx-menu-head">{user.display_name}<small>{user.email}</small></div>
-              <div className="cx-menu-theme"><span>ธีม</span><ThemeSwitch /></div>
+              <div className="cx-menu-theme"><span>Theme</span><ThemeSwitch /></div>
               <button role="menuitem" onClick={() => logout()}>Sign out</button>
             </div>
           )}

@@ -85,12 +85,12 @@ export function BasketSettings({ id }: { id: string }) {
             {basket?.vault ? <Note>Vault: files are always encrypted, downloads are stamped and public links are off.</Note> : <>
             <Check label="Stamp downloads (PDF and Office files download as PDF with who, when and a copy code on every page)" checked={!!s.policy.stamp_downloads} onChange={(v) => upd((x) => ({ ...x, policy: { ...x.policy, stamp_downloads: v } }))} />
             <Check label="Encrypt files stored in this basket" checked={!!s.policy.encrypt} onChange={(v) => upd((x) => ({ ...x, policy: { ...x.policy, encrypt: v } }))} />
-            <Check label="ให้ผู้อัปโหลดเลือกเข้ารหัสรายไฟล์" checked={!!s.policy.file_encrypt_choice}
+            <Check label="Let uploaders choose to encrypt individual files" checked={!!s.policy.file_encrypt_choice}
               onChange={(v) => upd((x) => ({ ...x, policy: { ...x.policy, file_encrypt_choice: v, file_encrypt_mode: v ? (x.policy.file_encrypt_mode ?? "symmetric") : x.policy.file_encrypt_mode } }))} />
             {s.policy.file_encrypt_choice && (
               <div style={{ maxWidth: 360, paddingLeft: 28 }}>
-                <Dropdown label="เข้ารหัสไฟล์ที่เลือกด้วย" value={s.policy.file_encrypt_mode ?? "symmetric"}
-                  options={[{ value: "symmetric", label: "แบบสมมาตร (AES-256)", hint: "กุญแจของเซิร์ฟเวอร์" }, { value: "asymmetric", label: "แบบกุญแจไม่สมมาตร (RSA)", hint: "กุญแจต่อไฟล์ ห่อด้วย RSA" }]}
+                <Dropdown label="Encrypt selected files with" value={s.policy.file_encrypt_mode ?? "symmetric"}
+                  options={[{ value: "symmetric", label: "Symmetric (AES-256)", hint: "Server key" }, { value: "asymmetric", label: "Asymmetric (RSA)", hint: "Per-file key, wrapped with RSA" }]}
                   onChange={(v) => upd((x) => ({ ...x, policy: { ...x.policy, file_encrypt_mode: v } }))} />
               </div>
             )}
