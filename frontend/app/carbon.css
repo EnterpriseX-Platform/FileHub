@@ -653,6 +653,7 @@ html.dark {
 .cx-theme-switch button:focus-visible { outline: 2px solid var(--cx-focus); outline-offset: -2px; }
 .cx-menu-theme { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 16px; border-bottom: 1px solid var(--cx-border-subtle); font-size: 12px; color: var(--cx-text-secondary); }
 .cx-login { position: relative; }
+.cx-login-env { position: absolute; top: 32px; left: max(32px, env(safe-area-inset-left, 0px)); font-size: 14px; color: var(--cx-text-secondary); letter-spacing: 0.16px; }
 .cx-login-corner { position: absolute; top: 24px; right: max(24px, env(safe-area-inset-right, 0px)); }
 .cx-theme-toggle { width: 40px; height: 40px; display: grid; place-items: center; border: 0; background: transparent; color: var(--cx-text-primary); cursor: pointer; }
 .cx-theme-toggle:hover { background: var(--cx-layer-hover); }

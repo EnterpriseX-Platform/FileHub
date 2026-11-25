@@ -87,6 +87,7 @@ function LoginInner() {
   const tagline = brand.workspace_display && brand.workspace_display.replace(/\s/g, "").toLowerCase() !== "filehub" ? brand.workspace_display : "Central document platform";
   return (
     <main className="cx-app cx-login">
+      {brand.env_label && <div className="cx-login-env">{brand.env_label}</div>}
       <div className="cx-login-corner"><ThemeToggle /></div>
       <div className="cx-login-stack">
         <form onSubmit={submit} noValidate className="cx-login-card cx-on-layer">
@@ -107,7 +108,7 @@ function LoginInner() {
           <button type="submit" className="cx-btn cx-btn-primary cx-login-submit" disabled={busy}>{busy ? "กำลังเข้าสู่ระบบ" : "เข้าสู่ระบบ"}</button>
           {brand.self_signup === "on"
             ? <p className="cx-login-foot">No account? <Link href="/signup">Sign up</Link></p>
-            : <p className="cx-login-foot">No account yet? Contact your administrator.</p>}
+            : null}
         </form>
         {SHOW_DEMO_ACCOUNTS && (
           <div className="cx-login-card cx-on-layer">

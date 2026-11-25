@@ -2311,6 +2311,9 @@ pub async fn branding(State(s): State<Arc<AppState>>) -> ApiResult<Json<serde_js
     }
     // Where browsers send file bytes (UPLOAD_BASE_URL, e.g. https://upload.example.go.th/filehub);
     // empty = this host. Set by the deployment, not by admins.
+    // Which deployment this is (ENV_LABEL, e.g. UAT), shown on the sign-in page. Empty = none.
+    m.insert("env_label".into(), serde_json::Value::String(
+        std::env::var("ENV_LABEL").unwrap_or_default().trim().chars().take(24).collect()));
     m.insert("upload_base".into(), serde_json::Value::String(
         std::env::var("UPLOAD_BASE_URL").unwrap_or_default().trim().trim_end_matches('/').to_string()));
     // One URL that carries every chunked upload (UPLOAD_PATH, e.g. /FileService/upload,

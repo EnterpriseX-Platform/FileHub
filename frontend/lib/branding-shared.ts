@@ -10,6 +10,7 @@ export type Branding = {
   portal_label: string;
   access_help: string;
   self_signup: string;
+  env_label: string;
 };
 
 export const DEFAULT_BRANDING: Branding = {
@@ -21,6 +22,7 @@ export const DEFAULT_BRANDING: Branding = {
   portal_label: "Back to portal",
   access_help: "Ask your administrator to grant you access.",
   self_signup: "off",
+  env_label: "",
 };
 
 export function withDefaults(b: Partial<Branding> | null | undefined): Branding {

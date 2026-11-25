@@ -38,6 +38,7 @@ export default function SignUpPage() {
 
   return (
     <main className="cx-app cx-login">
+      {brand.env_label && <div className="cx-login-env">{brand.env_label}</div>}
       <div className="cx-login-corner"><ThemeToggle /></div>
       <div className="cx-login-stack">
         <form onSubmit={submit} className="cx-login-card cx-on-layer">
