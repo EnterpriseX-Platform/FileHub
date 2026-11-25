@@ -98,13 +98,15 @@ pub fn referer(headers: &HeaderMap) -> Option<String> {
     headers.get(header::REFERER).and_then(|v| v.to_str().ok()).map(str::trim).filter(|v| !v.is_empty()).map(str::to_lowercase)
 }
 
-/// True when `prefix` is a whole path segment of the page URL `referer` (host names never match).
+/// True when `prefix` is the first path segment of the page URL `referer` (host names never match).
 pub fn prefix_matches(referer: &str, prefix: &str) -> bool {
     if prefix.is_empty() { return false; }
     let path = referer.split_once("://").map(|(_, r)| r).unwrap_or(referer);
     let path = path.find('/').map(|i| &path[i..]).unwrap_or("");
     let path = path.split(['?', '#']).next().unwrap_or("");
-    path.split('/').any(|seg| seg == prefix)
+    // The app is the first path segment (its context path); later segments are
+    // the app's own routes (…/<app>/app/home must not match an app called "app").
+    path.split('/').find(|seg| !seg.is_empty()) == Some(prefix)
 }
 
 /// First path segment of the uploading page — recorded on files whose app is not mapped yet.
@@ -304,9 +306,11 @@ mod tests {
     #[test]
     fn prefixes_match_whole_path_segments_only() {
         assert!(prefix_matches("https://h.example/app-x/app/page?x=1", "app-x"));
+        assert!(!prefix_matches("https://h.example/app-x/app/page?x=1", "app"));
         assert!(prefix_matches("https://h.example/app", "app"));
         assert!(!prefix_matches("https://app.example/other", "app"));
         assert!(!prefix_matches("https://h.example/app-xy/", "app-x"));
+        assert!(!prefix_matches("https://h.example/other/app/home", "app"));
     }
 
     #[test]
