@@ -2027,7 +2027,7 @@ pub async fn list_folders(
     for b in str_binds { q = q.bind(b); }
     for b in vec_binds { q = q.bind(b); }
     let mut out = q.fetch_all(&s.db).await?;
-    crate::basket::fill_effective_encrypted(&s.db, &mut out).await?;
+    crate::basket::fill_effective_encrypted(&s.db, &mut out, s.storage.encryption_enabled()).await?;
     Ok(Json(out))
 }
 
@@ -2094,7 +2094,7 @@ pub async fn create_folder(
 
     let mut f = vec![sqlx::query_as::<_, Folder>("SELECT * FROM folders WHERE id = $1")
         .bind(&id).fetch_one(&s.db).await?];
-    crate::basket::fill_effective_encrypted(&s.db, &mut f).await?;
+    crate::basket::fill_effective_encrypted(&s.db, &mut f, s.storage.encryption_enabled()).await?;
     Ok(Json(f.pop().unwrap()))
 }
 

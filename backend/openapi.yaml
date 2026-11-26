@@ -109,8 +109,21 @@ info:
     and multipart upload — point any MinIO/AWS SDK at it.
 
     ## Errors
-    JSON `{ "error": "message" }`. 400 rule broken · 401 not signed in · 403 not
-    allowed · 404 not found or not visible · 410 link used up · 429 slow down.
+    JSON `{ "error": "message", "code": "…" }`. 400 rule broken · 401 not signed in · 403 not
+    allowed · 404 not found or not visible · 409 content locked · 410 link used up · 429 slow down.
+
+    ## Rate limits
+    | What | Limit | Setting |
+    |---|---|---|
+    | Uploads per person | 60 per minute | `UPLOAD_RATE_PER_MIN` |
+    | Uploads per connector (`/FileService/upload`) | 1,200 per minute | `LEGACY_UPLOAD_RATE_PER_MIN` |
+    | Failed sign-ins | 10 per minute, then 60 s lockout | — |
+    | Wrong share-link tokens per IP | 20 per minute | — |
+
+    Limits count in one-minute windows. Over a limit the answer is
+    `429` with header `Retry-After: <seconds>` (seconds until the next window)
+    and body `{"code":"rate_limited","error":"…","retry_after":<seconds>}`.
+    Wait `Retry-After` seconds, then send the same request again.
 
 servers:
   - url: http://localhost:8090/fh
@@ -244,6 +257,11 @@ paths:
               schema: { $ref: "#/components/schemas/File" }
         "400": { description: Missing/unknown system_id, bad body, or over quota }
         "403": { $ref: "#/components/responses/Forbidden" }
+        "429":
+          description: Upload limit reached (60 per person per minute). Wait the `Retry-After` seconds, then retry.
+          headers:
+            Retry-After: { description: Seconds until the next one-minute window, schema: { type: integer } }
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
   /api/files/batch:
     post:
       tags: [Files, Upload]
@@ -1003,7 +1021,15 @@ components:
         system_id: { type: string }
         org_id:    { type: string, nullable: true }
         color:     { type: string, nullable: true }
-        encrypted: { type: boolean }
+        encrypted:
+          type: boolean
+          description: This folder's own setting only (chosen when it was created).
+        effective_encrypted:
+          type: boolean
+          description: |
+            Whether files uploaded here are stored encrypted, after inheriting from
+            parent folders, the basket and the system default. Matches the folder's
+            Details screen and the `encrypted` flag of files uploaded into it.
     System:
       type: object
       properties:

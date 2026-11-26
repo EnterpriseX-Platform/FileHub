@@ -410,7 +410,7 @@ pub async fn effective_policy(db: &PgPool, sys: &str, folder: Option<&str>) -> R
 
 /// Fill `effective_encrypted` on folders: the nearest folder (self, then
 /// parents) with an encryption setting wins, else the basket's. One query.
-pub async fn fill_effective_encrypted(db: &PgPool, folders: &mut [crate::models::Folder]) -> Result<(), ApiError> {
+pub async fn fill_effective_encrypted(db: &PgPool, folders: &mut [crate::models::Folder], system_default: bool) -> Result<(), ApiError> {
     if folders.is_empty() { return Ok(()); }
     let ids: Vec<String> = folders.iter().map(|f| f.id.clone()).collect();
     let rows: Vec<(String, bool)> = sqlx::query_as(
@@ -422,9 +422,9 @@ pub async fn fill_effective_encrypted(db: &PgPool, folders: &mut [crate::models:
                 (SELECT p.encrypt FROM up JOIN basket_policies p ON p.scope_type = 'folder' AND p.scope_id = up.id
                   WHERE up.start = s.id AND p.encrypt IS NOT NULL ORDER BY up.depth LIMIT 1),
                 (SELECT p.encrypt FROM basket_policies p WHERE p.scope_type = 'basket' AND p.scope_id = s.system_id),
-                false)
+                $2)
              FROM folders s WHERE s.id = ANY($1)"#,
-    ).bind(&ids).fetch_all(db).await?;
+    ).bind(&ids).bind(system_default).fetch_all(db).await?;
     let m: std::collections::HashMap<String, bool> = rows.into_iter().collect();
     for f in folders.iter_mut() { f.effective_encrypted = f.encrypted || m.get(&f.id).copied().unwrap_or(false); }
     Ok(())
