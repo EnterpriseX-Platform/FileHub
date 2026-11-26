@@ -37,6 +37,7 @@ pub async fn reset(db: &PgPool, key: &str) {
 
 /// Drop windows that ended (called by the background worker).
 pub async fn sweep(db: &PgPool) -> Result<u64, ApiError> {
+    let _ = sqlx::query("DELETE FROM connector_calls WHERE at < now() - interval '180 days'").execute(db).await;
     Ok(sqlx::query("DELETE FROM rate_hits WHERE window_start < date_trunc('minute', now())").execute(db).await?.rows_affected())
 }
 

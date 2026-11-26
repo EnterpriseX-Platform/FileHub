@@ -66,6 +66,52 @@ export function AdminConnectors() {
           catch (e) { toast({ text: (e as Error).message, error: true }); }
           setDel(null); reload();
         }} />}
+      <ConnectorCalls names={(rows ?? []).map((c) => c.name)} />
+    </div>
+  );
+}
+
+type Call = { at: string; connector: string | null; method: string; path: string; status: number; page: string | null; client_ip: string | null; ms: number | null };
+
+/// Every call on the connector routes, reads included — which system called what.
+function ConnectorCalls({ names }: { names: string[] }) {
+  const PAGE = 50;
+  const [who, setWho] = React.useState("");
+  const [page, setPage] = React.useState(0);
+  const [rows, setRows] = React.useState<Call[] | null>(null);
+  React.useEffect(() => {
+    setRows(null);
+    const p = new URLSearchParams({ limit: String(PAGE), offset: String(page * PAGE) });
+    if (who) p.set("connector", who);
+    api<Call[]>(`/admin/connector-calls?${p}`).then(setRows).catch(() => setRows([]));
+  }, [who, page]);
+  return (
+    <div style={{ display: "flex", flexDirection: "column" }}>
+      <div className="cx-toolbar">
+        <b style={{ padding: "0 16px", alignSelf: "center" }}>Calls</b><span className="cx-spacer" />
+        <Dropdown value={who} placeholder="All connectors" renderValue={who || undefined}
+          options={[{ value: "", label: "All connectors" }, ...names.map((n) => ({ value: n, label: n }))]} onChange={(v) => { setWho(v); setPage(0); }} />
+      </div>
+      <div className="cx-table-scroll"><table className="cx-table">
+        <thead><tr><th>When</th><th>Connector</th><th>Call</th><th className="cx-right">Result</th><th className="cx-hide-sm">Page</th><th className="cx-hide-sm cx-hide-md cx-right">Time</th></tr></thead>
+        <tbody>
+          {rows == null ? <SkeletonRows cols={4} /> : rows.map((r, i) => (
+            <tr key={i}>
+              <td className="cx-num">{when(r.at)}</td>
+              <td>{r.connector ?? <span className="cx-helper">Unknown</span>}</td>
+              <td className="cx-name" title={r.path}><span className="cx-num">{r.method}</span> {r.path}</td>
+              <td className="cx-right cx-num">{r.status}</td>
+              <td className="cx-hide-sm">{r.page ?? ""}</td>
+              <td className="cx-hide-sm cx-hide-md cx-right cx-num">{r.ms != null ? `${r.ms} ms` : ""}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table></div>
+      {rows && rows.length === 0 && <div className="cx-state"><strong>No calls yet.</strong></div>}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: 8 }}>
+        <Btn kind="ghost" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Newer</Btn>
+        <Btn kind="ghost" disabled={!rows || rows.length < PAGE} onClick={() => setPage((p) => p + 1)}>Older</Btn>
+      </div>
     </div>
   );
 }

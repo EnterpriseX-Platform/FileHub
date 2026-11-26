@@ -41,3 +41,11 @@ Search matches on these values).
 Basket Settings → Statuses has a "Use statuses" switch. Off: status is hidden,
 can't be changed (`POST /api/files/:id/status` answers 400), doesn't lock
 content, and files don't appear in "Awaiting my review".
+
+## Connector call log
+
+Every call on `/FileService/...` is logged — reads too (list, download,
+details) — with the connector, method, path, result, page and time taken.
+Admin → Connectors → Calls shows it; `GET /api/admin/connector-calls?connector=&limit=&offset=`
+returns it. Kept 180 days. File actions (upload, rename, trash, status) also
+appear in Admin → Activity log as before.

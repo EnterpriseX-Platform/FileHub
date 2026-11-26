@@ -149,6 +149,45 @@ pub async fn system_for_referer(db: &sqlx::PgPool, headers: &HeaderMap) -> Optio
     rows.into_iter().find(|(p, _)| prefix_matches(&referer, p)).map(|(_, s)| s)
 }
 
+/// Which connector a request belongs to, for the call log: its token, else
+/// the page it came from, else "Callers inside the cluster" for direct calls.
+pub async fn name_for_request(db: &sqlx::PgPool, headers: &HeaderMap) -> Option<String> {
+    if let Ok(Some(c)) = by_token(db, headers).await { return Some(c.name); }
+    if let Some(r) = referer(headers) {
+        let rows: Vec<(String, String)> = sqlx::query_as(
+            "SELECT lower(p), name FROM connectors, unnest(path_prefixes) p WHERE kind = $1 ORDER BY length(p) DESC",
+        ).bind(LEGACY).fetch_all(db).await.unwrap_or_default();
+        if let Some((_, n)) = rows.into_iter().find(|(p, _)| prefix_matches(&r, p)) { return Some(n); }
+    }
+    if !via_proxy(headers) {
+        return sqlx::query_scalar("SELECT name FROM connectors WHERE kind = $1 AND trust_callers ORDER BY created_at LIMIT 1")
+            .bind(LEGACY).fetch_optional(db).await.ok().flatten();
+    }
+    None
+}
+
+/// GET /api/admin/connector-calls?connector=&limit= — newest first.
+#[derive(serde::Deserialize)]
+pub struct CallsQuery { pub connector: Option<String>, pub limit: Option<i64>, pub offset: Option<i64> }
+
+#[derive(serde::Serialize, sqlx::FromRow)]
+pub struct Call { pub at: chrono::DateTime<chrono::Utc>, pub connector: Option<String>, pub method: String, pub path: String, pub status: i32, pub page: Option<String>, pub client_ip: Option<String>, pub ms: Option<i32> }
+
+pub async fn calls(
+    axum::extract::State(s): axum::extract::State<std::sync::Arc<crate::AppState>>,
+    user: crate::auth::AuthUser,
+    axum::extract::Query(q): axum::extract::Query<CallsQuery>,
+) -> ApiResult<axum::Json<Vec<Call>>> {
+    crate::auth::require_role(&user.0, &["admin"])?;
+    let lim = q.limit.unwrap_or(100).clamp(1, 500);
+    let off = q.offset.unwrap_or(0).max(0);
+    let c = q.connector.filter(|v| !v.trim().is_empty());
+    Ok(axum::Json(sqlx::query_as(
+        "SELECT at, connector, method, path, status, page, client_ip, ms FROM connector_calls
+          WHERE ($1::text IS NULL OR connector = $1) ORDER BY at DESC LIMIT $2 OFFSET $3",
+    ).bind(c).bind(lim).bind(off).fetch_all(&s.db).await?))
+}
+
 /// The account a connector acts as — one per connector, so the activity log
 /// shows which app did what. Kept in step with the connector's role and basket.
 pub async fn service_user(db: &sqlx::PgPool, c: &Connector) -> ApiResult<User> {

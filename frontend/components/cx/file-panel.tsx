@@ -169,7 +169,7 @@ export function FilePanel({ fileId, settingsFor, onClose, onChanged, onShare, on
                 {useSt && <><dt>Status</dt><dd><StatusTag code={f.status} statuses={settings?.statuses} />{locked && <span className="cx-helper"> · content locked</span>}</dd></>}
                 <dt>Category</dt><dd>{catName ?? "—"}</dd>
                 <dt>Stored in</dt><dd>{basketName ?? f.system_id}{folderPath ? ` › ${folderPath}` : ""}</dd>
-                <dt>Uploaded by</dt><dd>{f.owner}</dd>
+                <dt>Uploaded by</dt><dd>{origin?.source_user ? <>{origin.source_user}{origin.connector_name ? <span className="cx-helper"> · via {origin.connector_name}</span> : null}</> : f.owner}</dd>
                 <dt>Created</dt><dd className="cx-num">{when(f.created_at)}</dd>
                 <dt>Modified</dt><dd className="cx-num">{when(f.modified_at)}</dd>
                 <dt>Size</dt><dd className="cx-num">{bytes(f.size_bytes)} · version {f.version}</dd>

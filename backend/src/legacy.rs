@@ -59,7 +59,24 @@ use crate::AppState;
 /// Whether the legacy compatibility layer is enabled (default: off).
 /// The routes answer only while at least one legacy connector is switched on.
 pub async fn gate(axum::extract::State(s): axum::extract::State<Arc<AppState>>, req: axum::extract::Request, next: axum::middleware::Next) -> Response {
-    if crate::connectors::legacy_on(&s.db).await { next.run(req).await } else { StatusCode::NOT_FOUND.into_response() }
+    if !crate::connectors::legacy_on(&s.db).await { return StatusCode::NOT_FOUND.into_response(); }
+    // Call log: every call, reads included (Admin → Connectors → Calls).
+    let started = std::time::Instant::now();
+    let method = req.method().to_string();
+    let path: String = req.uri().path().chars().take(300).collect();
+    let headers = req.headers().clone();
+    let res = next.run(req).await;
+    let status = res.status().as_u16() as i32;
+    let ms = started.elapsed().as_millis().min(i32::MAX as u128) as i32;
+    let db = s.db.clone();
+    tokio::spawn(async move {
+        let who = crate::connectors::name_for_request(&db, &headers).await;
+        let page = crate::connectors::referer_app(&headers);
+        let ip = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()).map(|v| v.split(',').next().unwrap_or("").trim().to_string());
+        let _ = sqlx::query("INSERT INTO connector_calls (connector, method, path, status, page, client_ip, ms) VALUES ($1,$2,$3,$4,$5,$6,$7)")
+            .bind(who).bind(method).bind(path).bind(status).bind(page).bind(ip).bind(ms).execute(&db).await;
+    });
+    res
 }
 
 
