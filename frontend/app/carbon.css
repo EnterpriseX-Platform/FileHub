@@ -977,3 +977,9 @@ html.dark .cx-ftile > span { color: #161616; }
   .cx-btn-ghost, .cx-btn-danger-ghost, .cx-selbar .cx-btn { padding-right: 16px; }
   .cx-opt-side { width: 140px; }
 }
+
+/* Basket cards: separate tiles, so a short last row leaves no grey block. */
+.cx-bgrid { background: transparent; border: 0; gap: 16px; }
+.cx-bcard { border: 1px solid var(--cx-border-subtle); }
+/* Text inputs inside edit tables keep a readable width. */
+.cx-table td > input.cx-input { min-width: 160px; }
