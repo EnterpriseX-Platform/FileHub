@@ -49,3 +49,12 @@ details) — with the connector, method, path, result, page and time taken.
 Admin → Connectors → Calls shows it; `GET /api/admin/connector-calls?connector=&limit=&offset=`
 returns it. Kept 180 days. File actions (upload, rename, trash, status) also
 appear in Admin → Activity log as before.
+
+## Permissions notes
+
+- Admin pages and Reports are for administrators; other roles get 403 from
+  `/api/reports/*` and a refusal page in the browser.
+- A file whose status locks content can't be sent to Trash by someone below
+  Manage (409 `content_locked`).
+- `POST /api/acl/levels {"ids": [...]}` returns the caller's level per file
+  (0 none, 1 view, 2 edit, 3 manage); file menus are built from it.

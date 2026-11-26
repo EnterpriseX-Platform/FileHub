@@ -1274,7 +1274,12 @@ pub async fn delete_file(
 /// Edit access, object lock, the update, the activity row and the webhook.
 /// `via` is appended to the activity text (e.g. " via S3").
 pub(crate) async fn trash_file(s: &AppState, user: &crate::auth::User, file: &File, via: &str) -> ApiResult<()> {
-    crate::acl::require_file(&s.db, user, file.id, crate::acl::EDIT).await?;
+    let lvl = crate::acl::require_file(&s.db, user, file.id, crate::acl::EDIT).await?;
+    // A status that locks content also protects the file from deletion, except
+    // for people with Manage (who can change the status anyway).
+    if lvl < crate::acl::MANAGE && crate::basket::content_locked(&s.db, &file.system_id, &file.status).await? {
+        return Err(ApiError::ContentLocked("This file's status locks it. Someone with Manage access can change the status or delete it.".into()));
+    }
     crate::objectlock::guard_delete(&s.db, file.id, user).await?;
     sqlx::query("UPDATE files SET deleted_at = now(), modified_at = now() WHERE id = $1").bind(file.id).execute(&s.db).await?;
     crate::basket::log_activity(&s.db, user, &format!("sent to trash{via}"), &file.name, &file.file_type, Some(file.id), &file.system_id).await;
@@ -2258,6 +2263,7 @@ pub async fn report_by_category(
     user: AuthUser,
     Query(q): Query<ReportCatQuery>,
 ) -> ApiResult<Json<Vec<CategoryReportRow>>> {
+    crate::auth::require_role(&user.0, &["admin"])?;
     // by = category (basket categories, the TOR's "document categories") | format | basket | type (old behaviour)
     let expr = match q.by.as_deref().unwrap_or("category") {
         "category" => "COALESCE((SELECT c.name FROM basket_categories c WHERE c.system_id = f.system_id AND c.code = f.category_code), 'No category')",
@@ -2286,6 +2292,7 @@ pub async fn report_by_time(
     user: AuthUser,
     Query(q): Query<ReportTimeQuery>,
 ) -> ApiResult<Json<Vec<TimeReportRow>>> {
+    crate::auth::require_role(&user.0, &["admin"])?;
     let scope = crate::auth::effective_system_ids(&s.db, &user.0).await?;
     let mut w = String::from("deleted_at IS NULL");
     let mut n = 1;

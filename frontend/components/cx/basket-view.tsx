@@ -121,6 +121,17 @@ export function BasketView({ basketId }: { basketId: string }) {
     return () => { off = true; };
   }, [basketId, folderId, qDeb, status, cat, sort, page, size, tick]);
 
+  // The caller's level on each listed file: a per-file grant can be higher
+  // (or the folder lower) than the basket level, so the menu follows the file.
+  const [lv, setLv] = React.useState<Record<string, number>>({});
+  React.useEffect(() => {
+    const ids = (files ?? []).map((f) => f.id);
+    if (ids.length === 0) { setLv({}); return; }
+    let off = false;
+    api<Record<string, number>>("/acl/levels", { method: "POST", json: { ids } }).then((m) => { if (!off) setLv(m); }).catch(() => {});
+    return () => { off = true; };
+  }, [files]);
+
   const chain = React.useMemo(() => {
     const out: Folder[] = [];
     let cur = folders?.find((f) => f.id === folderId) ?? null;
@@ -139,6 +150,9 @@ export function BasketView({ basketId }: { basketId: string }) {
   const listFields = (settings?.fields ?? []).filter((f) => f.show_in_list);
   const canEdit = level === "edit" || level === "manage" || user?.role === "admin";
   const canManage = level === "manage" || user?.role === "admin";
+  const fLevel = (id: string) => (user?.role === "admin" ? 3 : lv[id] ?? (canManage ? 3 : canEdit ? 2 : 1));
+  const fEdit = (id: string) => fLevel(id) >= 2;
+  const fManage = (id: string) => fLevel(id) >= 3;
   const placeLabel = here?.name ?? basket?.name ?? "";
   const isDrive = basket?.system_type === "personal";
   const basketLabel = isDrive ? "My Drive" : basket?.name ?? "";
@@ -387,7 +401,7 @@ export function BasketView({ basketId }: { basketId: string }) {
                   const on = sel.some((x) => x.id === f.id) || fileParam === f.id;
                   const miss = missing(f);
                   const m = meta(f.metadata);
-                  const locks = !!settings?.statuses.find((st) => st.code === f.status)?.locks_content;
+                  const locks = useSt && !!settings?.statuses.find((st) => st.code === f.status)?.locks_content;
                   return (
                     <React.Fragment key={f.id}>
                       <tr aria-selected={on} onDoubleClick={() => router.push(`/view/${f.id}`)}>
@@ -405,14 +419,14 @@ export function BasketView({ basketId }: { basketId: string }) {
                           { label: "Details", icon: <I.rules />, onClick: () => openFile(f.id) },
                           { label: "Download", icon: <I.download />, onClick: () => { window.location.href = `${BASE_PATH}/api/files/${f.id}/download`; } },
                           { label: "Add to download list", icon: <I.add />, onClick: () => addToDownloads([{ kind: "file", id: f.id }]) },
-                          ...(canEdit && !locks ? [{ label: "Rename", icon: <I.edit />, onClick: () => setModal(<NameModal title="Rename file" action="Rename" initial={f.name} onClose={() => setModal(null)}
+                          ...(fEdit(f.id) && !locks ? [{ label: "Rename", icon: <I.edit />, onClick: () => setModal(<NameModal title="Rename file" action="Rename" initial={f.name} onClose={() => setModal(null)}
                             onSubmit={async (name) => { await api(`/files/${f.id}`, { method: "PATCH", json: { name } }); toast({ text: "File renamed." }); refresh(); }} />) }] : []),
-                          ...(canEdit ? [{ label: "Move", icon: <I.move />, onClick: () => doMove([f.id], []) }] : []),
+                          ...(fEdit(f.id) ? [{ label: "Move", icon: <I.move />, onClick: () => doMove([f.id], []) }] : []),
                           { label: "Share", icon: <I.share />, onClick: () => doShare("file", f.id, f.name) },
-                          ...(useSt ? [{ label: "Change status", icon: <I.review />, onClick: () => doStatus(f) }] : []),
-                          ...(canManage && !f.encrypted ? [{ label: "Encrypt file", icon: <I.lock />, onClick: () => setModal(<Confirm title={`Encrypt ${f.name}?`} action="Encrypt" body="The file and its earlier versions are stored encrypted. People with access open it as before."
+                          ...(useSt && fEdit(f.id) ? [{ label: "Change status", icon: <I.review />, onClick: () => doStatus(f) }] : []),
+                          ...(fManage(f.id) && !f.encrypted ? [{ label: "Encrypt file", icon: <I.lock />, onClick: () => setModal(<Confirm title={`Encrypt ${f.name}?`} action="Encrypt" body="The file and its earlier versions are stored encrypted. People with access open it as before."
                             onClose={() => setModal(null)} onConfirm={async () => { await api(`/files/${f.id}/encrypt`, { method: "POST" }); toast({ text: `${f.name} is encrypted.` }); refresh(); }} />) }] : []),
-                          ...(canEdit ? ["sep" as const, { label: "Delete", icon: <I.trash />, danger: true, onClick: () => doDelete([f.id], []) }] : []),
+                          ...(fEdit(f.id) && (!locks || fManage(f.id)) ? ["sep" as const, { label: "Delete", icon: <I.trash />, danger: true, onClick: () => doDelete([f.id], []) }] : []),
                         ]} /></td>
                       </tr>
                       {miss.length > 0 && (

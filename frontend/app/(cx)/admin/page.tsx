@@ -1,3 +1,4 @@
 "use client";
 import { AdminHome } from "@/components/cx/admin";
-export default function Page() { return <AdminHome />; }
+import { AdminOnly } from "@/components/cx/admin-only";
+export default function Page() { return <AdminOnly><AdminHome /></AdminOnly>; }

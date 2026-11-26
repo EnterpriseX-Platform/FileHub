@@ -619,3 +619,24 @@ pub async fn visibility(db: &PgPool, user: &User, scope: &[String]) -> Result<Vi
 pub fn vis_sql(a: &str, b: usize, f: usize, fi: usize, u: usize) -> String {
     format!(" AND (({a}.folder_id IS NULL AND {a}.system_id = ANY(${b})) OR {a}.folder_id = ANY(${f}) OR {a}.id::text = ANY(${fi}) OR {a}.created_by = (${u})[1])")
 }
+
+
+/// POST /api/acl/levels {"ids": [...]} — the caller's level on each file
+/// (0 none, 1 view, 2 edit, 3 manage), so a list can offer exactly the actions
+/// each file allows (a per-file grant can be higher than the folder's).
+#[derive(serde::Deserialize)]
+pub struct LevelsReq { pub ids: Vec<String> }
+
+pub async fn levels(
+    axum::extract::State(s): axum::extract::State<std::sync::Arc<crate::AppState>>,
+    user: crate::auth::AuthUser,
+    axum::Json(b): axum::Json<LevelsReq>,
+) -> Result<axum::Json<std::collections::HashMap<String, i32>>, ApiError> {
+    let ids: Vec<String> = b.ids.into_iter().take(500).collect();
+    let p = principals(&s.db, &user.0).await?;
+    let rows: Vec<(String, i32)> = sqlx::query_as(
+        "SELECT f.id, COALESCE(fh_level($1, $2, f.system_id, f.folder_id, f.id, f.created_by, $3), 0)::int
+           FROM files f WHERE f.id = ANY($4) AND f.deleted_at IS NULL",
+    ).bind(&p).bind(&user.0.role).bind(&user.0.id).bind(&ids).fetch_all(&s.db).await?;
+    Ok(axum::Json(rows.into_iter().collect()))
+}

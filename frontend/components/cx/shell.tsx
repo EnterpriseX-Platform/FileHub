@@ -194,7 +194,7 @@ function SideNav() {
         <div className="cx-nav-group"><span>More</span></div>
         <NavLink href="/downloads" icon={<I.download />} label="Download list" count={nav.downloads} current={cur("/downloads")} />
         <NavLink href="/trash" icon={<I.trash />} label="Trash" current={cur("/trash")} />
-        <NavLink href="/reports" icon={<I.rules />} label="Reports" current={cur("/reports")} />
+        {isAdmin && <NavLink href="/reports" icon={<I.rules />} label="Reports" current={cur("/reports")} />}
         <NavLink href="/docs" icon={<I.doc />} label="API docs" current={cur("/docs")} />
         {isAdmin && <NavLink href="/admin" icon={<I.settings />} label="Admin" current={pathname.startsWith("/admin")} />}
       </div>

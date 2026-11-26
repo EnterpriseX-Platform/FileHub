@@ -68,6 +68,7 @@ fn xlsx(sheets: &[(&str, String)]) -> Result<Vec<u8>, ApiError> {
 }
 
 pub async fn export(State(s): State<Arc<AppState>>, user: AuthUser, Query(q): Query<ExportQuery>) -> ApiResult<axum::response::Response> {
+    crate::auth::require_role(&user.0, &["admin"])?;
     let format = q.format.as_deref().unwrap_or("xlsx");
     if !matches!(format, "xlsx" | "pdf") { return Err(ApiError::BadRequest("format must be xlsx or pdf".into())); }
     let by = q.by.clone().unwrap_or_else(|| "category".into());
