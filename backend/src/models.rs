@@ -90,6 +90,10 @@ pub struct Folder {
     pub created_by: Option<String>,
     /// false = grants from parent folders / the basket do not apply here.
     pub inherit: bool,
+    /// Whether new files here are encrypted, after inheriting from parent
+    /// folders and the basket. `encrypted` is only this folder's own setting.
+    #[sqlx(default)]
+    pub effective_encrypted: bool,
 }
 
 #[allow(dead_code)]

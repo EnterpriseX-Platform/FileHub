@@ -2015,7 +2015,9 @@ pub async fn list_folders(
     let mut q = sqlx::query_as::<_, Folder>(&sql);
     for b in str_binds { q = q.bind(b); }
     for b in vec_binds { q = q.bind(b); }
-    Ok(Json(q.fetch_all(&s.db).await?))
+    let mut out = q.fetch_all(&s.db).await?;
+    crate::basket::fill_effective_encrypted(&s.db, &mut out).await?;
+    Ok(Json(out))
 }
 
 pub async fn create_folder(
@@ -2079,8 +2081,10 @@ pub async fn create_folder(
             .bind(&id).bind(enc).bind(c.versioning).bind(&mode).execute(&s.db).await?;
     }
 
-    Ok(Json(sqlx::query_as::<_, Folder>("SELECT * FROM folders WHERE id = $1")
-        .bind(&id).fetch_one(&s.db).await?))
+    let mut f = vec![sqlx::query_as::<_, Folder>("SELECT * FROM folders WHERE id = $1")
+        .bind(&id).fetch_one(&s.db).await?];
+    crate::basket::fill_effective_encrypted(&s.db, &mut f).await?;
+    Ok(Json(f.pop().unwrap()))
 }
 
 pub async fn delete_folder(

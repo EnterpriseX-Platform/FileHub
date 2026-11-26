@@ -402,6 +402,28 @@ pub async fn effective_policy(db: &PgPool, sys: &str, folder: Option<&str>) -> R
     Ok(p)
 }
 
+/// Fill `effective_encrypted` on folders: the nearest folder (self, then
+/// parents) with an encryption setting wins, else the basket's. One query.
+pub async fn fill_effective_encrypted(db: &PgPool, folders: &mut [crate::models::Folder]) -> Result<(), ApiError> {
+    if folders.is_empty() { return Ok(()); }
+    let ids: Vec<String> = folders.iter().map(|f| f.id.clone()).collect();
+    let rows: Vec<(String, bool)> = sqlx::query_as(
+        r#"WITH RECURSIVE up(start, id, parent_id, depth) AS (
+              SELECT id, id, parent_id, 0 FROM folders WHERE id = ANY($1)
+              UNION ALL
+              SELECT up.start, f.id, f.parent_id, up.depth + 1 FROM folders f JOIN up ON f.id = up.parent_id WHERE up.depth < 64)
+           SELECT s.id, COALESCE(
+                (SELECT p.encrypt FROM up JOIN basket_policies p ON p.scope_type = 'folder' AND p.scope_id = up.id
+                  WHERE up.start = s.id AND p.encrypt IS NOT NULL ORDER BY up.depth LIMIT 1),
+                (SELECT p.encrypt FROM basket_policies p WHERE p.scope_type = 'basket' AND p.scope_id = s.system_id),
+                false)
+             FROM folders s WHERE s.id = ANY($1)"#,
+    ).bind(&ids).fetch_all(db).await?;
+    let m: std::collections::HashMap<String, bool> = rows.into_iter().collect();
+    for f in folders.iter_mut() { f.effective_encrypted = f.encrypted || m.get(&f.id).copied().unwrap_or(false); }
+    Ok(())
+}
+
 /// Refuse a file the destination's policy does not accept.
 pub async fn check_policy(db: &PgPool, sys: &str, folder: Option<&str>, name: &str, size: i64) -> Result<Policy, ApiError> {
     let p = effective_policy(db, sys, folder).await?;

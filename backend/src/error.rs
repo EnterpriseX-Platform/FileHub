@@ -58,7 +58,12 @@ impl IntoResponse for ApiError {
             ApiError::Busy(m) => {
                 return (StatusCode::SERVICE_UNAVAILABLE, [(axum::http::header::RETRY_AFTER, "5")], Json(json!({ "error": m }))).into_response();
             }
-            ApiError::TooManyRequests(m)=> (StatusCode::TOO_MANY_REQUESTS,   m.clone()),
+            ApiError::TooManyRequests(m)=> {
+                // Limits use one-minute windows: wait until the next minute.
+                let secs = (60 - chrono::Utc::now().timestamp().rem_euclid(60)).max(1);
+                return (StatusCode::TOO_MANY_REQUESTS, [(axum::http::header::RETRY_AFTER, secs.to_string())],
+                    Json(json!({ "error": m, "code": "rate_limited", "retry_after": secs }))).into_response();
+            }
             ApiError::Db(sqlx::Error::RowNotFound) => (StatusCode::NOT_FOUND, "This item doesn't exist or you don't have access to it.".to_string()),
             // Database unreachable or saturated: temporary — 503 so clients and
             // load balancers retry, not a server bug.
