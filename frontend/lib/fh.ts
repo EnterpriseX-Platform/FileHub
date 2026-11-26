@@ -85,7 +85,7 @@ export type StatusDef = { code: string; label: string; color: TagColor; is_initi
 export type Transition = { from_code: string; to_code: string; required_level: number };
 export type Policy = { encrypt: boolean | null; allowed_ext: string[] | null; max_file_bytes: number | null; public_links: boolean | null; stamp_downloads?: boolean | null;
   encrypt_mode?: string | null; file_encrypt_choice?: boolean | null; file_encrypt_mode?: string | null; content_search?: boolean | null };
-export type Settings = { categories: Category[]; fields: FieldDef[]; statuses: StatusDef[]; transitions: Transition[]; policy: Policy };
+export type Settings = { categories: Category[]; fields: FieldDef[]; statuses: StatusDef[]; transitions: Transition[]; policy: Policy; use_statuses?: boolean };
 export type TagColor = "gray" | "blue" | "green" | "orange" | "red";
 
 export type AclEntry = {

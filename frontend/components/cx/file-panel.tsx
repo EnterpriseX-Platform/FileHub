@@ -16,6 +16,8 @@ type Appears = { id: string; name: string; match_mode: string; rules: unknown[] 
 type Cmt = { id: string; user_id: string; body: string; created_at: string; display_name: string };
 type TabId = "details" | "versions" | "comments" | "access" | "activity" | "appears";
 
+type Origin = { channel: string; connector_name?: string | null; source_system?: string | null; source_user?: string | null; org_code?: string | null; ref_no?: string | null; screen?: string | null; created_at: string };
+
 /// Side panel for one file: Details · Versions · Access · Activity · Appears in.
 export function FilePanel({ fileId, settingsFor, onClose, onChanged, onShare, onStatus, basketName, folderPath, refreshKey = 0 }: {
   fileId: string; refreshKey?: number; settingsFor: (basket: string) => Promise<Settings | null>; onClose: () => void; onChanged: () => void;
@@ -25,6 +27,7 @@ export function FilePanel({ fileId, settingsFor, onClose, onChanged, onShare, on
   const [f, setF] = React.useState<FileRow | null>(null);
   const [eff, setEff] = React.useState<Effective | null>(null);
   const [settings, setSettings] = React.useState<Settings | null>(null);
+  const [origin, setOrigin] = React.useState<Origin | null>(null);
   const [tab, setTab] = React.useState<TabId>("details");
   const [err, setErr] = React.useState<string | null>(null);
   const [verPct, setVerPct] = React.useState<number | null>(null);
@@ -48,6 +51,7 @@ export function FilePanel({ fileId, settingsFor, onClose, onChanged, onShare, on
     (async () => {
       try {
         const file = await api<FileRow>(`/files/${fileId}`);
+        api<Origin | null>(`/files/${fileId}/origin`).then(setOrigin).catch(() => setOrigin(null));
         const [e, s] = await Promise.all([api<Effective>(`/acl/file/${fileId}/effective`), settingsFor(file.system_id)]);
         if (off) return;
         setF(file); setEff(e); setSettings(s);
@@ -69,7 +73,8 @@ export function FilePanel({ fileId, settingsFor, onClose, onChanged, onShare, on
 
   const can = (a: string) => eff?.actions.includes(a);
   const status = settings?.statuses.find((s) => s.code === f?.status);
-  const locked = !!status?.locks_content;
+  const useSt = settings?.use_statuses !== false;
+  const locked = useSt && !!status?.locks_content;
   const catName = settings?.categories.find((c) => c.code === f?.category_code)?.name;
   const m = f ? meta(f.metadata) : {};
 
@@ -138,7 +143,7 @@ export function FilePanel({ fileId, settingsFor, onClose, onChanged, onShare, on
         <div className="cx-panel-acts">
           <a className="cx-btn cx-btn-ghost cx-btn-lead" href={`${BASE_PATH}/api/files/${f.id}/download`}><I.download />Download</a>
           <Link className="cx-btn cx-btn-ghost cx-btn-lead" href={`/view/${f.id}`}><I.doc />Open</Link>
-          {can("change_status") && <Btn kind="ghost" icon={<I.review />} onClick={() => onStatus(f)}>Status</Btn>}
+          {useSt && can("change_status") && <Btn kind="ghost" icon={<I.review />} onClick={() => onStatus(f)}>Status</Btn>}
           {(can("share") || can("forward")) && <Btn kind="ghost" icon={<I.share />} onClick={() => onShare(f)}>Share</Btn>}
         </div>
       )}
@@ -161,7 +166,7 @@ export function FilePanel({ fileId, settingsFor, onClose, onChanged, onShare, on
           ) : (
             <>
               <dl className="cx-kv">
-                <dt>Status</dt><dd><StatusTag code={f.status} statuses={settings?.statuses} />{locked && <span className="cx-helper"> · content locked</span>}</dd>
+                {useSt && <><dt>Status</dt><dd><StatusTag code={f.status} statuses={settings?.statuses} />{locked && <span className="cx-helper"> · content locked</span>}</dd></>}
                 <dt>Category</dt><dd>{catName ?? "—"}</dd>
                 <dt>Stored in</dt><dd>{basketName ?? f.system_id}{folderPath ? ` › ${folderPath}` : ""}</dd>
                 <dt>Uploaded by</dt><dd>{f.owner}</dd>
@@ -171,6 +176,18 @@ export function FilePanel({ fileId, settingsFor, onClose, onChanged, onShare, on
                 <dt>Encrypted</dt><dd>{f.encrypted ? "Yes" : <>No{can("upload_version") && encChoice && <> · <button className="cx-link" disabled={encBusy} onClick={encryptNow}>Encrypt this file</button></>}</>}</dd>
                 <dt>Your access</dt><dd style={{ textTransform: "capitalize" }}>{eff?.level}</dd>
               </dl>
+              {origin && <>
+                <div className="cx-section-label">Origin</div>
+                <dl className="cx-kv">
+                  <dt>Channel</dt><dd>{origin.channel === "connector" ? `Connector · ${origin.connector_name ?? ""}` : origin.channel === "api" ? "API" : "Web"}</dd>
+                  {origin.source_system && <><dt>Source system</dt><dd>{origin.source_system}</dd></>}
+                  {origin.source_user && <><dt>Sent by</dt><dd>{origin.source_user}</dd></>}
+                  {origin.org_code && <><dt>Organisation</dt><dd className="cx-num">{origin.org_code}</dd></>}
+                  {origin.ref_no && <><dt>Reference no.</dt><dd className="cx-num">{origin.ref_no}</dd></>}
+                  {origin.screen && <><dt>Screen</dt><dd>{origin.screen}</dd></>}
+                  <dt>Received</dt><dd className="cx-num">{when(origin.created_at)}</dd>
+                </dl>
+              </>}
               {settings && settings.fields.length > 0 && <>
                 <div className="cx-section-label">Fields</div>
                 <dl className="cx-kv">

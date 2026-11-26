@@ -202,6 +202,7 @@ export function BasketView({ basketId }: { basketId: string }) {
       onClose={() => setModal(null)} onDone={() => { refresh(); nav.reload(); }} />);
   const doNewFolder = () => setModal(<NewFolderModal onClose={() => setModal(null)}
     onSubmit={async ({ name, versioning, encrypted, encryption }) => { await api("/folders", { method: "POST", json: { name, system_id: basketId, parent_id: folderId, versioning, encrypted, encryption } }); toast({ text: `Folder ${name} created` }); refresh(); nav.reload(); }} />);
+  const useSt = settings?.use_statuses !== false;
   const doStatus = (f: FileRow) => setModal(<StatusModal fileId={f.id} fileName={f.name} onClose={() => setModal(null)} onDone={refresh} />);
 
   // Keyboard: Delete removes the selection, Escape closes the panel / clears selection.
@@ -317,7 +318,7 @@ export function BasketView({ basketId }: { basketId: string }) {
                 const name = s.kind === "file" ? files?.find((f) => f.id === s.id)?.name : kids.find((f) => f.id === s.id)?.name;
                 doShare(s.kind, s.id, name ?? "");
               }}><I.share /><span className="cx-hide-sm">Share</span></Btn>}
-              {selFiles.length === 1 && selFolders.length === 0 && <Btn onClick={() => { const f = files?.find((x) => x.id === selFiles[0]); if (f) doStatus(f); }}><I.review /><span className="cx-hide-sm">Change status</span></Btn>}
+              {useSt && selFiles.length === 1 && selFolders.length === 0 && <Btn onClick={() => { const f = files?.find((x) => x.id === selFiles[0]); if (f) doStatus(f); }}><I.review /><span className="cx-hide-sm">Change status</span></Btn>}
               {canEdit && <Btn onClick={() => doDelete(selFiles, selFolders)}><I.trash /><span className="cx-hide-sm">Delete</span></Btn>}
               <Btn className="cx-sel-cancel" onClick={() => setSel([])}>Cancel</Btn>
             </div>
@@ -331,8 +332,8 @@ export function BasketView({ basketId }: { basketId: string }) {
                 <Dropdown className="cx-hide-sm" value={cat} placeholder="Category" renderValue={cat ? settings?.categories.find((c) => c.code === cat)?.name : undefined}
                   options={[{ value: "", label: "All categories" }, ...(settings?.categories ?? []).map((c) => ({ value: c.code, label: c.name }))]} onChange={setCat} />
               )}
-              <Dropdown className="cx-hide-sm" value={status} placeholder="Status" renderValue={status ? settings?.statuses.find((s) => s.code === status)?.label : undefined}
-                options={[{ value: "", label: "All statuses" }, ...(settings?.statuses ?? []).map((s) => ({ value: s.code, label: s.label }))]} onChange={setStatus} />
+              {useSt && <Dropdown className="cx-hide-sm" value={status} placeholder="Status" renderValue={status ? settings?.statuses.find((s) => s.code === status)?.label : undefined}
+                options={[{ value: "", label: "All statuses" }, ...(settings?.statuses ?? []).map((s) => ({ value: s.code, label: s.label }))]} onChange={setStatus} />}
               {canEdit && <Btn kind="ghost" className="cx-hide-sm" iconOnly aria-label="Upload" title="Upload" icon={<I.upload />} onClick={() => doUpload()} />}
             </div>
           )}
@@ -347,7 +348,7 @@ export function BasketView({ basketId }: { basketId: string }) {
                   {cats ? <th className="cx-hide-sm cx-hide-md">Category</th> : null}
                   {listFields.map((f) => <th key={f.key} className="cx-hide-sm">{f.label}</th>)}
                   {sortBtn("owner", "Owner", "cx-hide-sm")}
-                  {sortBtn("status", "Status")}
+                  {useSt && sortBtn("status", "Status")}
                   {sortBtn("size", "Size", "cx-right cx-hide-sm")}
                   <th style={{ width: 48 }} />
                 </tr>
@@ -397,7 +398,7 @@ export function BasketView({ basketId }: { basketId: string }) {
                         {cats ? <td className="cx-hide-sm cx-hide-md">{settings?.categories.find((c) => c.code === f.category_code)?.name ?? ""}</td> : null}
                         {listFields.map((d) => <td key={d.key} className="cx-hide-sm">{m[d.key] == null ? "" : String(m[d.key])}</td>)}
                         <td className="cx-hide-sm"><Who name={f.owner} /></td>
-                        <td><StatusTag code={f.status} statuses={settings?.statuses} /></td>
+                        {useSt && <td><StatusTag code={f.status} statuses={settings?.statuses} /></td>}
                         <td className="cx-right cx-num cx-hide-sm">{bytes(f.size_bytes)}</td>
                         <td className="cx-ovf"><OverflowMenu items={[
                           { label: "Open", icon: <I.doc />, onClick: () => router.push(`/view/${f.id}`) },
@@ -408,7 +409,7 @@ export function BasketView({ basketId }: { basketId: string }) {
                             onSubmit={async (name) => { await api(`/files/${f.id}`, { method: "PATCH", json: { name } }); toast({ text: "File renamed." }); refresh(); }} />) }] : []),
                           ...(canEdit ? [{ label: "Move", icon: <I.move />, onClick: () => doMove([f.id], []) }] : []),
                           { label: "Share", icon: <I.share />, onClick: () => doShare("file", f.id, f.name) },
-                          { label: "Change status", icon: <I.review />, onClick: () => doStatus(f) },
+                          ...(useSt ? [{ label: "Change status", icon: <I.review />, onClick: () => doStatus(f) }] : []),
                           ...(canManage && !f.encrypted ? [{ label: "Encrypt file", icon: <I.lock />, onClick: () => setModal(<Confirm title={`Encrypt ${f.name}?`} action="Encrypt" body="The file and its earlier versions are stored encrypted. People with access open it as before."
                             onClose={() => setModal(null)} onConfirm={async () => { await api(`/files/${f.id}/encrypt`, { method: "POST" }); toast({ text: `${f.name} is encrypted.` }); refresh(); }} />) }] : []),
                           ...(canEdit ? ["sep" as const, { label: "Delete", icon: <I.trash />, danger: true, onClick: () => doDelete([f.id], []) }] : []),

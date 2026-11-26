@@ -75,8 +75,9 @@ export function BasketSettings({ id, embedded }: { id: string; embedded?: boolea
           <div className="cx-card">
             <div className="cx-card-h"><span><b>Statuses &amp; review flow</b></span>
               <Btn kind="tertiary" md icon={<I.add />} onClick={() => upd((x) => ({ ...x, statuses: [...x.statuses, { code: `S${x.statuses.length + 1}`, label: "", color: "gray", is_initial: x.statuses.length === 0, locks_content: false }] }))}>Add status</Btn></div>
-            <Flow list={s.statuses} transitions={s.transitions} />
-            <Statuses list={s.statuses} transitions={s.transitions} onChange={(st, tr) => upd((x) => ({ ...x, statuses: st, transitions: tr }))} />
+            <Opt title="Use statuses in this basket"><Toggle label="Use statuses" on={s.use_statuses !== false} onChange={(v) => upd((x) => ({ ...x, use_statuses: v }))} /></Opt>
+            {s.use_statuses !== false && <><Flow list={s.statuses} transitions={s.transitions} />
+            <Statuses list={s.statuses} transitions={s.transitions} onChange={(st, tr) => upd((x) => ({ ...x, statuses: st, transitions: tr }))} /></>}
           </div>
         )}
         {s && sec === "fields" && (

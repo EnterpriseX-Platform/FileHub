@@ -195,6 +195,9 @@ pub struct Settings {
     pub statuses: Vec<StatusDef>,
     pub transitions: Vec<Transition>,
     pub policy: Policy,
+    /// Off: statuses are hidden and can't be changed in this basket.
+    #[serde(default = "yes")]
+    pub use_statuses: bool,
 }
 
 pub async fn load_settings(db: &PgPool, sys: &str) -> Result<Settings, ApiError> {
@@ -208,6 +211,8 @@ pub async fn load_settings(db: &PgPool, sys: &str) -> Result<Settings, ApiError>
         transitions: sqlx::query_as("SELECT from_code, to_code, required_level FROM basket_status_transitions WHERE system_id = $1 ORDER BY from_code, to_code")
             .bind(sys).fetch_all(db).await?,
         policy: load_policy(db, "basket", sys).await?,
+        use_statuses: sqlx::query_scalar("SELECT use_statuses FROM systems WHERE id = $1")
+            .bind(sys).fetch_optional(db).await?.unwrap_or(true),
     })
 }
 
@@ -293,6 +298,7 @@ pub async fn put_settings(
 
     // ---- write --------------------------------------------------------------
     let mut tx = s.db.begin().await?;
+    sqlx::query("UPDATE systems SET use_statuses = $2 WHERE id = $1").bind(&sys).bind(b.use_statuses).execute(&mut *tx).await?;
     for t in ["basket_categories", "basket_fields", "basket_statuses", "basket_status_transitions"] {
         sqlx::query(&format!("DELETE FROM {t} WHERE system_id = $1")).bind(&sys).execute(&mut *tx).await?;
     }
@@ -477,7 +483,7 @@ pub fn valid_folder_name(n: &str) -> bool {
 
 /// True when the file's current status locks its content (no new versions, no rename).
 pub async fn content_locked(db: &PgPool, sys: &str, status: &str) -> Result<bool, ApiError> {
-    Ok(sqlx::query_scalar::<_, bool>("SELECT locks_content FROM basket_statuses WHERE system_id = $1 AND code = $2")
+    Ok(sqlx::query_scalar::<_, bool>("SELECT st.locks_content FROM basket_statuses st JOIN systems sy ON sy.id = st.system_id WHERE st.system_id = $1 AND st.code = $2 AND sy.use_statuses")
         .bind(sys).bind(status).fetch_optional(db).await?.unwrap_or(false))
 }
 
@@ -518,6 +524,8 @@ pub async fn change_status(
     let (sys, status, name): (String, String, String) =
         sqlx::query_as("SELECT system_id, status, name FROM files WHERE id = $1 AND deleted_at IS NULL")
             .bind(id).fetch_optional(&s.db).await?.ok_or(ApiError::NotFound)?;
+    let on: bool = sqlx::query_scalar("SELECT use_statuses FROM systems WHERE id = $1").bind(&sys).fetch_optional(&s.db).await?.unwrap_or(true);
+    if !on { return Err(bad("Statuses are turned off in this basket.")); }
     if b.to == status { return Err(bad("The file already has this status.")); }
     let need: Option<i16> = sqlx::query_scalar(
         "SELECT required_level FROM basket_status_transitions WHERE system_id = $1 AND from_code = $2 AND to_code = $3",

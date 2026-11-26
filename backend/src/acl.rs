@@ -553,7 +553,7 @@ pub async fn awaiting_review(State(s): State<Arc<AppState>>, user: AuthUser) -> 
         r#"SELECT 'file' AS kind, f.id::text AS id, f.name, f.system_id, sy.name AS basket_name, f.folder_id,
                   f.status, f.size_bytes, f.modified_at, 3::smallint AS level, NULL::text AS granted_by
              FROM files f JOIN systems sy ON sy.id = f.system_id
-            WHERE f.deleted_at IS NULL
+            WHERE f.deleted_at IS NULL AND sy.use_statuses
 {scope_sql}
               AND f.created_by IS DISTINCT FROM $3
               AND EXISTS (SELECT 1 FROM basket_statuses st

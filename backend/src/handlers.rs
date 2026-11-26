@@ -585,6 +585,8 @@ pub(crate) struct UploadFields {
     pub(crate) staged: Option<crate::storage::Staged>,
     /// The person ticked "encrypt this file" (only where the policy allows it).
     pub(crate) encrypt_file: bool,
+    /// What the caller said about where the file came from (see origin.rs).
+    pub(crate) origin: Option<crate::origin::Extra>,
 }
 
 /// Refuse "encrypt this file" where the basket/folder policy doesn't offer it,
@@ -1027,6 +1029,7 @@ pub(crate) async fn persist_upload_for(
     // P1: extract text + thumbnail + Office → PDF preview, in the background.
     spawn_p1(s, id, file_type.clone(), name.clone(), object_key.clone(), encrypted, size_bytes as u64);
 
+    crate::origin::record(&s.db, &file.id.to_string(), actor, f.origin.take().unwrap_or_default()).await;
     crate::webhooks::emit(&s.db, "file.uploaded", &file.system_id, crate::webhooks::file_data(&file)).await;
     Ok(file)
 }
@@ -1034,12 +1037,14 @@ pub(crate) async fn persist_upload_for(
 pub async fn upload_file(
     State(s): State<Arc<AppState>>,
     user: AuthUser,
+    headers: HeaderMap,
     mut multipart: Multipart,
 ) -> ApiResult<Json<File>> {
     crate::auth::require_role(&user.0, &["admin", "editor"])?;
     // Refuse over-limit callers before taking their bytes.
     { let _step = crate::admission::Phase::Checks.enter(); crate::auth::upload_rate_limit(&s.db, &user.0.id).await?; }
-    let fields = { let _step = crate::admission::Phase::ReadingBody.enter(); read_one_upload(&s, &mut multipart).await? };
+    let mut fields = { let _step = crate::admission::Phase::ReadingBody.enter(); read_one_upload(&s, &mut multipart).await? };
+    fields.origin = Some(crate::origin::from_headers(&headers));
     if let Some(ref sid) = fields.system_id {
         let _step = crate::admission::Phase::Checks.enter();
         crate::auth::ensure_system_access(&s.db, &user.0, sid).await?;
@@ -1544,6 +1549,7 @@ pub async fn search_files(
             UNION SELECT f.id FROM files f JOIN users u ON u.id = f.created_by WHERE u.email ILIKE $2 OR u.display_name ILIKE $2 \
             UNION SELECT file_id FROM file_content WHERE content_tsv @@ plainto_tsquery('simple', $1) \
             UNION SELECT file_id FROM file_content WHERE content ILIKE $2 \
+            UNION SELECT file_id FROM file_origin WHERE source_user ILIKE $2 OR ref_no ILIKE $2 OR screen ILIKE $2 OR org_code ILIKE $2 OR source_system ILIKE $2 OR connector_name ILIKE $2 \
          )");
         str_binds.push(term.clone());
         str_binds.push(like(&term));

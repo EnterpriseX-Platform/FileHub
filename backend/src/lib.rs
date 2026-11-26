@@ -6,6 +6,7 @@
 pub mod acl;
 pub mod id;
 pub mod scan;
+pub mod origin;
 pub use id::{is_id, new_id, Id};
 pub mod admission;
 pub mod config;
@@ -347,6 +348,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/acl/:rtype/:rid",        get(acl::get_acl).put(acl::put_acl))
         .route("/api/acl/:rtype/:rid/effective", get(acl::effective))
         .route("/api/principals",             get(acl::search_principals))
+        .route("/api/files/:id/origin",       get(origin::get))
         .route("/api/files/:id/status",       get(basket::next_statuses).post(basket::change_status))
         .route("/api/move",                   axum::routing::post(basket::move_items))
         .route("/api/folders/:id/policy",     get(basket::get_folder_policy).put(basket::put_folder_policy))

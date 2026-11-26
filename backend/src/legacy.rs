@@ -236,6 +236,10 @@ struct LegacyUpload {
     fiscal_year: Option<String>,
     stage_code: Option<String>,
     stage_name: Option<String>,
+    /// Origin details (origin.rs): who pressed send in the source system, its reference number, screen.
+    source_user: Option<String>,
+    ref_no: Option<String>,
+    screen: Option<String>,
 }
 
 /// Read a legacy-style multipart body.
@@ -273,6 +277,9 @@ async fn read_legacy_upload(s: &AppState, mp: &mut Multipart) -> ApiResult<Legac
             "fiscalYear" => out.fiscal_year.insert(val),
             "stageCode" => out.stage_code.insert(val),
             "stageName" => out.stage_name.insert(val),
+            "userId" | "username" | "uploadedBy" | "sourceUser" => out.source_user.insert(val),
+            "refNo" | "referenceNo" | "documentNo" | "requestNo" => out.ref_no.insert(val),
+            "screenCode" | "sourceScreen" | "pageCode" => out.screen.insert(val),
             _ => continue,
         };
     }
@@ -396,6 +403,15 @@ async fn upload(
         fields: None,
         skip_required: true,
         encrypt_file: false,
+        origin: Some({
+            let mut x = crate::origin::from_headers(&headers);
+            x.source_system = up.source_code.clone().or(x.source_system);
+            x.org_code = up.org_code.clone().or(x.org_code);
+            x.source_user = up.source_user.clone().or(x.source_user);
+            x.ref_no = up.ref_no.clone().or(x.ref_no);
+            x.screen = up.screen.clone().or(x.screen).or_else(|| hdr("referer").and_then(|r| r.split_once("://").map(|(_, p)| p.split_once('/').map(|(_, q)| format!("/{q}")).unwrap_or_default())).filter(|v| !v.is_empty()));
+            x
+        }),
     };
     let file = persist_upload_for(&s, Some(user.id.as_str()), fields, Some(&user)).await?;
     // Append the legacy tags to the automatic ones just added, then re-read the row
