@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { api, bytes, messageFor, BASE_PATH, type Basket, type DlEntry, type DlItem, type FileRow, type Settings } from "@/lib/fh";
 import { loadSettings } from "./basket-view";
 import { useNav } from "./shell";
-import { Btn, Dropdown, Empty, FileTile, I, Note, Pager, SkeletonRows, StatusTag, TextField, useToast, usePageSize, When } from "./ui";
+import { Btn, DatePicker, Dropdown, Empty, FileTile, I, Note, Pager, SkeletonRows, StatusTag, TextField, useToast, usePageSize, When } from "./ui";
 
 type Row = {
   kind: "file" | "folder"; id: string; name: string; system_id: string; basket_name?: string; folder_id: string | null;
@@ -151,6 +151,13 @@ function SearchFilters() {
   const [creator, setCreator] = React.useState(p.get("creator") ?? "");
   const [from, setFrom] = React.useState(p.get("from") ?? "");
   const [to, setTo] = React.useState(p.get("to") ?? "");
+  // People to pick from; anyone who may not list people types a name instead.
+  const [people, setPeople] = React.useState<{ display_name: string; email: string }[] | null>(null);
+  React.useEffect(() => {
+    api<{ display_name: string; email: string; status: string }[]>("/users")
+      .then((r) => setPeople(r.filter((m) => m.status === "active")))
+      .catch(() => setPeople(null));
+  }, []);
   const apply = (t = type) => {
     const n = new URLSearchParams(window.location.search);
     const put = (k: string, v: string) => { if (v) n.set(k, v); else n.delete(k); };
@@ -160,9 +167,13 @@ function SearchFilters() {
   return (
     <form className="cx-toolbar" onSubmit={(e) => { e.preventDefault(); apply(); }} style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
       <Dropdown label="File type" value={type} options={TYPE_GROUPS.map(({ value, label }) => ({ value, label }))} onChange={(v) => { setType(v); apply(v); }} />
-      <TextField label="Created by" value={creator} onChange={(e) => setCreator(e.target.value)} />
-      <TextField label="Created from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-      <TextField label="Created to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+      {people
+        ? <Dropdown label="Created by" value={creator} searchable placeholder="Anyone"
+            options={[{ value: "", label: "Anyone" }, ...people.map((m) => ({ value: m.display_name, label: m.display_name, hint: m.email }))]}
+            onChange={setCreator} />
+        : <TextField label="Created by" value={creator} onChange={(e) => setCreator(e.target.value)} />}
+      <DatePicker id="f-from" label="Created from" value={from} onChange={setFrom} />
+      <DatePicker id="f-to" label="Created to" value={to} onChange={setTo} />
       <Btn kind="tertiary" type="submit">Apply filters</Btn>
     </form>
   );

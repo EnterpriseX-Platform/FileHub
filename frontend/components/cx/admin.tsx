@@ -105,6 +105,7 @@ export function BasketSettings({ id, embedded }: { id: string; embedded?: boolea
                 onChange={(v) => pol({ file_encrypt_choice: v, file_encrypt_mode: v ? (s.policy.file_encrypt_mode ?? "symmetric") : s.policy.file_encrypt_mode })} />
             </Opt>
             <Opt title="Stamp downloads"><Toggle label="Stamp downloads" on={vault || !!s.policy.stamp_downloads} disabled={vault} onChange={(v) => pol({ stamp_downloads: v })} /></Opt>
+            <Opt title="Search inside files"><Toggle label="Search inside files" on={s.policy.content_search !== false} onChange={(v) => pol({ content_search: v })} /></Opt>
             <Opt title="Allow public links"><Toggle label="Allow public links" on={!vault && s.policy.public_links !== false} disabled={vault} onChange={(v) => pol({ public_links: v })} /></Opt>
             <Opt title="Allowed file types" side={<TextField aria-label="Allowed file types" value={extText} placeholder="pdf, docx, xlsx" onChange={(e) => { setExtText(e.target.value); setDirty(true); }} />} />
             <Opt title="Largest file (MB)" side={<TextField aria-label="Largest file (MB)" inputMode="numeric" placeholder="Workspace limit"

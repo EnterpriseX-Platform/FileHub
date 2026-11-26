@@ -106,6 +106,9 @@ pub struct Policy {
     /// Encryption that choice uses: "symmetric" (AES-256) or "asymmetric" (RSA). Default symmetric.
     #[sqlx(default)]
     pub file_encrypt_mode: Option<String>,
+    /// Index the text inside files so search finds it (None = inherit; default on).
+    #[sqlx(default)]
+    pub content_search: Option<bool>,
 }
 
 impl Policy {
@@ -122,7 +125,11 @@ impl Policy {
         self.encrypt_mode = self.encrypt_mode.take().or(up.encrypt_mode);
         self.file_encrypt_choice = self.file_encrypt_choice.or(up.file_encrypt_choice);
         self.file_encrypt_mode = self.file_encrypt_mode.take().or(up.file_encrypt_mode);
+        self.content_search = self.content_search.or(up.content_search);
     }
+
+    /// Search looks inside files here.
+    pub fn content_search_on(&self) -> bool { self.content_search != Some(false) }
 
     /// The person uploading may tick "encrypt this file".
     pub fn file_choice(&self) -> bool { self.file_encrypt_choice == Some(true) }
@@ -151,7 +158,7 @@ impl Policy {
 }
 
 /// Columns of `basket_policies` that make up a [`Policy`].
-const POLICY_COLS: &str = "encrypt, allowed_ext, max_file_bytes, public_links, stamp_downloads, lock_days, lock_mode, keep_versions, encrypt_mode, file_encrypt_choice, file_encrypt_mode";
+const POLICY_COLS: &str = "encrypt, allowed_ext, max_file_bytes, public_links, stamp_downloads, lock_days, lock_mode, keep_versions, encrypt_mode, file_encrypt_choice, file_encrypt_mode, content_search";
 
 async fn load_policy<'e, E: sqlx::PgExecutor<'e>>(db: E, scope_type: &str, scope_id: &str) -> Result<Policy, ApiError> {
     Ok(sqlx::query_as(&format!("SELECT {POLICY_COLS} FROM basket_policies WHERE scope_type = $1 AND scope_id = $2"))
@@ -167,16 +174,16 @@ async fn save_policy<'e, E: sqlx::PgExecutor<'e>>(db: E, scope_type: &str, scope
         if !["symmetric", "asymmetric"].contains(&m) { return Err(bad("Encryption for single files must be symmetric or asymmetric.")); }
     }
     sqlx::query(&format!(
-        "INSERT INTO basket_policies (scope_type, scope_id, {POLICY_COLS}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        "INSERT INTO basket_policies (scope_type, scope_id, {POLICY_COLS}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
          ON CONFLICT (scope_type, scope_id) DO UPDATE SET
            encrypt = EXCLUDED.encrypt, allowed_ext = EXCLUDED.allowed_ext, max_file_bytes = EXCLUDED.max_file_bytes,
            public_links = EXCLUDED.public_links, stamp_downloads = EXCLUDED.stamp_downloads,
            lock_days = EXCLUDED.lock_days, lock_mode = EXCLUDED.lock_mode, keep_versions = EXCLUDED.keep_versions,
            encrypt_mode = EXCLUDED.encrypt_mode, file_encrypt_choice = EXCLUDED.file_encrypt_choice,
-           file_encrypt_mode = EXCLUDED.file_encrypt_mode"))
+           file_encrypt_mode = EXCLUDED.file_encrypt_mode, content_search = EXCLUDED.content_search"))
         .bind(scope_type).bind(scope_id).bind(p.encrypt).bind(p.clean_ext()).bind(p.max_file_bytes).bind(p.public_links)
         .bind(p.stamp_downloads).bind(p.lock_days.filter(|d| *d > 0)).bind(&p.lock_mode).bind(p.keep_versions).bind(&p.encrypt_mode)
-        .bind(p.file_encrypt_choice).bind(&p.file_encrypt_mode)
+        .bind(p.file_encrypt_choice).bind(&p.file_encrypt_mode).bind(p.content_search)
         .execute(db).await?;
     Ok(())
 }
@@ -309,8 +316,21 @@ pub async fn put_settings(
         sqlx::query("INSERT INTO basket_status_transitions (system_id, from_code, to_code, required_level) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING")
             .bind(&sys).bind(&t.from_code).bind(&t.to_code).bind(t.required_level).execute(&mut *tx).await?;
     }
+    let was_on = load_policy(&mut *tx, "basket", &sys).await?.content_search_on();
     save_policy(&mut *tx, "basket", &sys, &b.policy).await?;
     tx.commit().await?;
+    // Content search switched: drop the basket's text index, or build it again.
+    let now_on = b.policy.content_search_on();
+    if was_on && !now_on {
+        sqlx::query("DELETE FROM file_content WHERE file_id IN (SELECT id FROM files WHERE system_id = $1)").bind(&sys).execute(&s.db).await?;
+    } else if !was_on && now_on {
+        let rows: Vec<(Id, String, String, String, bool, i64)> = sqlx::query_as(
+            "SELECT id, file_type, name, object_key, encrypted, size_bytes FROM files WHERE system_id = $1 AND deleted_at IS NULL")
+            .bind(&sys).fetch_all(&s.db).await?;
+        for (id, ft, name, key, enc, size) in rows {
+            crate::handlers::spawn_p1(&s, id, ft, name, key, enc, size.max(0) as u64);
+        }
+    }
 
     log_activity(&s.db, &user.0, "settings changed", &sys, "basket", None, &sys).await;
     Ok(Json(load_settings(&s.db, &sys).await?))

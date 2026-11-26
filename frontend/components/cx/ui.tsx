@@ -19,6 +19,7 @@ const P = {
 export const I = {
   chevronDown: svg(<polygon points="16 22 6 12 7.4 10.6 16 19.2 24.6 10.6 26 12 16 22" />),
   chevronRight: svg(<polygon points="22 16 12 26 10.6 24.6 19.2 16 10.6 7.4 12 6 22 16" />),
+  calendar: svg(<path d="M26,4H22V2H20V4H12V2H10V4H6A2,2,0,0,0,4,6V26a2,2,0,0,0,2,2H26a2,2,0,0,0,2-2V6A2,2,0,0,0,26,4Zm0,22H6V12H26Zm0-16H6V6h4V8h2V6h8V8h2V6h4Z" />),
   chevronLeft: svg(<polygon points="10 16 20 6 21.4 7.4 12.8 16 21.4 24.6 20 26 10 16" />),
   close: svg(<polygon points="24 9.4 22.6 8 16 14.6 9.4 8 8 9.4 14.6 16 8 22.6 9.4 24 16 17.4 22.6 24 24 22.6 17.4 16 24 9.4" />),
   add: svg(<polygon points="17 15 17 8 15 8 15 15 8 15 8 17 15 17 15 24 17 24 17 17 24 17 24 15 17 15" />),
@@ -455,4 +456,61 @@ export function Empty({ children, icon, action }: { children: React.ReactNode; i
 /// On/off switch (Carbon toggle, small).
 export function Toggle({ on, onChange, label, disabled }: { on: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
   return <button type="button" role="switch" aria-checked={on} aria-label={label} disabled={disabled} className="cx-switch" onClick={() => onChange(!on)} />;
+}
+
+/// Carbon-style date picker: a field that opens a month calendar.
+/// Value is "YYYY-MM-DD" ("" = none). No browser date control.
+export function DatePicker({ label, value, onChange, id }: { label: string; value: string; onChange: (v: string) => void; id?: string }) {
+  const [open, setOpen] = React.useState(false);
+  const base = value ? new Date(`${value}T00:00:00`) : new Date();
+  const [view, setView] = React.useState(() => new Date(base.getFullYear(), base.getMonth(), 1));
+  const ref = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!open) return;
+    const off = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", off); document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", off); document.removeEventListener("keydown", esc); };
+  }, [open]);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const shown = value ? new Date(`${value}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "";
+  const first = new Date(view.getFullYear(), view.getMonth(), 1);
+  const start = new Date(first); start.setDate(1 - ((first.getDay() + 6) % 7));
+  const days = Array.from({ length: 42 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
+  const today = iso(new Date());
+  return (
+    <div className="cx-field cx-datepicker" ref={ref}>
+      <label className="cx-label" htmlFor={id}>{label}</label>
+      <div className="cx-datepicker-input">
+        <button type="button" id={id} className="cx-dd-trigger" aria-haspopup="dialog" aria-expanded={open}
+          onClick={() => { setView(new Date(base.getFullYear(), base.getMonth(), 1)); setOpen((o) => !o); }}>
+          <span className={shown ? undefined : "cx-dd-placeholder"}>{shown || "Any date"}</span>
+          <I.calendar size={16} />
+        </button>
+        {value && <button type="button" className="cx-datepicker-clear" aria-label={`Clear ${label}`} onClick={() => onChange("")}><I.close size={16} /></button>}
+      </div>
+      {open && (
+        <div className="cx-calendar" role="dialog" aria-label={label}>
+          <div className="cx-calendar-head">
+            <button type="button" aria-label="Previous month" onClick={() => setView(new Date(view.getFullYear(), view.getMonth() - 1, 1))}><I.chevronLeft size={16} /></button>
+            <span>{view.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</span>
+            <button type="button" aria-label="Next month" onClick={() => setView(new Date(view.getFullYear(), view.getMonth() + 1, 1))}><I.chevronRight size={16} /></button>
+          </div>
+          <div className="cx-calendar-grid">
+            {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((d) => <span key={d} className="cx-calendar-dow">{d}</span>)}
+            {days.map((d) => {
+              const v = iso(d);
+              return (
+                <button type="button" key={v} className="cx-calendar-day" data-out={d.getMonth() !== view.getMonth() || undefined}
+                  data-today={v === today || undefined} aria-pressed={v === value} onClick={() => { onChange(v); setOpen(false); }}>
+                  {d.getDate()}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }

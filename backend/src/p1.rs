@@ -122,6 +122,14 @@ fn xml_unescape(s: &str) -> String {
 
 pub async fn index_file_content(db: &sqlx::PgPool, file_id: Id, content: &str) {
     if content.trim().is_empty() { return; }
+    // The basket/folder policy may switch content search off.
+    let place: Option<(String, Option<String>)> = sqlx::query_as("SELECT system_id, folder_id FROM files WHERE id = $1")
+        .bind(file_id).fetch_optional(db).await.ok().flatten();
+    if let Some((sys, folder)) = place {
+        if let Ok(p) = crate::basket::effective_policy(db, &sys, folder.as_deref()).await {
+            if !p.content_search_on() { return; }
+        }
+    }
     let _ = sqlx::query(
         r#"INSERT INTO file_content (file_id, content)
            VALUES ($1, $2)
