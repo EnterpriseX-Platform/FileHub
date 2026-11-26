@@ -587,6 +587,9 @@ pub(crate) struct UploadFields {
     pub(crate) encrypt_file: bool,
     /// What the caller said about where the file came from (see origin.rs).
     pub(crate) origin: Option<crate::origin::Extra>,
+    /// A person is uploading (web form, chunked upload, upload link): the
+    /// default size limit applies where no policy sets one, as it does for TUS.
+    pub(crate) person_upload: bool,
 }
 
 /// Refuse "encrypt this file" where the basket/folder policy doesn't offer it,
@@ -868,7 +871,7 @@ pub(crate) async fn persist_or_version(s: &AppState, user: &crate::auth::User, m
     };
     match (same, f.staged.take()) {
         (Some(id), Some(st)) => commit_version_enc(s, user, id, st, f.name.clone(), None, None, f.encrypt_file).await,
-        (_, st) => { f.staged = st; persist_upload_for(s, Some(user.id.as_str()), f, Some(user)).await }
+        (_, st) => { f.staged = st; f.person_upload = true; persist_upload_for(s, Some(user.id.as_str()), f, Some(user)).await }
     }
 }
 
@@ -937,7 +940,12 @@ pub(crate) async fn persist_upload_for(
             crate::acl::require_folder(&s.db, u, &system_id, f.folder_id.as_deref().filter(|v| !v.is_empty()), crate::acl::EDIT).await
                 .map_err(|e| if matches!(e, ApiError::NotFound) { ApiError::Forbidden } else { e })?;
         }
-        let pol = crate::basket::check_policy(&s.db, &system_id, f.folder_id.as_deref().filter(|v| !v.is_empty()), &name, size_bytes).await?;
+        let dest_folder = f.folder_id.as_deref().filter(|v| !v.is_empty());
+        let pol = if f.person_upload {
+            crate::basket::check_upload_policy(&s.db, &system_id, dest_folder, &name, size_bytes).await?
+        } else {
+            crate::basket::check_policy(&s.db, &system_id, dest_folder, &name, size_bytes).await?
+        };
         if pol.encrypt == Some(true) && !s.storage.has_key() {
             return Err(ApiError::BadRequest("This folder requires encryption, but no encryption key is set up on the server (STORAGE_ENC_KEY).".into()));
         }
@@ -1297,11 +1305,15 @@ pub async fn list_trash(State(s): State<Arc<AppState>>, user: AuthUser) -> ApiRe
     }
     if user.0.role == "viewer" { return Ok(Json(vec![])); }
     let p = crate::acl::principals(&s.db, &user.0).await?;
+    // Only baskets this person can open: shared baskets and their own drive —
+    // never someone else's personal drive, whatever its (empty) access list says.
+    let scope = crate::auth::effective_system_ids(&s.db, &user.0).await?.unwrap_or_default();
     let rows: Vec<File> = sqlx::query_as(&format!(
         "SELECT {FILE_COLS} FROM files WHERE deleted_at IS NOT NULL
+            AND system_id = ANY($4)
             AND (created_by = $3 OR fh_level($1, $2, system_id, folder_id, id, created_by, $3) >= 2)
           ORDER BY deleted_at DESC LIMIT 500"
-    )).bind(&p).bind(&user.0.role).bind(&user.0.id).fetch_all(&s.db).await?;
+    )).bind(&p).bind(&user.0.role).bind(&user.0.id).bind(&scope).fetch_all(&s.db).await?;
     Ok(Json(rows))
 }
 
@@ -1881,13 +1893,32 @@ pub async fn patch_file(
         Some(sid) if sid != &file.system_id => {
             crate::auth::ensure_system_access(&s.db, &user.0, sid).await?;
             Some(
-                sqlx::query_as("SELECT * FROM systems WHERE id = $1")
+                sqlx::query_as("SELECT * FROM systems WHERE id = $1 AND deleted_at IS NULL")
                     .bind(sid).fetch_optional(&s.db).await?
                     .ok_or_else(|| ApiError::BadRequest("unknown system_id".into()))?
             )
         },
         _ => None,
     };
+
+    // Changing basket or folder is a move: the same checks as POST /api/move —
+    // Edit on the destination and the destination's file rules — before any
+    // bytes are renamed. A basket change without a folder lands in its root.
+    let dest_folder: Option<String> = match &p.folder_id {
+        Some(v) => v.clone().filter(|f| !f.is_empty()),
+        None if new_system.is_some() => None,
+        None => file.folder_id.clone(),
+    };
+    let dest_system = new_system.as_ref().map(|x| x.id.clone()).unwrap_or_else(|| file.system_id.clone());
+    if new_system.is_some() || dest_folder != file.folder_id {
+        if new_system.as_ref().is_some_and(|x| x.status == "paused") {
+            return Err(ApiError::BadRequest("The destination basket doesn't accept files.".into()));
+        }
+        crate::acl::require_folder(&s.db, &user.0, &dest_system, dest_folder.as_deref(), crate::acl::EDIT).await
+            .map_err(|e| if matches!(e, ApiError::NotFound) { ApiError::Forbidden } else { e })?;
+        let check_name = p.name.clone().unwrap_or_else(|| file.name.clone());
+        crate::basket::check_policy(&s.db, &dest_system, dest_folder.as_deref(), &check_name, file.size_bytes).await?;
+    }
 
     let new_name = p.name.clone().unwrap_or_else(|| file.name.clone());
     let mut new_object_key = file.object_key.clone();
@@ -1916,10 +1947,7 @@ pub async fn patch_file(
         file.file_type.clone()
     };
 
-    let new_folder_id: Option<String> = match p.folder_id {
-        Some(v) => v,
-        None    => file.folder_id.clone(),
-    };
+    let new_folder_id: Option<String> = dest_folder.clone();
 
     let now = Utc::now();
     let new_system_id = p.system_id.clone().unwrap_or_else(|| file.system_id.clone());
@@ -2045,7 +2073,7 @@ pub async fn create_folder(
         }
     }
     crate::acl::require_folder(&s.db, &user.0, &c.system_id, c.parent_id.as_deref(), crate::acl::EDIT).await?;
-    let exists: Option<(String,)> = sqlx::query_as("SELECT id FROM systems WHERE id = $1")
+    let exists: Option<(String,)> = sqlx::query_as("SELECT id FROM systems WHERE id = $1 AND deleted_at IS NULL")
         .bind(&c.system_id).fetch_optional(&s.db).await?;
     if exists.is_none() {
         return Err(ApiError::BadRequest("unknown system_id".into()));

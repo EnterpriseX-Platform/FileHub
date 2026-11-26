@@ -634,9 +634,12 @@ pub async fn levels(
 ) -> Result<axum::Json<std::collections::HashMap<String, i32>>, ApiError> {
     let ids: Vec<String> = b.ids.into_iter().take(500).collect();
     let p = principals(&s.db, &user.0).await?;
+    // None = admin (every basket); otherwise shared baskets + the caller's own drive.
+    let scope = crate::auth::effective_system_ids(&s.db, &user.0).await?;
     let rows: Vec<(String, i32)> = sqlx::query_as(
         "SELECT f.id, COALESCE(fh_level($1, $2, f.system_id, f.folder_id, f.id, f.created_by, $3), 0)::int
-           FROM files f WHERE f.id = ANY($4) AND f.deleted_at IS NULL",
-    ).bind(&p).bind(&user.0.role).bind(&user.0.id).bind(&ids).fetch_all(&s.db).await?;
+           FROM files f WHERE f.id = ANY($4) AND f.deleted_at IS NULL
+            AND ($5::text[] IS NULL OR f.system_id = ANY($5))",
+    ).bind(&p).bind(&user.0.role).bind(&user.0.id).bind(&ids).bind(&scope).fetch_all(&s.db).await?;
     Ok(axum::Json(rows.into_iter().collect()))
 }

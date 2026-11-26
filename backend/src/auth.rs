@@ -251,6 +251,7 @@ pub async fn bootstrap_seed_users(db: &PgPool) -> anyhow::Result<()> {
 pub async fn login(
     State(s): State<Arc<AppState>>,
     jar: CookieJar,
+    headers: axum::http::HeaderMap,
     Json(creds): Json<Credentials>,
 ) -> ApiResult<(CookieJar, Json<LoginResponse>)> {
     // Disable login with the app's own accounts once identity comes from the edge
@@ -269,6 +270,11 @@ pub async fn login(
     // a successful sign-in clears the count.
     let throttle_key = format!("login:{}", creds.email.trim().to_lowercase());
     crate::ratelimit::hit(&s.db, &throttle_key, LOGIN_FAILS_PER_MINUTE, "Too many sign-in attempts. Try again in a minute.").await?;
+    // Guessing one password across many emails: at most LOGIN_FAILS_PER_ADDRESS
+    // failed sign-ins per client address a minute (failures only, so an office
+    // behind one address signing in normally is never held up).
+    let addr_key = format!("login-addr:{}", crate::sharelink::client_addr(&headers));
+    crate::ratelimit::check(&s.db, &addr_key, LOGIN_FAILS_PER_ADDRESS, "Too many sign-in attempts. Try again in a minute.").await?;
 
     // Active accounts sign in; a self sign-up still waiting for approval is told
     // so (only after its own password checks out, so nothing leaks to others).
@@ -290,7 +296,10 @@ pub async fn login(
         Some(u) if password_ok && u.status == "pending" =>
             return Err(ApiError::BadRequest("Your account is waiting for an administrator to turn it on.".into())),
         Some(u) if password_ok => u,
-        _ => return Err(ApiError::Unauthorized),
+        _ => {
+            let _ = crate::ratelimit::hit(&s.db, &addr_key, u32::MAX, "").await;
+            return Err(ApiError::Unauthorized);
+        }
     };
     crate::ratelimit::reset(&s.db, &throttle_key).await;
 
@@ -872,6 +881,7 @@ pub async fn require_session(
 const DUMMY_PASSWORD_HASH: &str = "$argon2id$v=19$m=19456,t=2,p=1$bF93eVNDc1RmcDdLZG5pTQ$kE0n/4f6Aw0NSnVxLPq8fEPLQp9lyIULqYO0EJ3pEsM";
 
 const LOGIN_FAILS_PER_MINUTE: u32 = 10;
+const LOGIN_FAILS_PER_ADDRESS: u32 = 30;
 
 // =============================================================================
 // Upload rate limiting (shared across pods — see ratelimit.rs)

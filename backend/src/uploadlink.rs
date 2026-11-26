@@ -198,7 +198,7 @@ pub(crate) async fn accept(s: &AppState, token: &str, l: &Live, sub: &Submission
         let up = UploadFields {
             name: Some(fname.clone()), system_id: Some(l.sys.clone()), folder_id: l.fld.clone(),
             content_type: ct, category_code: sub.cat.clone(), fields: Some(sub.fields.to_string()),
-            owner: Some(format!("{} (upload link)", sub.who)), staged: Some(st), ..Default::default()
+            owner: Some(format!("{} (upload link)", sub.who)), staged: Some(st), person_upload: true, ..Default::default()
         };
         match crate::handlers::persist_upload_for(s, Some(l.creator.id.as_str()), up, Some(&l.creator)).await {
             Ok(file) => out.push(json!({ "name": file.name, "size_bytes": file.size_bytes })),

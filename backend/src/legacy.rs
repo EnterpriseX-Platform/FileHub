@@ -420,6 +420,8 @@ async fn upload(
         fields: None,
         skip_required: true,
         encrypt_file: false,
+        // Systems sending through /FileService follow the basket policy only.
+        person_upload: false,
         origin: Some({
             let mut x = crate::origin::from_headers(&headers);
             x.source_system = up.source_code.clone().or(x.source_system);

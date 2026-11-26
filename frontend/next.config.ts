@@ -19,6 +19,9 @@ const nextConfig: NextConfig = {
   // basePath to all <Link> hrefs, static assets, and rewrites automatically.
   basePath: "/filehub",
 
+  // Don't advertise the framework (X-Powered-By: Next.js).
+  poweredByHeader: false,
+
   // Clickjacking: only this site (and portals listed in FRAME_ANCESTORS, e.g.
   // "https://portal.example.go.th") may frame FileHub pages.
   async headers() {
@@ -26,7 +29,8 @@ const nextConfig: NextConfig = {
     return [{
       source: "/:path*",
       headers: [
-        { key: "Content-Security-Policy", value: `frame-ancestors ${ancestors}` },
+        { key: "Content-Security-Policy", value: `frame-ancestors ${ancestors}; object-src 'none'; base-uri 'self'` },
+        { key: "Strict-Transport-Security", value: "max-age=31536000" },
         { key: "X-Content-Type-Options", value: "nosniff" },
         { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
         ...(process.env.FRAME_ANCESTORS ? [] : [{ key: "X-Frame-Options", value: "SAMEORIGIN" }]),
