@@ -180,8 +180,8 @@ export function UploadModal({ basket, folder, folderLabel, settings, prefill, ti
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.current?.click(); } }}
         onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
         onDrop={(e) => { e.preventDefault(); setOver(false); const dt = e.dataTransfer; filesFromDrop(dt).then(addWithDirs).catch(() => add(dt.files)); }}>
-        Drag files or folders here, or <b>choose files</b> · <b role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); dirInput.current?.click(); }}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); dirInput.current?.click(); } }}>choose a folder</b>
+        <span>Drag files or folders here, or <b>choose files</b> · <b role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); dirInput.current?.click(); }}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); dirInput.current?.click(); } }}>choose a folder</b></span>
         {policy?.allowed_ext?.length ? <div className="cx-helper" style={{ marginTop: 4 }}>{policy.allowed_ext.map((x) => `.${x}`).join(" ")}{policy.max_file_bytes ? ` · up to ${bytes(policy.max_file_bytes)}` : ""}</div> : null}
         <input ref={input} type="file" multiple hidden onChange={(e) => { if (e.target.files) add(e.target.files); e.target.value = ""; }} />
         <input ref={dirInput} type="file" multiple hidden {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}

@@ -5,7 +5,7 @@ import * as React from "react";
 import { useAuth } from "@/lib/auth-context";
 import { api, bytes, useApi, when, type FileRow } from "@/lib/fh";
 import { useNav } from "./shell";
-import { Btn, Confirm, Note, SearchBar, SkeletonRows, useFilter, useToast } from "./ui";
+import { Btn, Confirm, Note, OverflowMenu, SearchBar, SkeletonRows, useFilter, useToast } from "./ui";
 
 type Trashed = FileRow & { deleted_at?: string | null };
 
@@ -19,7 +19,9 @@ export function Trash() {
   const { data: rows, err, reload: load } = useApi<Trashed[]>("/trash");
   const [q, setQ] = React.useState("");
   const [purge, setPurge] = React.useState<Trashed | null>(null);
-  const basket = (id: string) => nav.baskets.find((b) => b.id === id)?.name ?? (nav.drive?.id === id ? "My Drive" : "");
+  // The side menu lists pinned/recent baskets only: fall back to the full list.
+  const { data: all } = useApi<{ id: string; name: string }[]>("/systems");
+  const basket = (id: string) => nav.baskets.find((b) => b.id === id)?.name ?? all?.find((b) => b.id === id)?.name ?? (nav.drive?.id === id ? "My Drive" : "");
   const shown = useFilter(rows, q, (f) => `${f.name} ${f.owner}`);
   const restore = async (f: Trashed) => {
     try { await api(`/files/${f.id}/restore`, { method: "POST" }); toast({ text: `${f.name} is back in ${basket(f.system_id) || "its basket"}.` }); load(); }
@@ -42,8 +44,9 @@ export function Trash() {
                 <td className="cx-hide-sm cx-num">{when(f.deleted_at ?? f.modified_at)}</td>
                 <td className="cx-right cx-num cx-hide-sm">{bytes(f.size_bytes)}</td>
                 <td className="cx-right" style={{ whiteSpace: "nowrap" }}>
-                  <Btn kind="ghost" onClick={() => restore(f)}>Restore</Btn>
-                  {isAdmin && <Btn kind="danger-ghost" onClick={() => setPurge(f)}>Delete forever</Btn>}
+                  <span className="cx-hide-sm"><Btn kind="ghost" onClick={() => restore(f)}>Restore</Btn>
+                  {isAdmin && <Btn kind="danger-ghost" onClick={() => setPurge(f)}>Delete forever</Btn>}</span>
+                  <span className="cx-show-sm"><OverflowMenu items={[{ label: "Restore", onClick: () => restore(f) }, ...(isAdmin ? [{ label: "Delete forever", danger: true, onClick: () => setPurge(f) }] : [])]} /></span>
                 </td>
               </tr>
             ))}

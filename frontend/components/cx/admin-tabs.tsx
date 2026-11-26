@@ -315,7 +315,7 @@ export function AdminLog() {
       <div className="cx-table-scroll">
         <table className="cx-table">
           <thead><tr><th>When</th><th>Who</th><th>Did</th><th>Item</th><th className="cx-hide-sm cx-hide-md">Basket</th></tr></thead>
-          {rows == null ? <tbody><SkeletonRows cols={5} /></tbody> : (
+          {rows == null ? <tbody><SkeletonRows cols={4} /></tbody> : (
             <tbody>
               {rows.map((a) => (
                 <tr key={a.id}>
