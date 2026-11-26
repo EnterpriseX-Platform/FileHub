@@ -37,6 +37,33 @@ info:
       The file is uploaded as that person, with their access and agency.
       Optional `X-FileHub-System` / `X-FileHub-Org` give the default basket/agency.
 
+    ## PATCH, PUT, DELETE and HEAD through a proxy that blocks them
+    Some edge proxies (a CDN or WAF) answer PATCH, PUT, DELETE and HEAD with their
+    own 403 HTML page, so the request never reaches FileHub. Every endpoint below
+    also accepts the same call as **POST** with the real method in the
+    **`X-HTTP-Method-Override`** header (`PATCH`, `PUT`, `DELETE` or `HEAD`).
+    FileHub switches the method back before routing, so access checks, request
+    bodies and responses are exactly those of the real method. Other values are
+    ignored (the request stays a POST). The web app always calls this way; scripts
+    and other systems should too when they go through such a proxy.
+
+    ```
+    # delete a file (to Trash)
+    curl -X POST -H "Authorization: Bearer $TOKEN" \
+         -H "X-HTTP-Method-Override: DELETE" $BASE/api/files/$FILE_ID
+    # rename a file
+    curl -X POST -H "Authorization: Bearer $TOKEN" -H "X-HTTP-Method-Override: PATCH" \
+         -H "Content-Type: application/json" -d '{"name":"new.txt"}' $BASE/api/files/$FILE_ID
+    # TUS: send a chunk, then ask for the offset
+    curl -X POST -H "Authorization: Bearer $TOKEN" -H "X-HTTP-Method-Override: PATCH" \
+         -H "Tus-Resumable: 1.0.0" -H "Upload-Offset: 0" \
+         -H "Content-Type: application/offset+octet-stream" --data-binary @chunk.bin \
+         $BASE/api/uploads/$UPLOAD_ID
+    curl -X POST -H "Authorization: Bearer $TOKEN" -H "X-HTTP-Method-Override: HEAD" \
+         -H "Tus-Resumable: 1.0.0" -D - $BASE/api/uploads/$UPLOAD_ID
+    ```
+    A HEAD sent this way answers with the HEAD headers (`Upload-Offset` etc.) and no body.
+
     ## Authorization (roles)
     Three roles: `admin`, `editor`, `viewer`.
       - **viewer** — read-only (browse, download, comment).

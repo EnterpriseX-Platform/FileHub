@@ -36,6 +36,29 @@ Also check:
 - **Timeouts:** at least 120 s for these paths, because the malware scan runs before the reply.
 - **Methods:** a WAF that blocks `PUT`, `PATCH` or `DELETE` is fine; FileHub only needs `GET` and `POST`.
 
+## Scripts and other systems behind such a WAF
+
+A WAF that blocks `PUT`, `PATCH`, `DELETE` or `HEAD` blocks them for scripts too.
+Send those calls as `POST` with the real method in `X-HTTP-Method-Override`;
+FileHub turns them back into the real method before routing, on every endpoint
+(including `/FileService`), with the same access checks and responses:
+
+```
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "X-HTTP-Method-Override: DELETE" \
+     https://<host>/filehub/api/files/<fileId>
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "X-HTTP-Method-Override: PATCH" \
+     -H "Content-Type: application/json" -d '{"name":"new.txt"}' \
+     https://<host>/filehub/api/files/<fileId>
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "X-HTTP-Method-Override: PATCH" \
+     -H "Tus-Resumable: 1.0.0" -H "Upload-Offset: 0" \
+     -H "Content-Type: application/offset+octet-stream" --data-binary @chunk.bin \
+     https://<host>/filehub/api/uploads/<uploadId>
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "X-HTTP-Method-Override: HEAD" \
+     -H "Tus-Resumable: 1.0.0" -D - https://<host>/filehub/api/uploads/<uploadId>
+```
+
+`scripts/test-api.sh` runs the whole suite this way with `METHOD_OVERRIDE=1`.
+
 ## What FileHub checks itself
 
 Every upload path runs the same checks: the web app, chunked uploads, new

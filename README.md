@@ -158,6 +158,9 @@ cd backend && cargo test       # another shell
 
 # End-to-end curl suite (also needs a running backend):
 ./scripts/test-api.sh
+# Same suite, sending PATCH/PUT/DELETE/HEAD as POST + X-HTTP-Method-Override
+# (how scripts must call FileHub behind a WAF that blocks those methods — docs/waf-cdn.md)
+METHOD_OVERRIDE=1 ./scripts/test-api.sh
 ```
 
 Liveness vs readiness: `/api/health` is a cheap static check; `/api/ready` does a real

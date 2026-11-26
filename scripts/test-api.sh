@@ -9,6 +9,7 @@
 # Usage:
 #   ./scripts/test-api.sh                     # default base
 #   BASE=http://localhost:8090 ./scripts/test-api.sh
+#   METHOD_OVERRIDE=1 ./scripts/test-api.sh   # PATCH/PUT/DELETE/HEAD as POST + X-HTTP-Method-Override
 
 set -u
 
@@ -19,7 +20,29 @@ case "$BASE" in
     */fh) ;;
     *) BASE="$BASE/fh" ;;
 esac
-CURL="${CURL:-/usr/bin/curl}"
+CURL_BIN="${CURL:-/usr/bin/curl}"
+# METHOD_OVERRIDE=1 sends PATCH/PUT/DELETE/HEAD as POST + X-HTTP-Method-Override,
+# the way callers behind a WAF that blocks those methods must call FileHub.
+fh_curl() {
+  if [ "${METHOD_OVERRIDE:-0}" = "1" ]; then
+    local out=() m="" a
+    while [ $# -gt 0 ]; do
+      a="$1"; shift
+      case "$a" in
+        -X) m="$1"; shift ;;
+        -I|--head) m="HEAD"; out+=("-D" "-" "-o" "/dev/null") ;;
+        *) out+=("$a") ;;
+      esac
+    done
+    case "$m" in
+      PATCH|PUT|DELETE|HEAD) set -- -X POST -H "X-HTTP-Method-Override: $m" "${out[@]}" ;;
+      "") set -- "${out[@]}" ;;
+      *) set -- -X "$m" "${out[@]}" ;;
+    esac
+  fi
+  "$CURL_BIN" "$@"
+}
+CURL=fh_curl
 PY="${PY:-python3}"
 
 # Login once and stash the cookie for all mutating requests. Default to the
