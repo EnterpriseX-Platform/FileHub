@@ -41,6 +41,14 @@ export function BasketSettings({ id, embedded }: { id: string; embedded?: boolea
   const [err, setErr] = React.useState<string | null>(null);
   const [dirty, setDirty] = React.useState(false);
   const [extText, setExtText] = React.useState("");
+  // What "not set" means here: the system default for new files (from the basket overview).
+  const [defEnc, setDefEnc] = React.useState(false);
+  React.useEffect(() => {
+    api<{ id: string; encrypted: boolean }[]>("/baskets/overview").then((r) => {
+      const me = r.find((x) => x.id === id);
+      if (me) setDefEnc(me.encrypted);
+    }).catch(() => {});
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadBasket = React.useCallback(() => api<Basket[]>("/systems").then((all) => setBasket(all.find((b) => b.id === id) ?? null)), [id]);
   React.useEffect(() => {
@@ -97,7 +105,7 @@ export function BasketSettings({ id, embedded }: { id: string; embedded?: boolea
         {s && sec === "policy" && (
           <div className="cx-card cx-on-layer">
             <div className="cx-card-h"><span><b>Policy</b></span></div>
-            <Opt title="Encrypt files stored in this basket"><Toggle label="Encrypt files" on={vault || !!s.policy.encrypt} disabled={vault} onChange={(v) => pol({ encrypt: v })} /></Opt>
+            <Opt title="Encrypt files stored in this basket"><Toggle label="Encrypt files" on={vault || (s.policy.encrypt ?? defEnc)} disabled={vault} onChange={(v) => pol({ encrypt: v })} /></Opt>
             <Opt title="Uploaders may encrypt single files" side={!vault && s.policy.file_encrypt_choice ? (
               <Dropdown value={s.policy.file_encrypt_mode ?? "symmetric"}
                 options={[{ value: "symmetric", label: "Symmetric (AES-256)" }, { value: "asymmetric", label: "Asymmetric (RSA)" }]}
