@@ -152,47 +152,30 @@ function Opt({ title, children, side }: { title: string; children?: React.ReactN
 /// The review flow drawn from the transitions: the main path from the initial
 /// status first, then every other move on its own line; the level needed sits under each arrow.
 function Flow({ list, transitions }: { list: StatusDef[]; transitions: Transition[] }) {
+  // One line per status: where a file in that status can go next, and who may move it.
   const byCode = new Map(list.map((x) => [x.code, x]));
   const lvl = (n: number) => LEVEL.find((l) => l.value === String(n))?.label ?? "";
-  const used = new Set<string>();
-  const key = (t: Transition) => `${t.from_code}>${t.to_code}`;
-  const rows: Transition[][] = [];
-  const start = list.find((x) => x.is_initial)?.code;
-  if (start) {
-    const path: Transition[] = [];
-    const seen = new Set([start]);
-    let cur = start;
-    for (let g = 0; g < 32; g++) {
-      const next = transitions.find((t) => t.from_code === cur && !seen.has(t.to_code) && byCode.has(t.to_code));
-      if (!next) break;
-      path.push(next); used.add(key(next)); seen.add(next.to_code); cur = next.to_code;
-    }
-    if (path.length) rows.push(path);
-  }
-  for (const t of transitions) {
-    if (used.has(key(t))) continue;
-    used.add(key(t));
-    const last = rows[rows.length - 1];
-    if (last && rows.length > 1 && last[last.length - 1].to_code === t.from_code) last.push(t); else rows.push([t]);
-  }
-  const tag = (code: string, k: string) => { const x = byCode.get(code); return <Tag key={k} color={x?.color ?? "gray"}>{x?.label || code}</Tag>; };
   if (!list.length) return null;
+  const tag = (code: string) => { const x = byCode.get(code); return <Tag color={x?.color ?? "gray"}>{x?.label || code}</Tag>; };
   return (
-    <div className="cx-flow" aria-label="Review flow">
-      {rows.length === 0 && start && tag(start, "only")}
-      {rows.map((r, i) => (
-        <React.Fragment key={i}>
-          {i > 0 && <span className="cx-flow-br" />}
-          {tag(r[0].from_code, `${i}-s`)}
-          {r.map((t, j) => (
-            <React.Fragment key={j}>
-              <span className="cx-flow-arr" title={`Needs ${lvl(t.required_level)}`}><I.move size={14} /><span>{lvl(t.required_level)}</span></span>
-              {tag(t.to_code, `${i}-${j}`)}
-            </React.Fragment>
-          ))}
-        </React.Fragment>
-      ))}
-    </div>
+    <table className="cx-table cx-flow-table" aria-label="Review flow">
+      <thead><tr><th>When a file is</th><th>It can move to</th></tr></thead>
+      <tbody>
+        {list.map((st) => {
+          const next = transitions.filter((t) => t.from_code === st.code && byCode.has(t.to_code));
+          return (
+            <tr key={st.code}>
+              <td>{tag(st.code)}{st.is_initial && <span className="cx-helper"> · new files start here</span>}</td>
+              <td>{next.length === 0 ? <span className="cx-helper">Final — no further moves</span> : (
+                <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+                  {next.map((t) => <span key={t.to_code} style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>{tag(t.to_code)}<span className="cx-helper">by {lvl(t.required_level)} access</span></span>)}
+                </span>
+              )}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 
