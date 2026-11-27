@@ -1374,6 +1374,9 @@ pub async fn list_activity(
     if let Some(sys) = q.system_id.as_deref().filter(|v| !v.is_empty()) {
         n += 1; sql.push_str(&format!(" AND system_id = ${n}")); strs.push(sys.to_string());
     }
+    let day = |v: &Option<String>| v.as_deref().map(str::trim).filter(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").is_ok()).map(str::to_string);
+    if let Some(d) = day(&q.from) { n += 1; sql.push_str(&format!(" AND created_at >= (${n}::date)::timestamp AT TIME ZONE 'Asia/Bangkok'")); strs.push(d); }
+    if let Some(d) = day(&q.to) { n += 1; sql.push_str(&format!(" AND created_at < ((${n}::date) + 1)::timestamp AT TIME ZONE 'Asia/Bangkok'")); strs.push(d); }
     let scope = crate::auth::effective_system_ids(&s.db, &user.0).await?;
     // …and within those, only rows about files they may see.
     let mut vecs: Vec<Vec<String>> = Vec::new();

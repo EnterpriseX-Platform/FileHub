@@ -94,6 +94,9 @@ pub struct Folder {
     /// folders and the basket. `encrypted` is only this folder's own setting.
     #[sqlx(default)]
     pub effective_encrypted: bool,
+    /// Files directly in this folder (not counting subfolders).
+    #[sqlx(default)]
+    pub file_count: i64,
 }
 
 #[allow(dead_code)]
@@ -239,6 +242,9 @@ pub struct ActivityQuery {
     /// Text in who / what / which item.
     pub q: Option<String>,
     pub system_id: Option<String>,
+    /// Date range (YYYY-MM-DD, Bangkok days), both ends included.
+    pub from: Option<String>,
+    pub to: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

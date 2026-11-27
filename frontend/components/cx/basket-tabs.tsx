@@ -5,7 +5,7 @@ import * as React from "react";
 import { api, when, BASE_PATH, type AclResponse, type Basket, type Settings } from "@/lib/fh";
 import { avatarColor, loadSettings } from "./basket-view";
 import { UploadLinks } from "./upload-links";
-import { Btn, Empty, I, Note, Pager, SkeletonRows, Tag, Toggle, useToast, usePageSize } from "./ui";
+import { Btn, DatePicker, Empty, I, Note, Pager, SearchBar, SkeletonRows, Tag, Toggle, useToast, usePageSize } from "./ui";
 
 type PubLink = {
   id: string; token: string; file_id: string; file_name: string; expires_at: string | null; created_by: string;
@@ -117,15 +117,39 @@ export function BasketActivity({ basketId }: { basketId: string }) {
   const [err, setErr] = React.useState<string | null>(null);
   const [page, setPage] = React.useState(0);
   const [size, setSize] = usePageSize("activity");
+  const [q, setQ] = React.useState("");
+  const [qDeb, setQDeb] = React.useState("");
+  const [from, setFrom] = React.useState("");
+  const [to, setTo] = React.useState("");
+  React.useEffect(() => { const t = setTimeout(() => { setQDeb(q.trim()); setPage(0); }, 300); return () => clearTimeout(t); }, [q]);
+  const params = (limit: number, offset: number) => {
+    const p = new URLSearchParams({ system_id: basketId, limit: String(limit), offset: String(offset) });
+    if (qDeb) p.set("q", qDeb);
+    if (from) p.set("from", from);
+    if (to) p.set("to", to);
+    return p.toString();
+  };
   React.useEffect(() => {
     setRows(null);
     // One extra row tells whether a next page exists.
-    api<Act[]>(`/activity?system_id=${encodeURIComponent(basketId)}&limit=${size + 1}&offset=${page * size}`)
+    api<Act[]>(`/activity?${params(size + 1, page * size)}`)
       .then(setRows).catch((e) => { setErr((e as Error).message); setRows([]); });
-  }, [basketId, page, size]);
+  }, [basketId, page, size, qDeb, from, to]); // eslint-disable-line react-hooks/exhaustive-deps
   const shown = rows?.slice(0, size);
+  const exportCsv = async () => {
+    const all = await api<Act[]>(`/activity?${params(500, 0)}`);
+    const esc = (v: string) => `"${(v ?? "").replace(/"/g, '""')}"`;
+    const lines = ["When,Who,Action,Item", ...all.map((a) => [a.created_at, a.actor, a.action, a.target ?? ""].map(esc).join(","))];
+    const url = URL.createObjectURL(new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" }));
+    const el = document.createElement("a"); el.href = url; el.download = `activity-${basketId}.csv`; el.click(); URL.revokeObjectURL(url);
+  };
   return (
     <div className="cx-card">
+      <SearchBar value={q} onChange={setQ} placeholder="Search person, action or item">
+        <DatePicker label="From" value={from} onChange={(v) => { setFrom(v); setPage(0); }} />
+        <DatePicker label="To" value={to} onChange={(v) => { setTo(v); setPage(0); }} />
+        <Btn kind="ghost" icon={<I.download />} onClick={exportCsv}>Export CSV</Btn>
+      </SearchBar>
       {err && <div style={{ padding: 16 }}><Note kind="error">{err}</Note></div>}
       {rows == null && Array.from({ length: 5 }).map((_, i) => <div key={i} className="cx-act"><span className="cx-skel" style={{ width: `${50 + i * 8}%` }} /></div>)}
       {shown?.map((a) => (

@@ -95,6 +95,8 @@ function Header({ onMenu }: { onMenu: () => void }) {
   const { user, logout } = useAuth();
   const pathname = usePathname() || "";
   const [me, setMe] = React.useState(false);
+  const [sw, setSw] = React.useState(false);
+  const inBasket = pathname.startsWith("/b/") && nav.drive?.id !== pathname.split("/")[2];
   const brandName = useBranding().brand_name;
   const here = React.useMemo(() => {
     const id = pathname.split("/")[2];
@@ -111,7 +113,24 @@ function Header({ onMenu }: { onMenu: () => void }) {
     <header className="cx-header">
       <button className="cx-header-btn" aria-label="Menu" onClick={onMenu}><I.menu size={20} /></button>
       <Link href="/recent" className="cx-header-brand"><Mark /><span>{brandName}</span></Link>
-      {here && <><span className="cx-header-div" /><span className="cx-header-here">{here}</span></>}
+      {here && inBasket ? (
+        <><span className="cx-header-div" />
+          <div style={{ position: "relative", minWidth: 0 }}>
+            <button className="cx-header-switch" aria-haspopup="menu" aria-expanded={sw} onClick={() => setSw((o) => !o)}>
+              <span><small>Basket</small>{here}</span><I.chevronDown size={16} />
+            </button>
+            {sw && (
+              <div className="cx-menu" role="menu" style={{ left: 0, top: "100%" }} onMouseLeave={() => setSw(false)}>
+                {nav.baskets.map((b) => (
+                  <Link key={b.id} role="menuitem" href={`/b/${b.id}`} onClick={() => setSw(false)}>
+                    <span className="cx-bdot" style={{ background: basketColor(b.tone) }} />{b.name}
+                  </Link>
+                ))}
+                <Link role="menuitem" href="/baskets" onClick={() => setSw(false)}>All baskets</Link>
+              </div>
+            )}
+          </div></>
+      ) : here && <><span className="cx-header-div" /><span className="cx-header-here">{here}</span></>}
       <span className="cx-spacer" />
       <Link href="/search" className="cx-header-btn" aria-label="Search"><I.search size={20} /></Link>
       <Link href="/notifications" className="cx-header-btn" aria-label={nav.unread ? `Notifications, ${nav.unread} unread` : "Notifications"}>

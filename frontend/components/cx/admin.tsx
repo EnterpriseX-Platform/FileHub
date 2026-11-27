@@ -105,6 +105,18 @@ export function BasketSettings({ id, embedded }: { id: string; embedded?: boolea
               <Toggle label="Per-file encryption" on={!!s.policy.file_encrypt_choice} disabled={vault}
                 onChange={(v) => pol({ file_encrypt_choice: v, file_encrypt_mode: v ? (s.policy.file_encrypt_mode ?? "symmetric") : s.policy.file_encrypt_mode })} />
             </Opt>
+            <Opt title="Keep all versions"><Toggle label="Keep all versions" on={s.policy.keep_versions !== false} onChange={(v) => pol({ keep_versions: v })} /></Opt>
+            <Opt title="Lock files (retention)" side={
+              <span style={{ display: "inline-flex", gap: 8 }}>
+                <Dropdown value={String(s.policy.lock_days ?? 0)}
+                  options={[{ value: "0", label: "Off" }, { value: "30", label: "30 days" }, { value: "90", label: "90 days" }, { value: "365", label: "365 days" }, { value: "1825", label: "5 years" }, { value: "3650", label: "10 years" }]}
+                  onChange={(v) => { const d = parseInt(v, 10); pol(d > 0 ? { lock_days: d, lock_mode: s.policy.lock_mode ?? "GOVERNANCE" } : { lock_days: null, lock_mode: null }); }} />
+                {(s.policy.lock_days ?? 0) > 0 && (
+                  <Dropdown value={s.policy.lock_mode ?? "GOVERNANCE"}
+                    options={[{ value: "GOVERNANCE", label: "Admins can lift" }, { value: "COMPLIANCE", label: "Nobody can lift" }]}
+                    onChange={(v) => pol({ lock_mode: v })} />
+                )}
+              </span>} />
             <Opt title="Stamp downloads"><Toggle label="Stamp downloads" on={vault || !!s.policy.stamp_downloads} disabled={vault} onChange={(v) => pol({ stamp_downloads: v })} /></Opt>
             <Opt title="Search inside files"><Toggle label="Search inside files" on={s.policy.content_search !== false} onChange={(v) => pol({ content_search: v })} /></Opt>
             <Opt title="Allow public links"><Toggle label="Allow public links" on={!vault && s.policy.public_links !== false} disabled={vault} onChange={(v) => pol({ public_links: v })} /></Opt>
@@ -557,7 +569,7 @@ function MountedFolder({ basket, onChanged }: { basket: Basket; onChanged: () =>
   };
   return (
     <div className="cx-on-layer" style={{ padding: 16, display: "flex", flexDirection: "column", gap: 16, maxWidth: 640 }}>
-      {roots && roots.length === 0 && <Note kind="info">MOUNT_ROOTS isn&apos;t set on this server.</Note>}
+      {roots && roots.length === 0 && <Note kind="info">Mounted folders aren&apos;t turned on for this server.</Note>}
       <TextField label="Folder on the server" placeholder={roots?.[0] ? `${roots[0]}/…` : "/mnt/…"} value={path}
         onChange={(e) => setPath(e.target.value)} disabled={!roots?.length} />
       {basket.mount_path && <dl className="cx-kv"><dt>Last scan</dt><dd className="cx-num">{when(basket.mount_scanned_at ?? null) || "Never"}</dd></dl>}

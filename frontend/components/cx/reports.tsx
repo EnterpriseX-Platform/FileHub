@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { api, bytes, BASE_PATH } from "@/lib/fh";
 import { useNav } from "./shell";
-import { Dropdown, Note, SkeletonRows, Tabs } from "./ui";
+import { Dropdown, Empty, I, Note, SkeletonRows, Tabs } from "./ui";
 
 type CatRow = { category: string; file_count: number; size_bytes: number };
 type TimeRow = { bucket: string; file_count: number; size_bytes: number };
@@ -75,7 +75,7 @@ export function Reports() {
               ))}
             </tbody>
           </table>
-          {rows && rows.length === 0 && <div className="cx-state"><strong>No files in this range.</strong></div>}
+          {rows && rows.length === 0 && <Empty icon={<I.rules size={20} />}>No files in this range</Empty>}
         </div>
       </div>
     </div>

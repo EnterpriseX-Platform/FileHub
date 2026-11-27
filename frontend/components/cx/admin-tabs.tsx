@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { api, bytes, fromGbField, toGbField, useApi, when } from "@/lib/fh";
 import { useNav } from "./shell";
-import { Btn, Confirm, Dropdown, Modal, Note, SearchBar, SkeletonRows, Tag, TextField, useFilter, useToast, OverflowMenu } from "./ui";
+import { Btn, Confirm, Dropdown, Empty, I, Modal, Note, OverflowMenu, SearchBar, SkeletonRows, Tag, TextField, useFilter, useToast } from "./ui";
 
 const ROLE_LABEL: Record<string, string> = { admin: "Admin", editor: "Editor", viewer: "Viewer" };
 const ROLE_OPTS = [
@@ -77,7 +77,7 @@ export function AdminPeople() {
             </tbody>
           )}
         </table>
-        {rows && shown.length === 0 && <div className="cx-state"><strong>No one matches.</strong></div>}
+        {rows && shown.length === 0 && <Empty icon={<I.user size={20} />}>No one matches</Empty>}
       </div>
       {adding && <PersonModal orgs={orgs} onClose={() => setAdding(false)} onSaved={() => { setAdding(false); load(); }} />}
       {editing && <PersonModal orgs={orgs} person={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
@@ -163,7 +163,7 @@ export function AdminAgencies() {
             </tbody>
           )}
         </table>
-        {rows && shown.length === 0 && <div className="cx-state"><strong>No agencies match.</strong></div>}
+        {rows && shown.length === 0 && <Empty icon={<I.user size={20} />}>No agencies match</Empty>}
       </div>
       {edit && (
         <Modal title={`Storage limit — ${edit.name}`} size="narrow" onClose={() => setEdit(null)} footer={<>
@@ -245,7 +245,7 @@ export function AdminApiKeys() {
             </tbody>
           )}
         </table>
-        {loaded && rows.length === 0 && <div className="cx-state"><strong>No keys.</strong></div>}
+        {loaded && rows.length === 0 && <Empty icon={<I.user size={20} />}>No keys</Empty>}
       </div>
       <div className="cx-on-layer" style={{ background: "var(--cx-layer)", padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ fontWeight: 600 }}>New key</div>
@@ -329,7 +329,7 @@ export function AdminLog() {
             </tbody>
           )}
         </table>
-        {rows && rows.length === 0 && <div className="cx-state"><strong>Nothing found.</strong></div>}
+        {rows && rows.length === 0 && <Empty icon={<I.user size={20} />}>Nothing found</Empty>}
       </div>
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
         <Btn kind="ghost" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Newer</Btn>

@@ -69,7 +69,7 @@ export type Basket = {
 };
 export type Folder = {
   id: string; system_id: string; parent_id: string | null; name: string; color: string | null;
-  owner: string; created_at: string; inherit: boolean;
+  owner: string; created_at: string; inherit: boolean; file_count?: number; effective_encrypted?: boolean;
 };
 export type FileRow = {
   id: string; name: string; file_type: string; size_bytes: number; system_id: string; org_id: string | null;
@@ -84,7 +84,8 @@ export type FieldDef = {
 export type StatusDef = { code: string; label: string; color: TagColor; is_initial: boolean; locks_content: boolean; awaits_review?: boolean; sort?: number };
 export type Transition = { from_code: string; to_code: string; required_level: number };
 export type Policy = { encrypt: boolean | null; allowed_ext: string[] | null; max_file_bytes: number | null; public_links: boolean | null; stamp_downloads?: boolean | null;
-  encrypt_mode?: string | null; file_encrypt_choice?: boolean | null; file_encrypt_mode?: string | null; content_search?: boolean | null };
+  encrypt_mode?: string | null; file_encrypt_choice?: boolean | null; file_encrypt_mode?: string | null; content_search?: boolean | null;
+  keep_versions?: boolean | null; lock_days?: number | null; lock_mode?: string | null };
 export type Settings = { categories: Category[]; fields: FieldDef[]; statuses: StatusDef[]; transitions: Transition[]; policy: Policy; use_statuses?: boolean };
 export type TagColor = "gray" | "blue" | "green" | "orange" | "red";
 

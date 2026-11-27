@@ -175,6 +175,7 @@ export function FilePanel({ fileId, settingsFor, onClose, onChanged, onShare, on
                 <dt>Size</dt><dd className="cx-num">{bytes(f.size_bytes)} · version {f.version}</dd>
                 <dt>Encrypted</dt><dd>{f.encrypted ? "Yes" : <>No{can("upload_version") && encChoice && <> · <button className="cx-link" disabled={encBusy} onClick={encryptNow}>Encrypt this file</button></>}</>}</dd>
                 <dt>Your access</dt><dd style={{ textTransform: "capitalize" }}>{eff?.level}</dd>
+                <dt>ID</dt><dd className="cx-mono" style={{ fontSize: 12, wordBreak: "break-all" }}>{f.id}</dd>
               </dl>
               {origin && <>
                 <div className="cx-section-label">Origin</div>

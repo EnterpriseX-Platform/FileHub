@@ -426,7 +426,13 @@ pub async fn fill_effective_encrypted(db: &PgPool, folders: &mut [crate::models:
              FROM folders s WHERE s.id = ANY($1)"#,
     ).bind(&ids).bind(system_default).fetch_all(db).await?;
     let m: std::collections::HashMap<String, bool> = rows.into_iter().collect();
-    for f in folders.iter_mut() { f.effective_encrypted = f.encrypted || m.get(&f.id).copied().unwrap_or(false); }
+    let counts: Vec<(String, i64)> = sqlx::query_as("SELECT folder_id, COUNT(*) FROM files WHERE folder_id = ANY($1) AND deleted_at IS NULL GROUP BY folder_id")
+        .bind(&ids).fetch_all(db).await?;
+    let c: std::collections::HashMap<String, i64> = counts.into_iter().collect();
+    for f in folders.iter_mut() {
+        f.effective_encrypted = f.encrypted || m.get(&f.id).copied().unwrap_or(false);
+        f.file_count = c.get(&f.id).copied().unwrap_or(0);
+    }
     Ok(())
 }
 
@@ -852,4 +858,25 @@ pub async fn folder_name_taken(db: &PgPool, system_id: &str, parent: Option<&str
             AND lower(name) = lower($3) AND deleted_at IS NULL AND id IS DISTINCT FROM $4",
     ).bind(system_id).bind(parent).bind(name.trim()).bind(except).fetch_one(db).await?;
     Ok(n > 0)
+}
+
+
+// -----------------------------------------------------------------------------
+// Overview data for the basket cards and the basket page
+// -----------------------------------------------------------------------------
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct BasketFlags { pub id: String, pub encrypted: bool, pub use_statuses: bool, pub grants: i64 }
+
+/// GET /api/baskets/overview — per visible basket: encrypted, statuses on, access grants.
+pub async fn overview(State(s): State<Arc<AppState>>, user: AuthUser) -> ApiResult<Json<Vec<BasketFlags>>> {
+    let scope = crate::auth::effective_system_ids(&s.db, &user.0).await?;
+    let rows: Vec<BasketFlags> = sqlx::query_as(
+        "SELECT s.id, (s.vault OR COALESCE(p.encrypt, $1)) AS encrypted, s.use_statuses,
+                (SELECT COUNT(*) FROM acl_entries a WHERE a.resource_type = 'basket' AND a.resource_id = s.id
+                    AND (a.expires_at IS NULL OR a.expires_at > now())) AS grants
+           FROM systems s LEFT JOIN basket_policies p ON p.scope_type = 'basket' AND p.scope_id = s.id
+          WHERE s.deleted_at IS NULL AND ($2::text[] IS NULL OR s.id = ANY($2))",
+    ).bind(s.storage.encryption_enabled()).bind(scope).fetch_all(&s.db).await?;
+    Ok(Json(rows))
 }

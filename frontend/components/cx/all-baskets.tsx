@@ -5,9 +5,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { useAuth } from "@/lib/auth-context";
-import { api, bytes, type Basket, type Settings, type VBasket } from "@/lib/fh";
+import { api, bytes, type Basket, type VBasket } from "@/lib/fh";
 import { NewBasketModal } from "./admin";
-import { loadSettings } from "./basket-view";
 import { useNav } from "./shell";
 import { basketColor, Btn, Dropdown, Empty, I, Tag, useFilter } from "./ui";
 
@@ -38,11 +37,15 @@ export function AllBaskets() {
   React.useEffect(() => {
     api<{ storage_by_system: Usage[] }>("/stats").then((s) => setUsage(new Map(s.storage_by_system.map((x) => [x.system_id, x])))).catch(() => setUsage(new Map()));
   }, [nav.baskets]);
+  // Encrypted (including the system default), statuses on, and access grants — one call.
+  const [flags, setFlags] = React.useState<Map<string, { encrypted: boolean; use_statuses: boolean; grants: number }>>(new Map());
   React.useEffect(() => {
     let off = false;
-    Promise.all(nav.baskets.map((b) => loadSettings(b.id).then((s: Settings | null) => (s?.policy.encrypt ? b.id : null)))).then((ids) => {
-      if (!off) setEnc(new Set(ids.filter((x): x is string => !!x)));
-    });
+    api<{ id: string; encrypted: boolean; use_statuses: boolean; grants: number }[]>("/baskets/overview").then((rows) => {
+      if (off) return;
+      setFlags(new Map(rows.map((r) => [r.id, r])));
+      setEnc(new Set(rows.filter((r) => r.encrypted).map((r) => r.id)));
+    }).catch(() => {});
     return () => { off = true; };
   }, [nav.baskets]);
 
@@ -69,6 +72,7 @@ export function AllBaskets() {
 
   const tags = (b: Basket) => <>
     {isEnc(b) && <Tag color="purple">Encrypted</Tag>}
+    {flags.get(b.id)?.use_statuses && <Tag color="blue">Review flow</Tag>}
     {b.vault && <Tag color="red">Vault</Tag>}
     {b.mount_path && <Tag color="gray">Mounted</Tag>}
     {b.status !== "live" && <Tag color="gray">Paused</Tag>}
@@ -113,6 +117,7 @@ export function AllBaskets() {
                   <div className="cx-bcard-st">
                     <span><b>{u ? u.file_count : "–"}</b>files</span>
                     <span><b>{bytes(used) || "0 B"}</b>{b.quota_bytes > 0 ? `of ${bytes(b.quota_bytes)}` : "no limit"}</span>
+                    {flags.has(b.id) && <span><b>{flags.get(b.id)!.grants}</b>access grants</span>}
                   </div>
                   <div className={`cx-meter${pct >= 90 ? " cx-warn" : ""}`}><i style={{ width: `${pct}%` }} /></div>
                   <div className="cx-bcard-tags">{tags(b)}{pct >= 90 && <Tag color="orange">Almost full</Tag>}</div>

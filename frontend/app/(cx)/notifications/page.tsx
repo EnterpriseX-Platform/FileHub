@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 
 import { useNav } from "@/components/cx/shell";
-import { Note, SkeletonRows } from "@/components/cx/ui";
+import { Empty, I, Note, SkeletonRows } from "@/components/cx/ui";
 import { api, when } from "@/lib/fh";
 
 type N = { id: string; kind: string; title: string; body: string | null; link: string | null; read_at: string | null; created_at: string };
@@ -46,7 +46,7 @@ export default function Notifications() {
             ))}
           </tbody>
         </table>
-        {rows && rows.length === 0 && <div className="cx-state"><strong>No notifications.</strong></div>}
+        {rows && rows.length === 0 && <Empty icon={<I.bell size={20} />}>No notifications</Empty>}
       </div>
     </div>
   );

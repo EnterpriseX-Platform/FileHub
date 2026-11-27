@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { api, useApi, when } from "@/lib/fh";
 import { useNav } from "./shell";
-import { Btn, Check, Confirm, Dropdown, Modal, Note, OverflowMenu, SkeletonRows, Tag, TextField, useToast } from "./ui";
+import { Btn, Check, Confirm, Dropdown, Empty, I, Modal, Note, OverflowMenu, SkeletonRows, Tag, TextField, useToast } from "./ui";
 
 type Connector = {
   id: string; name: string; kind: string; enabled: boolean; read_only: boolean; trust_callers: boolean; token_hint: string | null;
@@ -57,7 +57,7 @@ export function AdminConnectors() {
             </tbody>
           )}
         </table>
-        {rows && rows.length === 0 && <div className="cx-state"><strong>No connectors.</strong></div>}
+        {rows && rows.length === 0 && <Empty icon={<I.share size={20} />}>No connectors</Empty>}
       </div>
       {edit && <ConnectorModal c={edit === "new" ? null : edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reload(); }} />}
       {del && <Confirm title={`Delete ${del.name}?`} danger action="Delete" body="Calls with its token are refused at once."
@@ -107,7 +107,7 @@ function ConnectorCalls({ names }: { names: string[] }) {
           ))}
         </tbody>
       </table></div>
-      {rows && rows.length === 0 && <div className="cx-state"><strong>No calls yet.</strong></div>}
+      {rows && rows.length === 0 && <Empty icon={<I.share size={20} />}>No calls yet</Empty>}
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: 8 }}>
         <Btn kind="ghost" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Newer</Btn>
         <Btn kind="ghost" disabled={!rows || rows.length < PAGE} onClick={() => setPage((p) => p + 1)}>Older</Btn>

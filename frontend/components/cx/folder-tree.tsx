@@ -43,7 +43,7 @@ export function FolderTree({ basketId, rootLabel, folders, current }: { basketId
               <I.chevronRight size={12} style={isOpen ? { transform: "rotate(90deg)" } : undefined} />
             </button>
           ) : <span className="cx-ftree-twisty" />}
-          <Link href={`/b/${basketId}?folder=${f.id}`} className="cx-ftree-link" title={f.name}>{isOpen && kids.length ? <I.folderOpen size={16} /> : <I.folder size={16} />}<span>{f.name}</span></Link>
+          <Link href={`/b/${basketId}?folder=${f.id}`} className="cx-ftree-link" title={f.name}>{isOpen && kids.length ? <I.folderOpen size={16} /> : <I.folder size={16} />}<span>{f.name}</span>{f.file_count ? <small className="cx-ftree-n cx-num">{f.file_count}</small> : null}</Link>
         </div>
         {isOpen && kids.length > 0 && <ul role="group">{kids.map((k) => <Node key={k.id} f={k} depth={depth + 1} />)}</ul>}
       </li>

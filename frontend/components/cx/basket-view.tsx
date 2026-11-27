@@ -247,7 +247,15 @@ export function BasketView({ basketId }: { basketId: string }) {
   const cats = (settings?.categories.length ?? 0) > 0;
   const cols = 6 + listFields.length + (cats ? 1 : 0);
   const starred = nav.stars.includes(`basket:${basketId}`);
-  const encrypted = !!settings?.policy.encrypt || !!basket?.vault;
+  // Basket-level facts: encryption (including the system default) and statuses on/off.
+  const [flag, setFlag] = React.useState<{ encrypted: boolean; use_statuses: boolean } | null>(null);
+  React.useEffect(() => {
+    let off = false;
+    setFlag(null);
+    api<{ id: string; encrypted: boolean; use_statuses: boolean }[]>("/baskets/overview").then((r) => { if (!off) setFlag(r.find((x) => x.id === basketId) ?? null); }).catch(() => {});
+    return () => { off = true; };
+  }, [basketId, tick]);
+  const encrypted = flag ? flag.encrypted : (!!settings?.policy.encrypt || !!basket?.vault);
 
   if (err && !basket) return <div className="cx-page"><Note kind="error">{err}</Note></div>;
 
