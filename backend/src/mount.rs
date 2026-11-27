@@ -55,7 +55,10 @@ pub fn check_path(p: &str) -> anyhow::Result<()> {
 /// else FileHub's own `bucket/id-name`.
 pub async fn object_key_for(db: &PgPool, system: &System, folder_id: Option<&str>, id: Id, name: &str) -> ApiResult<String> {
     let safe = crate::handlers::sanitize_filename(name);
-    let Some(root) = system.mount_path.as_deref() else { return Ok(format!("{}/{}-{}", system.bucket, id, safe)) };
+    let Some(root) = system.mount_path.as_deref() else {
+        let id = id.to_string();
+        return Ok(format!("{}/{}/{}-{}", system.bucket, crate::storage::shard(&id), id, safe));
+    };
     let mut dir = PathBuf::from(root);
     for part in folder_chain(db, folder_id).await? { dir.push(crate::handlers::sanitize_filename(&part)); }
     // The real directory, so a symlink planted in the share can't lead outside MOUNT_ROOTS.

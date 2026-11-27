@@ -1606,7 +1606,12 @@ pub async fn search_files(
     for b in &str_binds { cq = cq.bind(b); }
     for b in &vec_binds { cq = cq.bind(b); }
     for b in &date_binds { cq = cq.bind(b); }
-    let total: i64 = cq.fetch_one(&s.db).await?;
+    // One read-only transaction for both queries: file_content rows hold whole
+    // documents, so the planner wrongly prefers a full scan over the trigram /
+    // full-text indexes (300 ms vs 2 ms). Prefer indexes for this search only.
+    let mut tx = s.db.begin().await?;
+    sqlx::query("SET LOCAL enable_seqscan = off").execute(&mut *tx).await?;
+    let total: i64 = cq.fetch_one(&mut *tx).await?;
 
     n += 1; let limit_n = n;
     n += 1; let offset_n = n;
@@ -1623,7 +1628,9 @@ pub async fn search_files(
         axum::http::HeaderName::from_static("x-total-count"),
         axum::http::HeaderValue::from_str(&total.to_string()).unwrap(),
     );
-    Ok((headers, Json(query.fetch_all(&s.db).await?)))
+    let rows = query.fetch_all(&mut *tx).await?;
+    tx.commit().await?;
+    Ok((headers, Json(rows)))
 }
 
 #[derive(Debug, Deserialize)]
@@ -1931,7 +1938,7 @@ pub async fn patch_file(
     if let Some(sys) = &new_system {
         new_bucket = sys.bucket.clone();
         let safe = sanitize_filename(&new_name);
-        new_object_key = format!("{}/{}-{}", sys.bucket, file.id, safe);
+        new_object_key = format!("{}/{}/{}-{}", sys.bucket, crate::storage::shard(&file.id.to_string()), file.id, safe);
         // Moving into another bucket counts against that bucket's quota.
         enforce_quota(&s, file.size_bytes, Some(&sys.id), file.org_id.as_deref(), None).await?;
         s.storage.rename(&file.object_key, &new_object_key).await?;

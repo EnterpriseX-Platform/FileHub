@@ -127,6 +127,16 @@ pub struct ObjInfo {
     pub layout: Layout,
 }
 
+/// Two-character subfolder for a new object or staged file, from the end of
+/// its (random) id. On NFS, files created in one directory are handled one at
+/// a time by the server; spreading them over subfolders roughly doubles
+/// parallel upload throughput. Existing keys are stored in the database and
+/// keep working as they are.
+pub fn shard(id: &str) -> String {
+    let s: String = id.chars().rev().take(2).collect::<Vec<_>>().into_iter().rev().collect();
+    if s.len() == 2 && s.chars().all(|c| c.is_ascii_alphanumeric()) { s.to_ascii_lowercase() } else { "00".into() }
+}
+
 /// An upload written to the staging area but not yet visible under its key.
 pub struct Staged {
     pub path: PathBuf,
@@ -308,7 +318,10 @@ impl Storage {
         let dir = self.backend.staging_dir();
         tokio::fs::create_dir_all(&dir).await
             .with_context(|| format!("creating staging dir {}", dir.display()))?;
-        let path = dir.join(format!("up-{}", crate::Id::new()));
+        let sid = crate::Id::new().to_string();
+        let dir = dir.join(shard(&sid));
+        tokio::fs::create_dir_all(&dir).await?;
+        let path = dir.join(format!("up-{sid}"));
         let f = tokio::fs::File::create(&path).await
             .with_context(|| format!("creating staged file {}", path.display()))?;
         let mut prefix = [0u8; 7];
@@ -349,7 +362,16 @@ impl Storage {
         let dir = self.backend.staging_dir();
         let Ok(mut rd) = tokio::fs::read_dir(&dir).await else { return 0 };
         let mut n = 0;
+        // Staged files sit directly in the staging dir (older pods) or one level down in a shard.
+        let mut entries = Vec::new();
         while let Ok(Some(e)) = rd.next_entry().await {
+            if e.file_type().await.map(|t| t.is_dir()).unwrap_or(false) {
+                if let Ok(mut sub) = tokio::fs::read_dir(e.path()).await {
+                    while let Ok(Some(x)) = sub.next_entry().await { entries.push(x); }
+                }
+            } else { entries.push(e); }
+        }
+        for e in entries {
             let old = e.metadata().await.ok()
                 .and_then(|m| m.modified().ok())
                 .and_then(|t| t.elapsed().ok())
@@ -470,7 +492,10 @@ impl Storage {
     async fn begin_stage_with_pre(&self, cipher: Option<Aes256Gcm>, pre: &[u8]) -> Result<StageWriter> {
         let dir = self.backend.staging_dir();
         tokio::fs::create_dir_all(&dir).await?;
-        let path = dir.join(format!("up-{}", crate::Id::new()));
+        let sid = crate::Id::new().to_string();
+        let dir = dir.join(shard(&sid));
+        tokio::fs::create_dir_all(&dir).await?;
+        let path = dir.join(format!("up-{sid}"));
         let f = tokio::fs::File::create(&path).await?;
         let mut prefix = [0u8; 7];
         rand::Rng::fill(&mut rand::thread_rng(), &mut prefix[..]);
