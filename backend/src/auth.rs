@@ -271,10 +271,16 @@ pub async fn login(
     let throttle_key = format!("login:{}", creds.email.trim().to_lowercase());
     crate::ratelimit::hit(&s.db, &throttle_key, LOGIN_FAILS_PER_MINUTE, "Too many sign-in attempts. Try again in a minute.").await?;
     // Guessing one password across many emails: at most LOGIN_FAILS_PER_ADDRESS
-    // failed sign-ins per client address a minute (failures only, so an office
-    // behind one address signing in normally is never held up).
-    let addr_key = format!("login-addr:{}", crate::sharelink::client_addr(&headers));
-    crate::ratelimit::check(&s.db, &addr_key, LOGIN_FAILS_PER_ADDRESS, "Too many sign-in attempts. Try again in a minute.").await?;
+    // failed sign-ins per client address a minute. Only failures count; once an
+    // address is over the limit every sign-in from it waits out the minute
+    // (letting a correct password through would tell a sprayer it found one).
+    // Keyed by the caller's real address (Cloudflare's CF-Connecting-IP first);
+    // direct calls inside the cluster have none and rely on the per-email limit,
+    // so one shared bucket can't lock everyone out.
+    let addr_key = crate::sharelink::client_addr_opt(&headers).map(|a| format!("login-addr:{a}"));
+    if let Some(k) = &addr_key {
+        crate::ratelimit::check(&s.db, k, LOGIN_FAILS_PER_ADDRESS, "Too many sign-in attempts from this network. Try again in a minute.").await?;
+    }
 
     // Active accounts sign in; a self sign-up still waiting for approval is told
     // so (only after its own password checks out, so nothing leaks to others).
@@ -297,7 +303,7 @@ pub async fn login(
             return Err(ApiError::BadRequest("Your account is waiting for an administrator to turn it on.".into())),
         Some(u) if password_ok => u,
         _ => {
-            let _ = crate::ratelimit::hit(&s.db, &addr_key, u32::MAX, "").await;
+            if let Some(k) = &addr_key { let _ = crate::ratelimit::hit(&s.db, k, u32::MAX, "").await; }
             return Err(ApiError::Unauthorized);
         }
     };

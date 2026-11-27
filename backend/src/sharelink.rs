@@ -35,10 +35,21 @@ fn bad(m: impl Into<String>) -> ApiError { ApiError::BadRequest(m.into()) }
 /// X-Forwarded-For entry (the one our ingress appended). The left-most entries
 /// are whatever the client claimed and can't be trusted for throttling.
 pub fn client_addr(h: &HeaderMap) -> String {
-    h.get("x-real-ip").and_then(|v| v.to_str().ok()).map(|v| v.trim().to_string()).filter(|v| !v.is_empty())
-        .or_else(|| h.get("x-forwarded-for").and_then(|v| v.to_str().ok()).and_then(|v| v.rsplit(',').next()).map(|v| v.trim().to_string()))
-        .unwrap_or_else(|| "direct".into())
+    client_addr_opt(h).unwrap_or_else(|| "direct".into())
 }
+
+/// The caller's own address, when a proxy in front says so: Cloudflare's
+/// `CF-Connecting-IP` first (behind Cloudflare, X-Real-IP / the last
+/// X-Forwarded-For hop is a Cloudflare edge shared by many people), then
+/// X-Real-IP, then the last X-Forwarded-For hop. `None` for direct calls
+/// inside the cluster.
+pub fn client_addr_opt(h: &HeaderMap) -> Option<String> {
+    let get = |k: &str| h.get(k).and_then(|v| v.to_str().ok()).map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
+    get("cf-connecting-ip")
+        .or_else(|| get("x-real-ip"))
+        .or_else(|| get("x-forwarded-for").and_then(|v| v.rsplit(',').next().map(|x| x.trim().to_string())).filter(|v| !v.is_empty()))
+}
+
 
 /// Per-address throttle for misses (unknown token, wrong password): 20/min.
 async fn miss(db: &sqlx::PgPool, h: &HeaderMap) -> ApiError {
