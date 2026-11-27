@@ -369,6 +369,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/baskets/:id/scan",        axum::routing::post(mount::scan_now))
         .route("/api/mount-roots",             get(mount::list_roots))
         .route("/api/baskets/overview",       get(basket::overview))
+        .route("/api/baskets/:id/summary",    get(basket::summary))
         .route("/api/acl/levels",              axum::routing::post(acl::levels))
         .route("/api/admin/connector-calls",   get(connectors::calls))
         .route("/api/admin/connectors",        get(connectors::list).post(connectors::create))

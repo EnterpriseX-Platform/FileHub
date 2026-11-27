@@ -2154,7 +2154,21 @@ pub async fn delete_folder(
     ).bind(&id).fetch_optional(&s.db).await?;
     let (system_id,) = row.ok_or(ApiError::NotFound)?;
     crate::auth::ensure_system_access(&s.db, &user.0, &system_id).await?;
-    crate::acl::require_folder(&s.db, &user.0, &system_id, Some(&id), crate::acl::EDIT).await?;
+    let lvl = crate::acl::require_folder(&s.db, &user.0, &system_id, Some(&id), crate::acl::EDIT).await?;
+    // Same rule as deleting one file: a file whose status locks it can only be
+    // removed by someone with Manage — so its folder can't be deleted around it.
+    if lvl < crate::acl::MANAGE && user.0.role != "admin" {
+        let status_locked: bool = sqlx::query_scalar(
+            r#"WITH RECURSIVE sub(id) AS (SELECT $1::text UNION ALL SELECT f.id FROM folders f JOIN sub ON f.parent_id = sub.id WHERE f.deleted_at IS NULL)
+               SELECT EXISTS (SELECT 1 FROM files fi
+                               JOIN systems sy ON sy.id = fi.system_id AND sy.use_statuses
+                               JOIN basket_statuses st ON st.system_id = fi.system_id AND st.code = fi.status AND st.locks_content
+                              WHERE fi.folder_id IN (SELECT id FROM sub) AND fi.deleted_at IS NULL)"#,
+        ).bind(&id).fetch_one(&s.db).await?;
+        if status_locked {
+            return Err(ApiError::ContentLocked("This folder holds files whose status locks them. Someone with Manage access can change their status or delete the folder.".into()));
+        }
+    }
     let locked: bool = sqlx::query_scalar(
         r#"WITH RECURSIVE sub(id) AS (SELECT $1::text UNION ALL SELECT f.id FROM folders f JOIN sub ON f.parent_id = sub.id)
            SELECT EXISTS (SELECT 1 FROM files fi JOIN object_locks l ON l.file_id = fi.id

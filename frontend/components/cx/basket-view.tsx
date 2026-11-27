@@ -249,9 +249,11 @@ export function BasketView({ basketId }: { basketId: string }) {
   const starred = nav.stars.includes(`basket:${basketId}`);
   // Basket-level facts: encryption (including the system default) and statuses on/off.
   const [flag, setFlag] = React.useState<{ encrypted: boolean; use_statuses: boolean } | null>(null);
+  const [sum, setSum] = React.useState<{ awaiting: number; approved_month: number; expiring: number; used_bytes: number; quota_bytes: number } | null>(null);
   React.useEffect(() => {
     let off = false;
-    setFlag(null);
+    setFlag(null); setSum(null);
+    api<typeof sum>(`/baskets/${basketId}/summary`).then((x) => { if (!off) setSum(x); }).catch(() => {});
     api<{ id: string; encrypted: boolean; use_statuses: boolean }[]>("/baskets/overview").then((r) => { if (!off) setFlag(r.find((x) => x.id === basketId) ?? null); }).catch(() => {});
     return () => { off = true; };
   }, [basketId, tick]);
@@ -313,6 +315,15 @@ export function BasketView({ basketId }: { basketId: string }) {
               {label}{id === "files" && files && !q && !status && !cat ? <small>{total}</small> : null}
             </button>
           ))}
+        </div>
+      )}
+
+      {tab === "files" && !here && basket && !isDrive && settings?.use_statuses !== false && sum && (
+        <div className="cx-kpis">
+          <div><span>Awaiting review</span><b className="cx-num">{sum.awaiting}</b></div>
+          <div><span>Approved this month</span><b className="cx-num">{sum.approved_month}</b></div>
+          <div><span>Links expiring (30 days)</span><b className={`cx-num${sum.expiring > 0 ? " cx-warn-t" : ""}`}>{sum.expiring}</b></div>
+          <div><span>Space used</span><b className="cx-num">{sum.quota_bytes > 0 ? `${Math.round((sum.used_bytes / sum.quota_bytes) * 100)}%` : bytes(sum.used_bytes)}</b></div>
         </div>
       )}
 

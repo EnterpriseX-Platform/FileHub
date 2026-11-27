@@ -880,3 +880,26 @@ pub async fn overview(State(s): State<Arc<AppState>>, user: AuthUser) -> ApiResu
     ).bind(s.storage.encryption_enabled()).bind(scope).fetch_all(&s.db).await?;
     Ok(Json(rows))
 }
+
+
+#[derive(Serialize)]
+pub struct BasketSummary { pub awaiting: i64, pub approved_month: i64, pub expiring: i64, pub used_bytes: i64, pub quota_bytes: i64 }
+
+/// GET /api/baskets/:id/summary — the numbers strip on a basket with statuses:
+/// waiting for review, approved this month, links expiring in 30 days, space used.
+pub async fn summary(State(s): State<Arc<AppState>>, user: AuthUser, Path(sys): Path<String>) -> ApiResult<Json<BasketSummary>> {
+    crate::auth::ensure_system_access(&s.db, &user.0, &sys).await.map_err(|_| ApiError::NotFound)?;
+    let (awaiting, approved_month, expiring, used_bytes, quota_bytes): (i64, i64, i64, i64, i64) = sqlx::query_as(
+        r#"SELECT
+            (SELECT COUNT(*) FROM files f JOIN basket_statuses st ON st.system_id = f.system_id AND st.code = f.status
+              WHERE f.system_id = $1 AND f.deleted_at IS NULL AND st.awaits_review),
+            (SELECT COUNT(*) FROM files f JOIN basket_statuses st ON st.system_id = f.system_id AND st.code = f.status
+              WHERE f.system_id = $1 AND f.deleted_at IS NULL AND st.locks_content AND NOT st.awaits_review
+                AND f.modified_at >= (date_trunc('month', now() AT TIME ZONE 'Asia/Bangkok') AT TIME ZONE 'Asia/Bangkok')),
+            (SELECT COUNT(*) FROM share_links l JOIN files f ON f.id::text = l.file_id::text
+              WHERE f.system_id = $1 AND f.deleted_at IS NULL AND l.expires_at > now() AND l.expires_at < now() + interval '30 days'),
+            (SELECT COALESCE(SUM(size_bytes), 0)::bigint FROM files WHERE system_id = $1 AND deleted_at IS NULL),
+            (SELECT quota_bytes FROM systems WHERE id = $1)"#,
+    ).bind(&sys).fetch_one(&s.db).await?;
+    Ok(Json(BasketSummary { awaiting, approved_month, expiring, used_bytes, quota_bytes }))
+}
