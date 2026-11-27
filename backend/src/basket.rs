@@ -692,11 +692,10 @@ async fn relocate_file(s: &Arc<AppState>, id: Id, tsys: &str, tbucket: &str, fol
 
 /// Add a row to the activity log. `sys` = "" for workspace-wide actions.
 pub async fn log_activity(db: &PgPool, user: &crate::auth::User, action: &str, target: &str, ttype: &str, file: Option<Id>, sys: &str) {
-    let _ = sqlx::query(
+    let _ = crate::lazy::run(db, sqlx::query(
         r#"INSERT INTO activity (id, actor, actor_tone, action, target, target_type, file_id, system_id, created_at, actor_id)
            VALUES ($1,$2,'slate',$3,$4,$5,$6,NULLIF($7, ''),now(),$8)"#,
-    ).bind(crate::Id::new()).bind(&user.display_name).bind(action).bind(target).bind(ttype).bind(file).bind(sys).bind(&user.id)
-    .execute(db).await;
+    ).bind(crate::Id::new()).bind(&user.display_name).bind(action).bind(target).bind(ttype).bind(file).bind(sys).bind(&user.id)).await;
 }
 
 /// Default status set for a new basket (same as migration 0018 gives existing ones).

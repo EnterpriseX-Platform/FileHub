@@ -748,7 +748,7 @@ pub async fn resolve_user(state: &Arc<AppState>, headers: &axum::http::HeaderMap
     if row.try_get::<bool, _>("seen_due").unwrap_or(false) {
         let db = state.db.clone();
         tokio::spawn(async move {
-            let _ = sqlx::query("UPDATE sessions SET last_seen_at = now() WHERE token = $1").bind(&token).execute(&db).await;
+            let _ = crate::lazy::run(&db, sqlx::query("UPDATE sessions SET last_seen_at = now() WHERE token = $1").bind(&token)).await;
         });
     }
     Ok(Some(user))

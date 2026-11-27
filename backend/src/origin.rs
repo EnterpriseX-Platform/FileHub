@@ -50,13 +50,12 @@ pub async fn record(db: &PgPool, file_id: &str, actor: Option<&str>, x: Extra) {
         None => false,
     };
     let channel = if conn.is_some() { "connector" } else if is_key { "api" } else { "web" };
-    let r = sqlx::query(
+    let r = crate::lazy::run(db, sqlx::query(
         "INSERT INTO file_origin (file_id, channel, connector_name, source_system, source_user, org_code, ref_no, screen, client_ip)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (file_id) DO NOTHING",
     ).bind(file_id).bind(channel).bind(conn)
      .bind(clip(x.source_system)).bind(clip(x.source_user)).bind(clip(x.org_code))
-     .bind(clip(x.ref_no)).bind(clip(x.screen)).bind(clip(x.client_ip))
-     .execute(db).await;
+     .bind(clip(x.ref_no)).bind(clip(x.screen)).bind(clip(x.client_ip))).await;
     if let Err(e) = r { tracing::warn!("file origin not recorded for {file_id}: {e}"); }
 }
 

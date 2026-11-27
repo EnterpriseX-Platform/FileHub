@@ -7,6 +7,7 @@ pub mod acl;
 pub mod id;
 pub mod scan;
 pub mod origin;
+pub mod lazy;
 pub use id::{is_id, new_id, Id};
 pub mod admission;
 pub mod config;

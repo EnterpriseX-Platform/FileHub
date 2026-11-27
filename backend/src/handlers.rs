@@ -1557,7 +1557,11 @@ pub async fn search_files(
         // One indexed lookup per source, UNIONed: an OR across columns can't use the
         // trigram/full-text indexes and made Postgres scan every file per search.
         // Owner covers the name shown on the file and the uploader's account (name, e-mail).
-        sql.push_str(" AND id IN ( \
+        // Substring search inside file text needs the trigram index, which only
+        // works for 3+ characters; shorter terms would read every document's
+        // text on each search, so they match whole words (full-text index) only.
+        let content_like = if term.chars().count() >= 3 { "            UNION SELECT file_id FROM file_content WHERE content ILIKE $2 " } else { "" };
+        sql.push_str(&format!(" AND id IN ( \
             SELECT id FROM files WHERE search_tsv @@ plainto_tsquery('simple', $1) \
             UNION SELECT id FROM files WHERE name ILIKE $2 \
             UNION SELECT id FROM files WHERE tags ILIKE $2 \
@@ -1565,9 +1569,9 @@ pub async fn search_files(
             UNION SELECT id FROM files WHERE metadata ILIKE $2 \
             UNION SELECT f.id FROM files f JOIN users u ON u.id = f.created_by WHERE u.email ILIKE $2 OR u.display_name ILIKE $2 \
             UNION SELECT file_id FROM file_content WHERE content_tsv @@ plainto_tsquery('simple', $1) \
-            UNION SELECT file_id FROM file_content WHERE content ILIKE $2 \
+            {content_like}\
             UNION SELECT file_id FROM file_origin WHERE source_user ILIKE $2 OR ref_no ILIKE $2 OR screen ILIKE $2 OR org_code ILIKE $2 OR source_system ILIKE $2 OR connector_name ILIKE $2 \
-         )");
+         )"));
         str_binds.push(term.clone());
         str_binds.push(like(&term));
         n = 2;

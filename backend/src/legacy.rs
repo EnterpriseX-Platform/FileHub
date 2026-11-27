@@ -73,8 +73,8 @@ pub async fn gate(axum::extract::State(s): axum::extract::State<Arc<AppState>>, 
         let who = crate::connectors::name_for_request(&db, &headers).await;
         let page = crate::connectors::referer_app(&headers);
         let ip = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()).map(|v| v.split(',').next().unwrap_or("").trim().to_string());
-        let _ = sqlx::query("INSERT INTO connector_calls (connector, method, path, status, page, client_ip, ms) VALUES ($1,$2,$3,$4,$5,$6,$7)")
-            .bind(who).bind(method).bind(path).bind(status).bind(page).bind(ip).bind(ms).execute(&db).await;
+        let _ = crate::lazy::run(&db, sqlx::query("INSERT INTO connector_calls (connector, method, path, status, page, client_ip, ms) VALUES ($1,$2,$3,$4,$5,$6,$7)")
+            .bind(who).bind(method).bind(path).bind(status).bind(page).bind(ip).bind(ms)).await;
     });
     res
 }
