@@ -117,7 +117,7 @@ impl ObjectStore for FsStore {
     async fn put_path(&self, key: &str, src: &Path) -> Result<()> {
         let path = self.path_for(key)?;
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).await
+            ensure_dir(parent).await
                 .with_context(|| format!("creating parent dir for {}", path.display()))?;
         }
         if let Ok(f) = fs::OpenOptions::new().write(true).open(src).await {
@@ -200,9 +200,39 @@ async fn sync_file(f: &fs::File) -> std::io::Result<()> {
     if fsync_on() { f.sync_all().await } else { Ok(()) }
 }
 
+/// Directory fsync after a rename. On NFS the server commits a RENAME before
+/// answering, so the extra round trip only slows uploads; `STORAGE_DIR_FSYNC`
+/// overrides (default: on, except when the store is on an NFS mount).
+fn dir_fsync_on() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| match std::env::var("STORAGE_DIR_FSYNC").ok().as_deref().map(str::trim) {
+        Some("0") | Some("false") | Some("off") => false,
+        Some("1") | Some("true") | Some("on") => true,
+        _ => {
+            let root = std::env::var("STORAGE_ROOT").unwrap_or_default();
+            let nfs = std::fs::read_to_string("/proc/mounts").map(|m| m.lines().any(|l| {
+                let f: Vec<&str> = l.split_whitespace().collect();
+                f.len() > 2 && f[2].starts_with("nfs") && !root.is_empty() && root.starts_with(f[1])
+            })).unwrap_or(false);
+            if nfs { tracing::info!("storage on NFS: skipping directory fsync after rename"); }
+            !nfs
+        }
+    })
+}
+
+/// Create a directory once per process (each check is a network round trip on NFS).
+pub(crate) async fn ensure_dir(dir: &Path) -> std::io::Result<()> {
+    static SEEN: std::sync::OnceLock<std::sync::Mutex<std::collections::HashSet<std::path::PathBuf>>> = std::sync::OnceLock::new();
+    let seen = SEEN.get_or_init(Default::default);
+    if seen.lock().map(|s| s.contains(dir)).unwrap_or(false) { return Ok(()); }
+    fs::create_dir_all(dir).await?;
+    if let Ok(mut s) = seen.lock() { s.insert(dir.to_path_buf()); }
+    Ok(())
+}
+
 /// Best-effort: some filesystems (tmpfs, virtio-9p) refuse opening a directory.
 async fn sync_parent(path: &Path) {
-    if !fsync_on() { return; }
+    if !fsync_on() || !dir_fsync_on() { return; }
     if let Some(parent) = path.parent() {
         if let Ok(f) = fs::File::open(parent).await { let _ = f.sync_all().await; }
     }

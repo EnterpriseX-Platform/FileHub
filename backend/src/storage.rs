@@ -316,11 +316,9 @@ impl Storage {
     /// (after quota checks, which need the size).
     pub async fn begin_stage(&self) -> Result<StageWriter> {
         let dir = self.backend.staging_dir();
-        tokio::fs::create_dir_all(&dir).await
-            .with_context(|| format!("creating staging dir {}", dir.display()))?;
         let sid = crate::Id::new().to_string();
         let dir = dir.join(shard(&sid));
-        tokio::fs::create_dir_all(&dir).await?;
+        crate::store::fs::ensure_dir(&dir).await?;
         let path = dir.join(format!("up-{sid}"));
         let f = tokio::fs::File::create(&path).await
             .with_context(|| format!("creating staged file {}", path.display()))?;
@@ -491,10 +489,9 @@ impl Storage {
     /// Like `begin_stage_with`, writing `pre` (the v3 preamble) before the v2 header.
     async fn begin_stage_with_pre(&self, cipher: Option<Aes256Gcm>, pre: &[u8]) -> Result<StageWriter> {
         let dir = self.backend.staging_dir();
-        tokio::fs::create_dir_all(&dir).await?;
         let sid = crate::Id::new().to_string();
         let dir = dir.join(shard(&sid));
-        tokio::fs::create_dir_all(&dir).await?;
+        crate::store::fs::ensure_dir(&dir).await?;
         let path = dir.join(format!("up-{sid}"));
         let f = tokio::fs::File::create(&path).await?;
         let mut prefix = [0u8; 7];

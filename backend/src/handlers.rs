@@ -1560,7 +1560,18 @@ pub async fn search_files(
         // Substring search inside file text needs the trigram index, which only
         // works for 3+ characters; shorter terms would read every document's
         // text on each search, so they match whole words (full-text index) only.
-        let content_like = if term.chars().count() >= 3 { "            UNION SELECT file_id FROM file_content WHERE content ILIKE $2 " } else { "" };
+        // The planner sees few file_content rows and picks a full scan, not
+        // knowing each row is a whole document (300 ms vs 2 ms with the index):
+        // look the ids up on their own with the index, then fold them in.
+        let content_like = if term.chars().count() >= 3 {
+            let mut tx = s.db.begin().await?;
+            sqlx::query("SET LOCAL enable_seqscan = off").execute(&mut *tx).await?;
+            let ids: Vec<String> = sqlx::query_scalar("SELECT file_id FROM file_content WHERE content ILIKE $1 LIMIT 5000")
+                .bind(like(&term)).fetch_all(&mut *tx).await?;
+            tx.commit().await?;
+            let ids: Vec<String> = ids.into_iter().filter(|i| !i.is_empty() && i.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')).map(|i| format!("'{i}'")).collect();
+            if ids.is_empty() { String::new() } else { format!("            UNION SELECT unnest(ARRAY[{}]::text[]) ", ids.join(",")) }
+        } else { String::new() };
         sql.push_str(&format!(" AND id IN ( \
             SELECT id FROM files WHERE search_tsv @@ plainto_tsquery('simple', $1) \
             UNION SELECT id FROM files WHERE name ILIKE $2 \
@@ -1606,12 +1617,7 @@ pub async fn search_files(
     for b in &str_binds { cq = cq.bind(b); }
     for b in &vec_binds { cq = cq.bind(b); }
     for b in &date_binds { cq = cq.bind(b); }
-    // One read-only transaction for both queries: file_content rows hold whole
-    // documents, so the planner wrongly prefers a full scan over the trigram /
-    // full-text indexes (300 ms vs 2 ms). Prefer indexes for this search only.
-    let mut tx = s.db.begin().await?;
-    sqlx::query("SET LOCAL enable_seqscan = off").execute(&mut *tx).await?;
-    let total: i64 = cq.fetch_one(&mut *tx).await?;
+    let total: i64 = cq.fetch_one(&s.db).await?;
 
     n += 1; let limit_n = n;
     n += 1; let offset_n = n;
@@ -1628,9 +1634,7 @@ pub async fn search_files(
         axum::http::HeaderName::from_static("x-total-count"),
         axum::http::HeaderValue::from_str(&total.to_string()).unwrap(),
     );
-    let rows = query.fetch_all(&mut *tx).await?;
-    tx.commit().await?;
-    Ok((headers, Json(rows)))
+    Ok((headers, Json(query.fetch_all(&s.db).await?)))
 }
 
 #[derive(Debug, Deserialize)]
